@@ -1,0 +1,76 @@
+# ============= 依赖目录 =============
+node_modules/
+.pnpm-store/
+.yarn/
+.yarn-cache/
+
+# ============= Next.js 构建输出 =============
+.next/
+out/
+build/
+dist/
+.vercel/
+/.vercel/
+
+# ============= 开发缓存 =============
+.cache/
+*.sst
+*.log
+*.tmp
+*.temp
+
+# ============= 环境变量（敏感信息） =============
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+.env*.local
+
+# ============= 本地开发配置 =============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============= 测试覆盖率 =============
+coverage/
+.nyc_output/
+
+# ============= 调试日志 =============
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============= TypeScript 构建缓存 =============
+*.tsbuildinfo
+.eslintcache
+.parcel-cache/
+
+# ============= 部署相关 =============
+serverless/
+.turbo/
+.terraform/
+.vercel/
+*.tfstate
+*.tfstate.backup
+
+# ============= 其他 =============
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# ============= 用户特定文件 =============
+*.local
+*.user
+*.user.*
