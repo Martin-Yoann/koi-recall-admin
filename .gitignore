@@ -10,7 +10,6 @@ out/
 build/
 dist/
 .vercel/
-/.vercel/
 
 # ============= 开发缓存 =============
 .cache/

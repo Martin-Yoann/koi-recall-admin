@@ -1,0 +1,267 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   KOI Admin — Emerald Design System
+   Matches kol-web palette: #003527 primary
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --color-brand-emerald: var(--brand-emerald);
+  --color-brand-emerald-light: var(--brand-emerald-light);
+  --color-brand-emerald-dark: var(--brand-emerald-dark);
+
+  /* Status colors */
+  --color-status-positive: var(--status-positive);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-info: var(--status-info);
+  --color-status-neutral: var(--status-neutral);
+}
+
+/* ============================================================
+   CSS Custom Properties — Ethereal Emerald
+   ============================================================ */
+:root {
+  --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Brand */
+  --brand-emerald: #003527;
+  --brand-emerald-light: #ecfdf5;
+  --brand-emerald-dark: #002117;
+
+  /* Status */
+  --status-positive: #006c49;
+  --status-warning: #d98c31;
+  --status-danger: #ba1a1a;
+  --status-info: #2563EB;
+  --status-neutral: #707974;
+
+  /* Surface */
+  --surface-primary: #F3F6F7;
+  --surface-secondary: #F3F6F7;
+  --surface-elevated: #FFFFFF;
+  --surface-inverse: #131b2e;
+  --surface-muted: #eaedff;
+
+  /* Text */
+  --text-primary: #131b2e;
+  --text-secondary: #404944;
+  --text-tertiary: #707974;
+  --text-on-inverse: #faf8ff;
+
+  /* shadcn mapped */
+  --background: #F3F6F7;
+  --foreground: #131b2e;
+  --card: #ffffff;
+  --card-foreground: #131b2e;
+  --popover: #ffffff;
+  --popover-foreground: #131b2e;
+  --primary: #003527;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f3ff;
+  --secondary-foreground: #131b2e;
+  --muted: #f2f3ff;
+  --muted-foreground: #707974;
+  --accent: #ecfdf5;
+  --accent-foreground: #003527;
+  --destructive: #ba1a1a;
+  --border: rgba(0, 53, 39, 0.08);
+  --input: rgba(0, 53, 39, 0.08);
+  --ring: #003527;
+  --chart-1: #003527;
+  --chart-2: #006c49;
+  --chart-3: #d98c31;
+  --chart-4: #707974;
+  --chart-5: #2563EB;
+  --radius: 0.5rem;
+  --sidebar: #052745;
+  --sidebar-foreground: #faf8ff;
+  --sidebar-primary: #006c49;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255,255,255,0.06);
+  --sidebar-accent-foreground: #faf8ff;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #006c49;
+
+  --section-gap: 4rem;
+  --content-max: 1280px;
+}
+
+.dark {
+  --background: #0a1e17;
+  --foreground: #faf8ff;
+  --card: #0f2a20;
+  --card-foreground: #faf8ff;
+  --popover: #0f2a20;
+  --popover-foreground: #faf8ff;
+  --primary: #006c49;
+  --primary-foreground: #ffffff;
+  --secondary: #0f2a20;
+  --secondary-foreground: #faf8ff;
+  --muted: #0f2a20;
+  --muted-foreground: #707974;
+  --accent: #0f2a20;
+  --accent-foreground: #faf8ff;
+  --destructive: #ffdad6;
+  --border: rgba(255,255,255,0.1);
+  --input: rgba(255,255,255,0.12);
+  --ring: #006c49;
+  --surface-primary: #0a1e17;
+  --surface-secondary: #0f2a20;
+  --surface-elevated: #0f2a20;
+  --surface-inverse: #faf8ff;
+  --text-primary: #faf8ff;
+  --text-secondary: #a4b5ae;
+  --text-tertiary: #707974;
+  --text-on-inverse: #0a1e17;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
+  }
+  body {
+    background-color: var(--surface-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-inter), sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ============================================================
+   Component Utilities
+   ============================================================ */
+@layer components {
+
+  .card-lift {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0, 53, 39, 0.08);
+  }
+
+  .btn-lift {
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 53, 39, 0.12);
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+
+  .status-dot {
+    display: inline-block;
+    height: 0.5rem;
+    width: 0.5rem;
+    border-radius: 9999px;
+  }
+
+  .data-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
+    font-family: var(--font-jetbrains-mono), monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: var(--surface-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .metric-value {
+    font-family: var(--font-jetbrains-mono), monospace;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sparkline-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
+  }
+  .sparkline-bar > span {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    min-width: 3px;
+    transition: height 0.4s ease;
+  }
+}
+
+/* ============================================================
+   Utility Extras
+   ============================================================ */
+@utility container-content {
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= 768px) { padding-inline: 2rem; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
