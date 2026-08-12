@@ -1,24 +1,28 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { ClipboardCheck, Search, X } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { mockClaims } from '@/data/mock-claims';
+import { getAllClaims, type SharedClaim } from '@/lib/shared-claims-store';
 import { mockCampaigns } from '@/data/mock-recalls';
-import type { Claim } from '@/types';
 import { CLAIM_STATUS_LABELS } from '@/lib/admin-constants';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 
 export default function ClaimsPage() {
+  const [claims, setClaims] = useState<SharedClaim[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [campaignFilter, setCampaignFilter] = useState('all');
 
+  useEffect(() => {
+    setClaims(getAllClaims());
+  }, []);
+
   const filtered = useMemo(() => {
-    let data = mockClaims;
+    let data = claims;
     if (search) {
       const q = search.toLowerCase();
       data = data.filter((c) => c.claimNumber.toLowerCase().includes(q) || c.consumerName.toLowerCase().includes(q) || c.consumerEmail.toLowerCase().includes(q));
@@ -26,7 +30,7 @@ export default function ClaimsPage() {
     if (statusFilter !== 'all') data = data.filter((c) => c.status === statusFilter);
     if (campaignFilter !== 'all') data = data.filter((c) => c.campaignId === campaignFilter);
     return data;
-  }, [search, statusFilter, campaignFilter]);
+  }, [search, statusFilter, campaignFilter, claims]);
 
   const hasFilters = search || statusFilter !== 'all' || campaignFilter !== 'all';
 
@@ -49,7 +53,7 @@ export default function ClaimsPage() {
     <div className="space-y-5 max-w-screen-2xl mx-auto">
       <div>
         <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Claims</h1>
-        <p className="text-sm text-text-secondary mt-0.5">{mockClaims.length} total · {filtered.length} shown</p>
+        <p className="text-sm text-text-secondary mt-0.5">{claims.length} total · {filtered.length} shown</p>
       </div>
 
       {/* Filters */}
@@ -109,7 +113,6 @@ export default function ClaimsPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((claim) => {
-                const campaign = mockCampaigns.find((c) => c.id === claim.campaignId);
                 return (
                   <TableRow key={claim.id} className="cursor-pointer hover:bg-surface-secondary transition-colors"
                     onClick={() => window.location.href = `/claims/${claim.claimNumber}`}>
@@ -121,10 +124,10 @@ export default function ClaimsPage() {
                       <p className="text-xs text-text-tertiary">{claim.consumerEmail}</p>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm text-text-secondary max-w-[220px] truncate">{campaign?.title || '—'}</p>
+                      <p className="text-sm text-text-secondary max-w-[220px] truncate">{claim.campaignTitle || '—'}</p>
                     </TableCell>
                     <TableCell className="text-center"><StatusBadge variant={claim.status as any} /></TableCell>
-                    <TableCell className="text-sm text-text-secondary">{claim.evidence.length} file{claim.evidence.length !== 1 ? 's' : ''}</TableCell>
+                    <TableCell className="text-sm text-text-secondary">{claim.evidenceCount} file{claim.evidenceCount !== 1 ? 's' : ''}</TableCell>
                     <TableCell className="text-sm text-text-tertiary">
                       {new Date(claim.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </TableCell>

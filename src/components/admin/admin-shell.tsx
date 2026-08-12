@@ -166,9 +166,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between">
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-xs font-bold">
-                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
+                {'avatarDataUrl' in user && user.avatarDataUrl ? (
+                  <img src={user.avatarDataUrl as string} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-xs font-bold">
+                    {(user.initials || user.name.split(' ').map(n => n[0]).join('').slice(0, 2)).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0 leading-tight">
                   <p className="text-xs font-medium text-white truncate">{user.name}</p>
                   <p className="text-[10px] text-white/40 truncate">{user.email}</p>
@@ -236,23 +240,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <span className="text-xs font-medium text-text-secondary group-hover:text-text-primary transition-colors truncate max-w-[120px] hidden sm:inline">
                     {user.name}
                   </span>
-                  <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all"
-                    style={{ background: user.avatarBg || '#0D9488' }}
-                  >
-                    {user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
+                  {'avatarDataUrl' in user && user.avatarDataUrl ? (
+                    <img src={user.avatarDataUrl as string} alt="" className="flex h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all" />
+                  ) : (
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all"
+                      style={{ background: user.avatarBg || '#0D9488' }}
+                    >
+                      {(user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)).toUpperCase()}
+                    </div>
+                  )}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60 mt-2">
                   {/* User info header */}
                   <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
                     <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold"
-                        style={{ background: user.avatarBg || '#0D9488' }}
-                      >
-                        {user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      {'avatarDataUrl' in user && user.avatarDataUrl ? (
+                        <img src={user.avatarDataUrl as string} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <div
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold"
+                          style={{ background: user.avatarBg || '#0D9488' }}
+                        >
+                          {(user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)).toUpperCase()}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-text-primary truncate">{user.name}</p>
                         <p className="text-xs text-text-tertiary truncate">{user.email}</p>

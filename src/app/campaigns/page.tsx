@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Megaphone, Plus, Search, X, SlidersHorizontal } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { mockCampaigns } from '@/data/mock-recalls';
-import { mockClaims } from '@/data/mock-claims';
+import { getAllClaims } from '@/lib/shared-claims-store';
 import { RISK_LEVEL_LABELS } from '@/lib/admin-constants';
 import type { Campaign } from '@/types';
 import { cn } from '@/lib/utils';
@@ -127,7 +127,7 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell><StatusBadge variant={c.status as any} /></TableCell>
                   <TableCell className="font-mono text-sm text-text-secondary">{c.estimatedUnits.toLocaleString()}</TableCell>
-                  <TableCell className="text-sm font-semibold text-text-primary">{mockClaims.filter((cl) => cl.campaignId === c.id).length}</TableCell>
+                  <TableCell className="text-sm font-semibold text-text-primary">{getAllClaims().filter((cl) => cl.campaignId === c.id).length}</TableCell>
                   <TableCell className="text-sm text-text-tertiary">
                     {new Date(c.lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </TableCell>

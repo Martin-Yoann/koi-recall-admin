@@ -1,14 +1,13 @@
 // ============================================================
 // KOI — API Adapter
 // Bridges generated API types → frontend domain types
-// Phase 1: 501 / network error → mock fallback
+// Connected to Neon-backed API. No mock fallback.
 // ============================================================
 
 import { RiskLevel, RecallStatus, RemedyType, EvidenceType } from '@/types';
 import type { Campaign } from '@/types';
 import type { CampaignView } from '@/lib/api-client';
 import { getCampaign as apiGetCampaign } from '@/lib/api-client';
-import { getCampaignBySlug as getMockCampaign } from '@/data/mock-recalls';
 
 // ================================================================
 // API → Domain adapter
@@ -80,8 +79,8 @@ export async function fetchCampaign(
     return campaignViewToCampaign(result.data.campaign);
   }
 
-  console.info(
-    `[API] GET /v1/recall-campaigns/${slug} → ${result.status}, using mock data`,
+  console.error(
+    `[API] GET /v1/recall-campaigns/${slug} → ${result.status}`,
   );
-  return getMockCampaign(slug);
+  return undefined;
 }

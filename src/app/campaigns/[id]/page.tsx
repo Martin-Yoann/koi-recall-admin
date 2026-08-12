@@ -1,8 +1,13 @@
+'use client';
+
 // ============================================================
 // KOI Admin — Campaign Detail Page
+// Campaign data: mock-recalls (no campaign list API yet)
+// Claims data: shared-claims-store
 // ============================================================
 
-import { notFound } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams, notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -20,8 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { getCampaignBySlug } from '@/data/mock-recalls';
-import { getClaimsByCampaign } from '@/data/mock-claims';
-import { getAuditByCampaign } from '@/data/mock-audit';
+import { getClaimsByCampaign } from '@/lib/shared-claims-store';
+import type { Campaign } from '@/types';
 import { RISK_LEVEL_LABELS, REMEDY_TYPE_LABELS } from '@/lib/admin-constants';
 import { cn } from '@/lib/utils';
 import {
@@ -33,10 +38,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-interface CampaignDetailProps {
-  params: Promise<{ id: string }>;
-}
-
 const RISK_COLORS: Record<string, string> = {
   critical: 'bg-red-50 text-red-700 border-red-200',
   high: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -44,13 +45,20 @@ const RISK_COLORS: Record<string, string> = {
   low: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
-export default async function CampaignDetailPage({ params }: CampaignDetailProps) {
-  const { id } = await params;
-  const campaign = getCampaignBySlug(id);
-  if (!campaign) notFound();
+export default function CampaignDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const campaign: Campaign | undefined = getCampaignBySlug(id);
 
-  const claims = getClaimsByCampaign(campaign.id);
-  const audit = getAuditByCampaign(campaign.id).slice(0, 8);
+  const [claims, setClaims] = useState<ReturnType<typeof getClaimsByCampaign>>([]);
+
+  useEffect(() => {
+    if (campaign) {
+      setClaims(getClaimsByCampaign(campaign.id));
+    }
+  }, [campaign]);
+
+  if (!campaign) notFound();
 
   return (
     <div className="container-content py-8 space-y-6">
@@ -271,28 +279,9 @@ export default async function CampaignDetailPage({ params }: CampaignDetailProps
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-4">
-                {audit.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
-                    <div className={cn(
-                      'h-2 w-2 rounded-full mt-2 shrink-0',
-                      entry.bladeStage === 'safety' && 'bg-blade-safety',
-                      entry.bladeStage === 'verification' && 'bg-blade-verification',
-                      entry.bladeStage === 'resolution' && 'bg-blade-resolution',
-                    )} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary">{entry.action}</p>
-                      <p className="text-xs text-text-tertiary mt-1 flex items-center gap-1.5">
-                        <Users className="h-3 w-3" />
-                        {entry.actor}
-                        <span className="mx-1">·</span>
-                        {new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      {entry.details && (
-                        <p className="text-xs text-text-tertiary mt-1 italic">{entry.details}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {(
+                  <p className="text-sm text-text-tertiary text-center py-8">Audit history will be available via the backend API in an upcoming release.</p>
+                )}
               </div>
             </CardContent>
           </Card>
