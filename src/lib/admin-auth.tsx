@@ -10,6 +10,10 @@ interface AdminUser {
   avatarBg?: string;
   /** Base64 data URL of uploaded avatar image. When set, it replaces initials+color rendering. */
   avatarDataUrl?: string;
+  /** Bearer session token for the Admin API (persisted so reloads stay logged in) */
+  token?: string;
+  /** ISO expiry of the session token */
+  expiresAt?: string;
 }
 
 interface AuthCtx {
@@ -68,7 +72,16 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [profileTab, setProfileTab] = useState<'profile' | 'password'>('profile');
 
   useEffect(() => {
-    setUser(getStored());
+    const stored = getStored();
+    if (stored?.token && stored.expiresAt && new Date(stored.expiresAt).getTime() > Date.now()) {
+      // Session still valid — restore the API token so calls survive reloads
+      setAdminSessionToken(stored.token);
+      setUser(stored);
+    } else if (stored) {
+      // Expired session — force re-login
+      clearStored();
+      setAdminSessionToken(null);
+    }
     setLoading(false);
   }, []);
 
@@ -83,6 +96,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         name: displayName,
         initials: getInitials(displayName),
         avatarBg: '#0D9488',
+        token: result.data.token,
+        expiresAt: result.data.expiresAt,
         ...(result.data.avatarDataUrl ? { avatarDataUrl: result.data.avatarDataUrl } : {}),
       };
       setStored(u);

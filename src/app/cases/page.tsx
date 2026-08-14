@@ -37,8 +37,8 @@ export default function CasesPage() {
 
   const filtered = search
     ? cases.filter((c) =>
-        c.caseRef.toLowerCase().includes(search.toLowerCase()) ||
-        (c.consumerNameMasked && c.consumerNameMasked.toLowerCase().includes(search.toLowerCase())),
+        c.caseReference.toLowerCase().includes(search.toLowerCase()) ||
+        c.subtype.toLowerCase().includes(search.toLowerCase()),
       )
     : cases;
 
@@ -67,7 +67,7 @@ export default function CasesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="text"
-              placeholder="Search cases by reference or consumer..."
+              placeholder="Search by case reference or subtype..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-9 pl-9 pr-3 rounded-lg border bg-surface-elevated text-sm outline-none focus:ring-2 focus:ring-brand-emerald/20 focus:border-brand-emerald transition-all"
@@ -100,28 +100,34 @@ export default function CasesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Case Reference</TableHead>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Consumer</TableHead>
+                <TableHead>Subtype</TableHead>
+                <TableHead>Incident</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.caseRef}>
+                <TableRow key={c.caseReference}>
                   <TableCell>
                     <Link
-                      href={`/cases/${c.caseRef}`}
+                      href={`/cases/${c.caseReference}`}
                       className="text-sm font-semibold font-mono text-text-primary hover:text-brand-teal transition-colors"
                     >
-                      {c.caseRef}
+                      {c.caseReference}
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-mono text-text-secondary">{c.campaignCode}</span>
+                    <span className="text-sm text-text-secondary">{c.subtype.replace(/_/g, ' ')}</span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-text-secondary">{c.consumerNameMasked}</span>
+                    {c.incidentFlag ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                        Incident
+                      </span>
+                    ) : (
+                      <span className="text-xs text-text-tertiary">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge variant={c.status as never} />

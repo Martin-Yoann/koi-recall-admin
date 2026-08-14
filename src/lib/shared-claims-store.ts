@@ -229,7 +229,8 @@ export async function syncClaimsFromApi(): Promise<{
 
     let synced = 0;
     for (const c of apiCases) {
-      const existingClaim = existingMap.get(c.caseRef);
+      const ref = c.caseReference;
+      const existingClaim = existingMap.get(ref);
       if (existingClaim) {
         // Update existing
         Object.assign(existingClaim, {
@@ -240,12 +241,12 @@ export async function syncClaimsFromApi(): Promise<{
       } else {
         // Add new from API
         existing.push({
-          id: `api_${c.caseRef}`,
-          claimNumber: c.caseRef,
-          campaignId: c.campaignCode,
+          id: `api_${ref}`,
+          claimNumber: ref,
+          campaignId: c.subtype,
           campaignTitle: '',
-          campaignSlug: c.campaignCode,
-          consumerName: c.consumerNameMasked,
+          campaignSlug: c.subtype,
+          consumerName: c.incidentFlag ? 'Incident case' : '',
           consumerEmail: '',
           consumerPhone: '',
           productName: '',

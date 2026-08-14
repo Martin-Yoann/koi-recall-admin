@@ -46,67 +46,45 @@ export interface StaffSession {
 }
 
 export interface CaseSummary {
-  caseRef: string;
-  campaignCode: string;
+  caseReference: string;
   status: string;
-  riskLevel?: string;
-  consumerNameMasked: string;
+  subtype: string;
+  incidentFlag: boolean;
   submittedAt: string;
-  assignedTo?: string;
-  queue?: string;
+  assignedToStaffUserId?: string | null;
+  assignedAt?: string | null;
 }
 
 export interface CaseListResponse {
   cases: CaseSummary[];
-  total: number;
+  total?: number;
   cursor?: string;
 }
 
+export interface CaseConsumer {
+  piiTier: 'masked' | 'raw';
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  countryCode: string;
+  address?: { raw: string };
+}
+
 export interface CaseDetail {
-  caseRef: string;
-  campaignCode: string;
+  caseReference: string;
   status: string;
-  consumer: {
-    name: string;
-    email: string;
-    phone: string;
-    address?: string;
-  };
-  claimedProducts: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    remedyRequested: string;
-  }>;
-  documents: Array<{
-    documentId: string;
-    fileName: string;
-    category: string;
-    mimeType: string;
-    status: string;
-  }>;
-  incidents: Array<{
-    incidentId: string;
-    eventType: string;
-    eventDate: string;
-    severity: string;
-    description: string;
-  }>;
-  events: Array<{
-    eventId: string;
-    eventType: string;
-    timestamp: string;
-    actor?: string;
-    data?: Record<string, unknown>;
-  }>;
-  consents: Array<{
-    type: string;
-    accepted: boolean;
-    timestamp: string;
-  }>;
+  subtype: string;
+  incidentFlag: boolean;
   submittedAt: string;
-  updatedAt: string;
-  assignedTo?: string;
+  assignedToStaffUserId: string | null;
+  assignedAt: string | null;
+  consumer: CaseConsumer;
+}
+
+/** GET /admin/cases/{caseRef} wraps the detail in a `case` key */
+export interface CaseDetailResponse {
+  case: CaseDetail;
 }
 
 export interface CaseAssignRequest {
@@ -142,19 +120,21 @@ export interface UpdateStaffRequest {
 }
 
 export interface AuditEvent {
-  auditEventId: string;
-  actorStaffUserId: string;
+  id: string;
+  actorUserId: string | null;
+  actorRole: string;
   action: string;
-  resource: string;
-  resourceId?: string;
-  outcome: 'success' | 'failure' | 'forbidden';
+  resourceType: string;
+  resourceId?: string | null;
+  outcome: 'success' | 'failure' | 'forbidden' | 'denied';
+  reasonCode?: string | null;
   metadata?: Record<string, unknown>;
-  timestamp: string;
+  occurredAt: string;
 }
 
 export interface AuditQueryResponse {
   events: AuditEvent[];
-  total: number;
+  total?: number;
   cursor?: string;
 }
 
@@ -382,8 +362,8 @@ export async function exportCases(): Promise<ApiResult<Blob>> {
 export async function getCaseDetail(
   caseRef: string,
   piiLevel: 'masked' | 'raw' = 'masked',
-): Promise<ApiResult<CaseDetail>> {
-  return fetchApi<CaseDetail>(
+): Promise<ApiResult<CaseDetailResponse>> {
+  return fetchApi<CaseDetailResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}?pii=${piiLevel}`,
     { headers: authHeaders() },
   );
@@ -393,19 +373,19 @@ export async function getCaseDetail(
 export async function assignCase(
   caseRef: string,
   body: CaseAssignRequest,
-): Promise<ApiResult<CaseDetail>> {
-  return fetchApi<CaseDetail>(
+): Promise<ApiResult<unknown>> {
+  return fetchApi<unknown>(
     `/admin/cases/${encodeURIComponent(caseRef)}/assign`,
     { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
   );
 }
 
-/** POST /admin/cases/{caseRef}/status — Transition case status */
+/** POST /admin/cases/{caseRef}/status — Transition case status (empty body on success; 422 lists the violation) */
 export async function transitionCaseStatus(
   caseRef: string,
   body: CaseStatusTransitionRequest,
-): Promise<ApiResult<CaseDetail>> {
-  return fetchApi<CaseDetail>(
+): Promise<ApiResult<unknown>> {
+  return fetchApi<unknown>(
     `/admin/cases/${encodeURIComponent(caseRef)}/status`,
     { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
   );

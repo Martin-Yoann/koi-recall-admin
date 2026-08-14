@@ -121,7 +121,7 @@ export function LoginDrawer() {
           </form>
 
           <p className="mt-6 text-xs text-white/25 text-center">
-            Demo credentials: admin@koi-platform.com / admin123
+            Demo: admin@koi-platform.com / KoiAdmin2026!
           </p>
         </div>
       </div>

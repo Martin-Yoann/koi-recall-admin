@@ -151,10 +151,11 @@ src/
 
 | 账号 | 密码 | 角色 |
 |---|---|---|
-| `admin@koi-platform.com` | `admin123` | Admin User |
-| `operator@koi-platform.com` | `ops2026` | Operations Lead |
+| `admin@koi-platform.com` | `KoiAdmin2026!` | administrator（管理员，全部权限） |
+| `reviewer@koi-platform.com` | `KoiReviewer2026!` | reviewer（审核员，案件审核/状态流转） |
+| `viewer@koi-platform.com` | `KoiViewer2026!` | viewer（只读，PII 脱敏） |
 
-登录后可通过右上角头像 → **Edit Profile** 修改昵称/头像颜色，或 **Change Password** 修改密码。数据存储在 `localStorage` 的 `koi_admin_session` 键下。
+登录后可通过右上角头像 → **Edit Profile** 修改昵称/头像。账号与密码存储在后端 Neon 数据库（`staff_users` 表），会话 token 缓存在 `localStorage` 的 `koi_admin_session` 键下。
 
 ---
 
