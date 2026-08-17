@@ -97,13 +97,13 @@ export interface CaseStatusTransitionRequest {
 }
 
 export interface StaffUser {
-  staffUserId: string;
+  id: string;
   email: string;
   displayName: string;
   role: string;
-  status: 'active' | 'disabled' | 'locked';
-  createdAt: string;
-  updatedAt: string;
+  status: 'active' | 'disabled';
+  lastLoginAt: string | null;
+  avatarDataUrl: string | null;
 }
 
 export interface CreateStaffRequest {
@@ -152,7 +152,22 @@ export interface ReportabilityReview {
 
 // ── Runtime ──
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+const LOCAL_API_BASE = 'http://localhost:3002';
+const ONLINE_API_BASE = 'https://koi-recall-backend.vercel.app';
+
+const configuredApi = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+
+// Primary base: explicit NEXT_PUBLIC_API_URL when set, otherwise the local backend.
+const PRIMARY_API_BASE = configuredApi || LOCAL_API_BASE;
+
+// When the primary points at a local backend that isn't running, transparently
+// fall back to the deployed API so the admin panel keeps working. Only localhost
+// URLs get an online fallback — an explicitly configured remote URL is used as-is.
+const isLocalPrimary = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(PRIMARY_API_BASE);
+const API_BASES: string[] =
+  isLocalPrimary && PRIMARY_API_BASE !== ONLINE_API_BASE
+    ? [PRIMARY_API_BASE, ONLINE_API_BASE]
+    : [PRIMARY_API_BASE];
 
 type ApiResult<T> =
   | { ok: true; data: T }
@@ -170,51 +185,56 @@ async function fetchApi<T>(
   options: RequestInit = {},
 ): Promise<ApiResult<T>> {
   const rid = requestId();
-  const url = `${API_BASE}${path}`;
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-Id': rid,
-        ...options.headers,
-      },
-    });
+  for (const base of API_BASES) {
+    const url = `${base}${path}`;
 
-    if (res.ok) {
-      // 204 No Content
-      if (res.status === 204) {
-        return { ok: true, data: undefined as unknown as T };
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': rid,
+          ...options.headers,
+        },
+      });
+
+      if (res.ok) {
+        // 204 No Content
+        if (res.status === 204) {
+          return { ok: true, data: undefined as unknown as T };
+        }
+        const data = (await res.json()) as T;
+        return { ok: true, data };
       }
-      const data = (await res.json()) as T;
-      return { ok: true, data };
-    }
 
-    const body = await res.json().catch(() => null);
-    const problem: ProblemDetails = body?.type
-      ? (body as ProblemDetails)
-      : {
-          type: 'about:blank',
-          title: res.statusText,
-          status: res.status,
-          detail: body?.detail ?? 'Unexpected error',
-          requestId: rid,
-        };
-    return { ok: false, error: problem, status: res.status };
-  } catch {
-    return {
-      ok: false,
-      error: {
-        type: 'about:blank',
-        title: 'Network Error',
-        status: 0,
-        detail: 'Could not reach the API server.',
-        requestId: rid,
-      },
-      status: 0,
-    };
+      const body = await res.json().catch(() => null);
+      const problem: ProblemDetails = body?.type
+        ? (body as ProblemDetails)
+        : {
+            type: 'about:blank',
+            title: res.statusText,
+            status: res.status,
+            detail: body?.detail ?? 'Unexpected error',
+            requestId: rid,
+          };
+      return { ok: false, error: problem, status: res.status };
+    } catch {
+      // Network error (e.g. local backend not running) — try the next base.
+    }
   }
+
+  return {
+    ok: false,
+    error: {
+      type: 'about:blank',
+      title: 'Network Error',
+      status: 0,
+      detail: 'Could not reach the API server.',
+      requestId: rid,
+    },
+    status: 0,
+  };
 }
 
 // ── Auth header helper ──
@@ -333,29 +353,32 @@ export async function listCases(params?: {
 
 /** GET /admin/cases/export — CSV export all cases */
 export async function exportCases(): Promise<ApiResult<Blob>> {
-  const url = `${API_BASE}/admin/cases/export`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'X-Request-Id': requestId(),
-        ...authHeaders(),
-      },
-    });
-    if (res.ok) {
-      return { ok: true, data: await res.blob() };
+  for (const base of API_BASES) {
+    const url = `${base}/admin/cases/export`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-Request-Id': requestId(),
+          ...authHeaders(),
+        },
+      });
+      if (res.ok) {
+        return { ok: true, data: await res.blob() };
+      }
+      return {
+        ok: false,
+        error: { type: 'about:blank', title: 'Export failed', status: res.status, detail: res.statusText },
+        status: res.status,
+      };
+    } catch {
+      // Network error (e.g. local backend not running) — try the next base.
     }
-    return {
-      ok: false,
-      error: { type: 'about:blank', title: 'Export failed', status: res.status, detail: res.statusText },
-      status: res.status,
-    };
-  } catch {
-    return {
-      ok: false,
-      error: { type: 'about:blank', title: 'Network Error', status: 0, detail: 'Could not reach the API server.' },
-      status: 0,
-    };
   }
+  return {
+    ok: false,
+    error: { type: 'about:blank', title: 'Network Error', status: 0, detail: 'Could not reach the API server.' },
+    status: 0,
+  };
 }
 
 /** GET /admin/cases/{caseRef} — Get case detail */
@@ -393,9 +416,13 @@ export async function transitionCaseStatus(
 
 // -- Staff Management --
 
-/** GET /admin/staff — List staff users */
+/** GET /admin/staff — List staff users (backend wraps in `{ staff: [...] }`) */
 export async function listStaff(): Promise<ApiResult<StaffUser[]>> {
-  return fetchApi<StaffUser[]>('/admin/staff', { headers: authHeaders() });
+  const result = await fetchApi<{ staff: StaffUser[] }>('/admin/staff', {
+    headers: authHeaders(),
+  });
+  if (result.ok) return { ok: true, data: result.data.staff };
+  return result;
 }
 
 /** POST /admin/staff — Create staff user */

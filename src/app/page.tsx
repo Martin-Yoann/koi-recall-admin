@@ -58,7 +58,7 @@ export default function DashboardPage() {
       setError('Please log in with a staff account to view live operations data.');
       setCases([]);
     } else if (casesResult.status === 0) {
-      setError('Cannot reach the backend API. Is it running on port 3002?');
+      setError('Cannot reach the backend API — local :3002 and the online backend are both unreachable.');
       setCases([]);
     } else {
       setError(casesResult.error?.detail || 'Failed to load cases.');

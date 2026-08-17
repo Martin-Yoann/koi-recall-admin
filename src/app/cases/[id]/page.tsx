@@ -163,7 +163,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const cse = record;
   const isTerminal = TERMINAL.includes(cse.status);
   const transitions = LEGAL_TRANSITIONS[cse.status] ?? [];
-  const assignedStaff = staff.find(s => s.staffUserId === cse.assignedToStaffUserId);
+  const assignedStaff = staff.find(s => s.id === cse.assignedToStaffUserId);
   const consumerName = `${cse.consumer.firstName} ${cse.consumer.lastName}`.trim();
 
   return (
@@ -276,7 +276,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               >
                 <option value="">Select staff member...</option>
                 {staff.filter(s => s.status === 'active').map(s => (
-                  <option key={s.staffUserId} value={s.staffUserId}>
+                  <option key={s.id} value={s.id}>
                     {s.displayName} ({s.role})
                   </option>
                 ))}

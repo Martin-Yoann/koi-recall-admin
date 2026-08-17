@@ -99,7 +99,7 @@ export default function QueuesPage() {
     } else if (result.status === 401 || result.status === 403) {
       setError('Please log in to view queues.');
     } else if (result.status === 0) {
-      setError('Cannot reach the backend API. Is it running on port 3002?');
+      setError('Cannot reach the backend API — local :3002 and the online backend are both unreachable.');
     } else {
       setError(result.error?.detail || 'Failed to load cases.');
     }
