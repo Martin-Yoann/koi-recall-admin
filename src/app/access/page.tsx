@@ -5,7 +5,7 @@
 // GET /admin/audit-events · role overview
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Users, Search, RefreshCw, ShieldAlert } from 'lucide-react';
 import { queryAuditEvents, type AuditEvent } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -32,7 +32,7 @@ const DOT_COLOR: Record<string, string> = {
 export default function AccessPage() {
   const { isAuthenticated } = useAdminAuth();
   const [audit, setAudit] = useState<AuditEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -53,7 +53,6 @@ export default function AccessPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchAudit(); }, []);
 
   const toggleFilter = (cat: string) => {
     setActiveFilters(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);

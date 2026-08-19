@@ -1,25 +1,19 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { useState, useMemo } from 'react';
 import { ClipboardCheck, Search, X } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { getAllClaims, type SharedClaim } from '@/lib/shared-claims-store';
 import { mockCampaigns } from '@/data/mock-recalls';
-import { CLAIM_STATUS_LABELS } from '@/lib/admin-constants';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 
 export default function ClaimsPage() {
-  const [claims, setClaims] = useState<SharedClaim[]>([]);
+  const [claims] = useState<SharedClaim[]>(() => getAllClaims());
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [campaignFilter, setCampaignFilter] = useState('all');
-
-  useEffect(() => {
-    setClaims(getAllClaims());
-  }, []);
 
   const filtered = useMemo(() => {
     let data = claims;
@@ -126,7 +120,7 @@ export default function ClaimsPage() {
                     <TableCell>
                       <p className="text-sm text-text-secondary max-w-[220px] truncate">{claim.campaignTitle || '—'}</p>
                     </TableCell>
-                    <TableCell className="text-center"><StatusBadge variant={claim.status as any} /></TableCell>
+                    <TableCell className="text-center"><StatusBadge variant={claim.status as never} /></TableCell>
                     <TableCell className="text-sm text-text-secondary">{claim.evidenceCount} file{claim.evidenceCount !== 1 ? 's' : ''}</TableCell>
                     <TableCell className="text-sm text-text-tertiary">
                       {new Date(claim.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

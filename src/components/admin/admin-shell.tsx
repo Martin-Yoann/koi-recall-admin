@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import {
   LayoutDashboard, FolderOpen, ListOrdered, AlertTriangle,
@@ -12,7 +13,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAdminAuth } from '@/lib/admin-auth';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
 const SIDENAV = [
@@ -167,7 +168,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3 min-w-0">
                 {'avatarDataUrl' in user && user.avatarDataUrl ? (
-                  <img src={user.avatarDataUrl as string} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                  <Image src={user.avatarDataUrl as string} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full object-cover" unoptimized />
                 ) : (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-xs font-bold">
                     {(user.initials || user.name.split(' ').map(n => n[0]).join('').slice(0, 2)).toUpperCase()}
@@ -241,7 +242,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     {user.name}
                   </span>
                   {'avatarDataUrl' in user && user.avatarDataUrl ? (
-                    <img src={user.avatarDataUrl as string} alt="" className="flex h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all" />
+                    <Image src={user.avatarDataUrl as string} alt="" width={32} height={32} className="flex h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all" unoptimized />
                   ) : (
                     <div
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all"
@@ -256,7 +257,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
                     <div className="flex items-center gap-3">
                       {'avatarDataUrl' in user && user.avatarDataUrl ? (
-                        <img src={user.avatarDataUrl as string} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                        <Image src={user.avatarDataUrl as string} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-full object-cover" unoptimized />
                       ) : (
                         <div
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold"

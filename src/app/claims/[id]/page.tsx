@@ -1,37 +1,24 @@
 'use client';
 
-// ============================================================
-// KOI Admin — Claim Detail Page
-// Data source: shared-claims-store (localStorage bridge)
-// ============================================================
-
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  User,
-  Package,
-  FileText,
   AlertTriangle,
-  Clock,
   CheckCircle2,
-  XCircle,
+  Clock,
   ExternalLink,
+  FileText,
+  Package,
+  User,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/status-badge';
-import {
-  getClaimByNumber,
-  updateClaimStatus,
-  type SharedClaim,
-} from '@/lib/shared-claims-store';
-import {
-  CLAIM_STATUS_LABELS,
-  STATUS_TRANSITIONS,
-} from '@/lib/admin-constants';
+import { getClaimByNumber, updateClaimStatus, type SharedClaim } from '@/lib/shared-claims-store';
+import { CLAIM_STATUS_LABELS } from '@/lib/admin-constants';
 import { cn } from '@/lib/utils';
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -43,36 +30,56 @@ const NEXT_STATUS: Record<string, string[]> = {
   rejected: [],
 };
 
-export default function ClaimDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
+type TimelineItem = {
+  id: string;
+  title: string;
+  at: string;
+  note?: string;
+  emphasized?: boolean;
+};
 
-  const [claim, setClaim] = useState<SharedClaim | null>(null);
-  const [loading, setLoading] = useState(true);
+function buildTimeline(claim: SharedClaim): TimelineItem[] {
+  const timeline: TimelineItem[] = [
+    { id: 'submitted', title: 'Claim Submitted', at: claim.submittedAt },
+  ];
 
-  const refresh = () => {
-    const found = getClaimByNumber(id);
-    setClaim(found || null);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  const handleStatusChange = (newStatus: string) => {
-    updateClaimStatus(id, newStatus as never);
-    refresh();
-  };
-
-  if (loading) {
-    return (
-      <div className="container-content py-8 text-center">
-        <p className="text-sm text-text-secondary">Loading claim...</p>
-      </div>
-    );
+  if (claim.updatedAt !== claim.submittedAt) {
+    timeline.push({
+      id: 'updated',
+      title: 'Claim Updated',
+      at: claim.updatedAt,
+      note: claim.adminNotes,
+    });
   }
+
+  if (claim.resolutionDate) {
+    timeline.push({
+      id: 'resolution',
+      title: claim.status === 'rejected' ? 'Claim Rejected' : 'Resolution Issued',
+      at: claim.resolutionDate,
+      note: claim.adminNotes,
+      emphasized: claim.status !== 'rejected',
+    });
+  }
+
+  if (claim.adminNotes && !claim.resolutionDate) {
+    timeline.push({
+      id: 'note',
+      title: 'Admin Note',
+      at: claim.submittedAt,
+      note: claim.adminNotes,
+    });
+  }
+
+  return [...timeline].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+}
+
+export default function ClaimDetailPage() {
+  const params = useParams<{ id: string }>();
+  const claimNumber = params.id;
+  const [claim, setClaim] = useState<SharedClaim | null>(() => getClaimByNumber(claimNumber) || null);
+
+  const timeline = useMemo(() => (claim ? buildTimeline(claim) : []), [claim]);
 
   if (!claim) {
     notFound();
@@ -80,9 +87,13 @@ export default function ClaimDetailPage() {
 
   const transitions = NEXT_STATUS[claim.status] || [];
 
+  const handleStatusChange = (newStatus: string) => {
+    updateClaimStatus(claimNumber, newStatus as never);
+    setClaim(getClaimByNumber(claimNumber) || null);
+  };
+
   return (
     <div className="container-content py-8 space-y-6">
-      {/* Back */}
       <Link
         href="/claims"
         className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
@@ -91,179 +102,186 @@ export default function ClaimDetailPage() {
         Back to Claims
       </Link>
 
-      {/* Claim Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold tracking-[-0.02em] text-text-primary">
-              Claim {claim.claimNumber}
-            </h1>
+            <h1 className="text-2xl font-bold tracking-[-0.02em] text-text-primary">Claim {claim.claimNumber}</h1>
             <StatusBadge variant={claim.status as never} />
           </div>
           <p className="text-sm text-text-secondary">
             Submitted {new Date(claim.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-            {claim.resolutionDate && ` · Resolved ${new Date(claim.resolutionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
           </p>
         </div>
 
-        {/* Status Actions */}
         <div className="flex items-center gap-2">
           {transitions.map((targetStatus) => (
-            <Button
-              key={targetStatus}
-              size="sm"
-              variant={targetStatus === 'rejected' ? 'outline' : 'default'}
-              onClick={() => handleStatusChange(targetStatus)}
-              className={
-                targetStatus === 'rejected'
-                  ? 'border-status-rejected text-status-rejected hover:bg-red-50 cursor-pointer'
-                  : targetStatus === 'resolved'
-                  ? 'bg-blade-resolution hover:bg-blade-resolution-dark text-white cursor-pointer'
-                  : 'bg-blade-verification hover:bg-blade-verification-dark text-white cursor-pointer'
-              }
-            >
-              {targetStatus === 'under_review' && <Clock className="mr-1.5 h-4 w-4" />}
-              {targetStatus === 'verified' && <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-              {targetStatus === 'remedy_issued' && <Package className="mr-1.5 h-4 w-4" />}
-              {targetStatus === 'resolved' && <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-              {targetStatus === 'rejected' && <XCircle className="mr-1.5 h-4 w-4" />}
-              {CLAIM_STATUS_LABELS[targetStatus]}
+            <Button key={targetStatus} variant="outline" onClick={() => handleStatusChange(targetStatus)}>
+              {CLAIM_STATUS_LABELS[targetStatus] || targetStatus}
             </Button>
           ))}
         </div>
       </div>
 
-      {/* Details Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left: Consumer + Product info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Consumer Card */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <div className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-base">Consumer Information</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-secondary">
-                  <User className="h-5 w-5 text-text-tertiary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-text-primary">{claim.consumerName}</p>
-                  <p className="text-sm text-text-secondary">{claim.consumerEmail}</p>
-                  <p className="text-xs text-text-tertiary">{claim.consumerPhone}</p>
-                </div>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Consumer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Name</p>
+                <p className="font-medium text-text-primary">{claim.consumerName}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Email</p>
+                <p className="font-medium text-text-primary">{claim.consumerEmail}</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Product Card */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Affected Product</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-secondary">
-                    <Package className="h-5 w-5 text-text-tertiary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-text-primary">{claim.productName}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-text-secondary">
-                      {claim.lotCode && <span className="font-mono">Lot: {claim.lotCode}</span>}
-                      {claim.dateCode && <span className="font-mono">Date: {claim.dateCode}</span>}
-                    </div>
-                    {claim.shape && <p className="text-xs text-text-tertiary mt-1">Shape: {claim.shape}</p>}
-                    {claim.flavor && <p className="text-xs text-text-tertiary mt-1">Flavor: {claim.flavor}</p>}
-                  </div>
-                </div>
-                {claim.campaignSlug && (
-                  <Link
-                    href={`/campaigns/${claim.campaignSlug}`}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-blade-verification hover:underline mt-2"
-                  >
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Claim Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Campaign</p>
+                <p className="font-medium text-text-primary">{claim.campaignTitle || '-'}</p>
+                {claim.campaignSlug ? (
+                  <Link href={`/campaigns/${claim.campaignSlug}`} className="mt-2 inline-flex items-center gap-1 text-xs text-brand-emerald hover:underline">
                     View Campaign
                     <ExternalLink className="h-3 w-3" />
                   </Link>
-                )}
+                ) : null}
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Product</p>
+                <p className="font-medium text-text-primary">{claim.productName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Evidence Files</p>
+                <p className="font-medium text-text-primary">{claim.evidenceCount}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Current Status</p>
+                <p className="font-medium text-text-primary">{CLAIM_STATUS_LABELS[claim.status] || claim.status}</p>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Remedy</p>
+                <p className="font-medium text-text-primary">{claim.remedyTitle || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Updated</p>
+                <p className="font-medium text-text-primary">{new Date(claim.updatedAt).toLocaleDateString('en-US')}</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Evidence Card */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Evidence ({claim.evidenceCount} files)</CardTitle></CardHeader>
-            <CardContent>
-              {claim.evidenceCount > 0 ? (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-secondary">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-elevated">
-                    <FileText className="h-4 w-4 text-text-tertiary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{claim.evidenceCount} evidence file{claim.evidenceCount !== 1 ? 's' : ''} submitted</p>
-                    <p className="text-xs text-text-tertiary">Submitted on {new Date(claim.submittedAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-text-tertiary">No evidence submitted.</p>
-              )}
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Resolution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Remedy Type</p>
+                <p className="font-medium text-text-primary">{claim.remedyType || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Refund Amount</p>
+                <p className="font-medium text-text-primary">
+                  {typeof claim.refundAmount === 'number' ? `$${claim.refundAmount.toFixed(2)}` : '-'}
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Admin Notes</p>
+                <p className="font-medium text-text-primary">{claim.adminNotes || '-'}</p>
+              </div>
             </CardContent>
           </Card>
+
+          {(claim.shape || claim.flavor || claim.lotCode || claim.dateCode) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Product Identifiers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Shape</p>
+                  <p className="font-medium text-text-primary">{claim.shape || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Flavor</p>
+                  <p className="font-medium text-text-primary">{claim.flavor || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Lot Code</p>
+                  <p className="font-medium text-text-primary">{claim.lotCode || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-text-tertiary mb-1">Date Code</p>
+                  <p className="font-medium text-text-primary">{claim.dateCode || '-'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
-        {/* Right: Timeline */}
         <div className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-base">Status Timeline</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Status Timeline</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="space-y-0">
-                {/* Submitted event */}
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-2.5 bg-transparent" />
-                    <div className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 border-blade-verification bg-blade-verification-light" />
-                    <div className="w-0.5 flex-1 min-h-6 bg-border" />
-                  </div>
-                  <div className="pb-4 pt-0.5">
-                    <p className="text-sm font-medium text-text-primary leading-snug">Claim Submitted</p>
-                    <p className="text-xs text-text-tertiary mt-0.5">
-                      {new Date(claim.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-                {/* Resolution event */}
-                {claim.resolutionDate && (
-                  <div className="flex gap-3">
+                {timeline.length > 0 ? timeline.map((event, index) => (
+                  <div key={event.id} className="flex gap-3">
                     <div className="flex flex-col items-center">
-                      <div className="w-0.5 h-2.5 bg-border" />
-                      <div className={cn(
-                        'relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2',
-                        claim.status === 'resolved' ? 'border-blade-resolution bg-blade-resolution-light' : 'border-border bg-surface-elevated',
-                      )} />
-                      <div className="w-0.5 flex-1 min-h-6 bg-transparent" />
+                      <div className={cn('w-0.5 h-2.5', index === 0 ? 'bg-transparent' : 'bg-border')} />
+                      <div
+                        className={cn(
+                          'relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2',
+                          event.emphasized ? 'border-blade-resolution bg-blade-resolution-light' : 'border-border bg-surface-elevated',
+                        )}
+                      />
+                      <div className={cn('w-0.5 flex-1 min-h-6', index === timeline.length - 1 ? 'bg-transparent' : 'bg-border')} />
                     </div>
                     <div className="pb-4 pt-0.5">
-                      <p className="text-sm font-medium text-text-primary leading-snug">
-                        {claim.status === 'resolved' ? 'Resolved' : claim.status === 'rejected' ? 'Rejected' : 'Status changed'}
-                      </p>
+                      <p className="text-sm font-medium text-text-primary leading-snug">{event.title}</p>
                       <p className="text-xs text-text-tertiary mt-0.5">
-                        {new Date(claim.resolutionDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(event.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {event.note ? <p className="text-xs text-text-tertiary mt-1 italic">{event.note}</p> : null}
                     </div>
                   </div>
-                )}
-                {/* Admin notes */}
-                {claim.adminNotes && (
-                  <div className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="w-0.5 h-2.5 bg-border" />
-                      <div className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 border-blade-safety bg-blade-safety-light" />
-                      <div className="w-0.5 flex-1 min-h-6 bg-transparent" />
-                    </div>
-                    <div className="pb-4 pt-0.5">
-                      <p className="text-sm font-medium text-text-primary leading-snug">Admin Note</p>
-                      <p className="text-xs text-text-tertiary mt-0.5">—</p>
-                      <p className="text-xs text-text-tertiary mt-1 italic">{claim.adminNotes}</p>
-                    </div>
-                  </div>
+                )) : (
+                  <p className="text-sm text-text-secondary">No timeline events returned by the API.</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Quick Status Guide</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-text-secondary">
+              <div className="flex items-center gap-2"><Clock className="h-4 w-4" />Submitted / Under Review</div>
+              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Verified / Remedy Issued</div>
+              <div className="flex items-center gap-2"><XCircle className="h-4 w-4" />Rejected / Closed</div>
             </CardContent>
           </Card>
         </div>
@@ -271,3 +289,4 @@ export default function ClaimDetailPage() {
     </div>
   );
 }
+

@@ -6,7 +6,7 @@
 // Legal transitions mirror backend ADR-0004 B8 state machine.
 // ============================================================
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, User, AlertTriangle, RefreshCw, Users, Clock,
@@ -20,16 +20,12 @@ import {
   type CaseDetail, type StaffUser, type AuditEvent,
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
-
-// Mirrors backend LEGAL_TRANSITIONS (ADR-0004 B8); terminal statuses have no entry
-const LEGAL_TRANSITIONS: Record<string, string[]> = {
-  submitted: ['triage', 'under_review', 'rejected', 'duplicate', 'withdrawn'],
-  triage: ['under_review', 'need_info', 'approved', 'rejected', 'duplicate', 'withdrawn'],
-  under_review: ['need_info', 'approved', 'rejected', 'closure_review', 'withdrawn'],
-  need_info: ['under_review', 'approved', 'rejected', 'withdrawn'],
-  approved: ['closure_review', 'closed'],
-  closure_review: ['closed', 'under_review'],
-};
+import {
+  formatBlockingReason,
+  formatWorkflowLabel,
+  getCaseOperationsView,
+  runResolutionAction,
+} from '@/lib/case-operations';
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 
@@ -53,34 +49,52 @@ const AUDIT_DOT: Record<string, string> = {
   reportability: 'bg-violet-500',
 };
 
+const RESOLUTION_ACTION_STYLES: Record<string, string> = {
+  'resolution:approve': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+  'resolution:complete': 'bg-blue-600 hover:bg-blue-700 text-white',
+  'resolution:cancel': 'bg-red-600 hover:bg-red-700 text-white',
+};
+
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: caseRef } = use(params);
-  const { user, isAuthenticated } = useAdminAuth();
+  useAdminAuth();
 
+  return <CaseDetailContent key={caseRef} caseRef={caseRef} />;
+}
+
+function CaseDetailContent({ caseRef }: { caseRef: string }) {
   const [record, setRecord] = useState<CaseDetail | null>(null);
-  const [piiTier, setPiiTier] = useState<'masked' | 'raw'>('masked');
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
+  const [transitionReason, setTransitionReason] = useState('');
+  const [resolutionNote, setResolutionNote] = useState('');
   const [assignTarget, setAssignTarget] = useState('');
+  const [resolutionType, setResolutionType] = useState<'replacement' | 'refund'>('replacement');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundCurrency, setRefundCurrency] = useState('USD');
+  const [externalReference, setExternalReference] = useState('');
+  const mountedRef = useRef(true);
+  const initialLoadStartedRef = useRef(false);
 
-  const refresh = async () => {
-    // Try raw PII first (administrator/compliance); fall back to masked on 403
-    let result = await getCaseDetail(caseRef, 'raw');
-    if (!result.ok && result.status === 403) {
-      result = await getCaseDetail(caseRef, 'masked');
-    }
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const result = await getCaseDetail(caseRef);
+    if (!mountedRef.current) return;
     if (result.ok) {
       setRecord(result.data.case);
-      setPiiTier(result.data.case.consumer.piiTier);
       setNotFound(false);
       setAuthError(false);
-      const auditResult = await queryAuditEvents({ limit: 100 });
+      setActionError(null);
+      const auditResult = await queryAuditEvents({ limit: 100, resource: caseRef });
+      if (!mountedRef.current) return;
       if (auditResult.ok) {
         setAudit(
           auditResult.data.events
@@ -96,15 +110,41 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     } else {
       setActionError(result.error?.detail || 'Failed to load case.');
     }
-    setLoading(false);
-  };
+  }, [caseRef]);
+
+  const loadInitialData = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setLoading(true);
+    try {
+      await Promise.all([
+        refresh(),
+        listStaff()
+          .then((result) => {
+            if (mountedRef.current && result.ok) {
+              setStaff(result.data);
+            }
+          })
+          .catch(() => {}),
+      ]);
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [refresh]);
 
   useEffect(() => {
-    setLoading(true);
-    refresh();
-    listStaff().then(r => { if (r.ok) setStaff(r.data); }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseRef]);
+    if (initialLoadStartedRef.current || loading || record || notFound || authError || actionError) {
+      return;
+    }
+    initialLoadStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void loadInitialData();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [actionError, authError, loadInitialData, loading, notFound, record]);
 
   const handleTransition = async (next: string) => {
     if (!record) return;
@@ -112,10 +152,10 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     setActionError(null);
     const result = await transitionCaseStatus(caseRef, {
       status: next,
-      ...(reason.trim() ? { reason: reason.trim() } : {}),
+      ...(transitionReason.trim() ? { reason: transitionReason.trim() } : {}),
     });
     if (result.ok) {
-      setReason('');
+      setTransitionReason('');
       await refresh();
     } else {
       setActionError(result.error?.detail || `Transition to ${next} failed (${result.status})`);
@@ -132,6 +172,55 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       await refresh();
     } else {
       setActionError(result.error?.detail || `Assignment failed (${result.status})`);
+    }
+    setSubmitting(false);
+  };
+
+  const handleResolutionAction = async (
+    action: 'resolution:approve' | 'resolution:complete' | 'resolution:cancel',
+  ) => {
+    if (!record?.resolution) return;
+
+    const note = resolutionNote.trim();
+    if (note.length < 10) {
+      setActionError('Resolution note must be at least 10 characters.');
+      return;
+    }
+
+    const refundAmountMinor =
+      resolutionType === 'refund' && refundAmount.trim() ? Number(refundAmount.trim()) : undefined;
+
+    if (action === 'resolution:approve' && resolutionType === 'refund') {
+      if (!Number.isInteger(refundAmountMinor) || (refundAmountMinor ?? 0) <= 0) {
+        setActionError('Refund approvals require a positive integer refund amount in minor units.');
+        return;
+      }
+      if (!refundCurrency.trim()) {
+        setActionError('Refund approvals require a currency code.');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    setActionError(null);
+    const result = await runResolutionAction(caseRef, action, {
+      note,
+      expectedVersion: record.resolution.version,
+      type: resolutionType,
+      refundAmountMinor,
+      currency: refundCurrency.trim().toUpperCase() || undefined,
+      externalReference: externalReference.trim() || undefined,
+    });
+    if (result.ok) {
+      setResolutionNote('');
+      setExternalReference('');
+      if (action === 'resolution:approve') {
+        setRefundAmount('');
+        setRefundCurrency('USD');
+      }
+      await refresh();
+    } else {
+      setActionError(result.error?.detail || `${formatWorkflowLabel(action)} failed (${result.status})`);
     }
     setSubmitting(false);
   };
@@ -162,7 +251,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   const cse = record;
   const isTerminal = TERMINAL.includes(cse.status);
-  const transitions = LEGAL_TRANSITIONS[cse.status] ?? [];
+  const operations = getCaseOperationsView(cse);
+  const transitions = operations.transitions;
+  const resolutionActions = operations.resolutionActions;
+  const canApproveResolution = resolutionActions.includes('resolution:approve');
+  const canCompleteResolution = resolutionActions.includes('resolution:complete');
+  const resolution = cse.resolution;
   const assignedStaff = staff.find(s => s.id === cse.assignedToStaffUserId);
   const consumerName = `${cse.consumer.firstName} ${cse.consumer.lastName}`.trim();
 
@@ -224,9 +318,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               <span className="flex items-center gap-1.5"><User className="h-4 w-4 text-text-tertiary" />Consumer</span>
               <span className={cn(
                 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
-                piiTier === 'raw' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
+                cse.consumer.piiTier === 'raw' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
               )}>
-                {piiTier === 'raw' ? 'Raw PII' : 'Masked PII'}
+                {cse.consumer.piiTier === 'raw' ? 'Raw PII' : 'Masked PII'}
               </span>
             </CardTitle>
           </CardHeader>
@@ -292,6 +386,122 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           </CardContent>
         </Card>
 
+        {/* ── Resolution ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-text-tertiary" />Resolution</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {resolution ? (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-lg bg-surface-secondary/60 p-3">
+                    <p className="text-text-tertiary">Status</p>
+                    <p className="mt-1 font-semibold text-text-primary">{formatWorkflowLabel(resolution.status)}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-secondary/60 p-3">
+                    <p className="text-text-tertiary">Requested</p>
+                    <p className="mt-1 font-semibold text-text-primary">{resolution.requestedType ? formatWorkflowLabel(resolution.requestedType) : '—'}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-secondary/60 p-3">
+                    <p className="text-text-tertiary">Approved</p>
+                    <p className="mt-1 font-semibold text-text-primary">{resolution.approvedType ? formatWorkflowLabel(resolution.approvedType) : '—'}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-secondary/60 p-3">
+                    <p className="text-text-tertiary">Version</p>
+                    <p className="mt-1 font-semibold text-text-primary">{resolution.version}</p>
+                  </div>
+                </div>
+
+                {resolution.refundAmountMinor !== null && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-text-secondary">
+                    Refund amount: {resolution.refundAmountMinor} {resolution.currency ?? ''}
+                  </div>
+                )}
+
+                {resolution.externalReference && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-text-secondary">
+                    External reference: {resolution.externalReference}
+                  </div>
+                )}
+
+                {resolutionActions.length > 0 ? (
+                  <>
+                    <textarea
+                      value={resolutionNote}
+                      onChange={e => setResolutionNote(e.target.value)}
+                      placeholder="Resolution note (minimum 10 characters)..."
+                      className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary outline-none resize-none"
+                      style={{ borderColor: 'var(--border)' }}
+                    />
+                    {canApproveResolution ? (
+                      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Approval details</p>
+                        <div className="flex gap-2">
+                          <select
+                            value={resolutionType}
+                            onChange={e => setResolutionType(e.target.value as 'replacement' | 'refund')}
+                            className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald"
+                          >
+                            <option value="replacement">Replacement</option>
+                            <option value="refund">Refund</option>
+                          </select>
+                          {resolutionType === 'refund' ? (
+                            <>
+                              <input
+                                value={refundCurrency}
+                                onChange={e => setRefundCurrency(e.target.value.toUpperCase())}
+                                maxLength={3}
+                                placeholder="USD"
+                                className="w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                              />
+                              <input
+                                value={refundAmount}
+                                onChange={e => setRefundAmount(e.target.value.replace(/[^\d]/g, ''))}
+                                placeholder="Amount"
+                                className="w-28 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                              />
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                    {canCompleteResolution ? (
+                      <input
+                        value={externalReference}
+                        onChange={e => setExternalReference(e.target.value)}
+                        placeholder="External reference for completion (optional)..."
+                        className="w-full h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                      />
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {resolutionActions.map(action => (
+                        <button
+                          key={action}
+                          onClick={() => handleResolutionAction(action)}
+                          disabled={submitting}
+                          className={cn(
+                            'text-xs font-semibold px-3 py-1.5 rounded-md cursor-pointer transition-colors disabled:opacity-50',
+                            RESOLUTION_ACTION_STYLES[action] ?? 'bg-slate-600 hover:bg-slate-700 text-white',
+                          )}
+                        >
+                          {formatWorkflowLabel(action.replace('resolution:', ''))}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-text-tertiary rounded-lg bg-surface-secondary/60 p-3">
+                    No resolution actions are currently allowed for this case.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-text-tertiary">No resolution record is available for this case.</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ── Status Transition ── */}
         <Card>
           <CardHeader>
@@ -309,10 +519,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </p>
             ) : (
               <>
+                {operations.blockingReasons.length > 0 ? (
+                  <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                    {operations.blockingReasons.map((reason) => (
+                      <p key={reason}>{formatBlockingReason(reason)}</p>
+                    ))}
+                  </div>
+                ) : null}
                 <textarea
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  placeholder="Reason / note for the transition (optional)..."
+                  value={transitionReason}
+                  onChange={e => setTransitionReason(e.target.value)}
+                  placeholder="Reason for the transition (optional)..."
                   className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary outline-none resize-none"
                   style={{ borderColor: 'var(--border)' }}
                 />

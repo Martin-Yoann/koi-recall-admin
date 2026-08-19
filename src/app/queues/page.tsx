@@ -14,7 +14,7 @@
 //   integration_exception ← no API signal yet (always 0)
 // ============================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle, Search, XCircle, Copy, Package, Wifi, ArrowRight,
@@ -85,15 +85,23 @@ const QUEUE_STYLES: Record<QueueKind, { accent: string; icon: string; badge: str
 export default function QueuesPage() {
   const { isAuthenticated } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<QueueKind | null>(null);
   const [query, setQuery] = useState('');
+  const mountedRef = useRef(true);
+  const initialLoadStartedRef = useRef(false);
 
-  const fetchCases = async () => {
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const fetchCases = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
     const result = await listCases({ limit: 200 });
+    if (!mountedRef.current) return;
     if (result.ok) {
       setCases(result.data.cases);
     } else if (result.status === 401 || result.status === 403) {
@@ -104,9 +112,20 @@ export default function QueuesPage() {
       setError(result.error?.detail || 'Failed to load cases.');
     }
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchCases(); }, []);
+  useEffect(() => {
+    if (initialLoadStartedRef.current || loading || cases.length > 0 || error) {
+      return;
+    }
+    initialLoadStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void fetchCases();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [cases.length, error, fetchCases, loading]);
 
   const queues = useMemo(
     () =>

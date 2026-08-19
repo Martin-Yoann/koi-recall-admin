@@ -7,10 +7,9 @@ interface StatCardProps {
   subtitle?: string;
   icon: LucideIcon;
   trend?: { value: number; direction: 'up' | 'down' | 'neutral'; label?: string };
-  spark?: number[];
 }
 
-export function StatCard({ label, value, subtitle, icon: Icon, trend, spark }: StatCardProps) {
+export function StatCard({ label, value, subtitle, icon: Icon, trend }: StatCardProps) {
   const trendColor = trend?.direction === 'up' ? 'text-status-positive' :
     trend?.direction === 'down' ? 'text-status-danger' : 'text-text-tertiary';
   const trendArrow = trend?.direction === 'up' ? '↑' : trend?.direction === 'down' ? '↓' : '→';

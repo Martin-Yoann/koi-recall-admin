@@ -45,6 +45,21 @@ export interface StaffSession {
   revokedAt?: string;
 }
 
+export interface CaseResolutionSummary {
+  requestedType: 'replacement' | 'refund' | null;
+  approvedType: 'replacement' | 'refund' | null;
+  status: 'requested' | 'approved' | 'externally_completed' | 'cancelled';
+}
+
+export interface CaseWorkflow {
+  currentStage: string;
+  responsibleDepartment: 'customer_service' | 'compliance' | 'logistics' | 'finance' | 'none';
+  nextAction: string;
+  allowedActions: string[];
+  blockingReasons: string[];
+  publicStatus: string;
+}
+
 export interface CaseSummary {
   caseReference: string;
   status: string;
@@ -53,6 +68,8 @@ export interface CaseSummary {
   submittedAt: string;
   assignedToStaffUserId?: string | null;
   assignedAt?: string | null;
+  resolution?: CaseResolutionSummary | null;
+  workflow?: CaseWorkflow | null;
 }
 
 export interface CaseListResponse {
@@ -71,6 +88,36 @@ export interface CaseConsumer {
   address?: { raw: string };
 }
 
+export interface CaseResolution {
+  id: string;
+  caseId: string;
+  requestedType: 'replacement' | 'refund' | null;
+  requestedRemedyOptionId: string | null;
+  approvedType: 'replacement' | 'refund' | null;
+  status: 'requested' | 'approved' | 'externally_completed' | 'cancelled';
+  refundAmountMinor: number | null;
+  currency: string | null;
+  approvedByStaffUserId: string | null;
+  approvedAt: string | null;
+  externalReference: string | null;
+  completedByStaffUserId: string | null;
+  completedAt: string | null;
+  version: number;
+}
+
+interface CaseResolutionResponse {
+  resolution: CaseResolution;
+}
+
+export interface CaseEvent {
+  id: string;
+  eventType: string;
+  actorType: string;
+  actorId: string | null;
+  data: Record<string, unknown>;
+  occurredAt: string;
+}
+
 export interface CaseDetail {
   caseReference: string;
   status: string;
@@ -80,6 +127,9 @@ export interface CaseDetail {
   assignedToStaffUserId: string | null;
   assignedAt: string | null;
   consumer: CaseConsumer;
+  resolution?: CaseResolution | null;
+  workflow?: CaseWorkflow | null;
+  events?: CaseEvent[];
 }
 
 /** GET /admin/cases/{caseRef} wraps the detail in a `case` key */
@@ -117,6 +167,42 @@ export interface UpdateStaffRequest {
   displayName?: string;
   role?: string;
   status?: string;
+}
+
+export interface IncidentSummary {
+  incidentId: string;
+  caseReference: string;
+  eventTypes: string[];
+  companyObtainedAt: string | null;
+  injurySeverity: string | null;
+  reportabilityReviewId: string | null;
+  reportabilityStatus: 'pending' | 'filed' | 'documented_non_reportable' | null;
+  reviewerId: string | null;
+  nextAction: string;
+}
+
+export interface IncidentListResponse {
+  incidents: IncidentSummary[];
+}
+
+export interface RefundExportBatch {
+  batchId: string;
+  createdAt: string;
+  createdBy: string;
+  purpose: string;
+  rowCount: number;
+  fileSha256: string;
+}
+
+export interface RefundExportHistoryResponse {
+  batches: RefundExportBatch[];
+}
+
+export interface RefundExportResponse {
+  csv: string;
+  batchId: string | null;
+  sha256: string | null;
+  filename: string | null;
 }
 
 export interface AuditEvent {
@@ -169,9 +255,31 @@ const API_BASES: string[] =
     ? [PRIMARY_API_BASE, ONLINE_API_BASE]
     : [PRIMARY_API_BASE];
 
-type ApiResult<T> =
+export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ProblemDetails; status: number };
+
+function toProblemDetails(body: unknown, status: number, statusText: string): ProblemDetails {
+  if (
+    body &&
+    typeof body === 'object' &&
+    'type' in body &&
+    typeof (body as { type?: unknown }).type === 'string'
+  ) {
+    return body as ProblemDetails;
+  }
+
+  return {
+    type: 'about:blank',
+    title: statusText || 'Request failed',
+    status,
+    detail:
+      body && typeof body === 'object' && 'detail' in body && typeof (body as { detail?: unknown }).detail === 'string'
+        ? (body as { detail: string }).detail
+        : 'Request failed.',
+  };
+}
+
 
 function requestId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -436,6 +544,49 @@ export async function createStaff(
   });
 }
 
+export async function approveResolution(
+  caseRef: string,
+  body: {
+    type: 'replacement' | 'refund';
+    note: string;
+    expectedVersion: number;
+    refundAmountMinor?: number;
+    currency?: string;
+  },
+): Promise<ApiResult<CaseResolution>> {
+  const result = await fetchApi<CaseResolutionResponse>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/resolution/approve`,
+    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+  );
+  if (result.ok) return { ok: true, data: result.data.resolution };
+  return result;
+}
+
+export async function completeResolution(
+  caseRef: string,
+  body: { note: string; expectedVersion: number; externalReference?: string },
+): Promise<ApiResult<CaseResolution>> {
+  const result = await fetchApi<CaseResolutionResponse>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/resolution/complete`,
+    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+  );
+  if (result.ok) return { ok: true, data: result.data.resolution };
+  return result;
+}
+
+export async function cancelResolution(
+  caseRef: string,
+  body: { note: string; expectedVersion: number },
+): Promise<ApiResult<CaseResolution>> {
+  const result = await fetchApi<CaseResolutionResponse>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/resolution/cancel`,
+    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+  );
+  if (result.ok) return { ok: true, data: result.data.resolution };
+  return result;
+}
+
+
 /** PATCH /admin/staff/{id} — Update staff user */
 export async function updateStaff(
   staffUserId: string,
@@ -460,12 +611,70 @@ export async function revokeUserSessions(
 
 // -- Reportability Reviews --
 
+/** GET /admin/incidents — Incident operations summary */
+export async function listIncidents(): Promise<ApiResult<IncidentListResponse>> {
+  return fetchApi<IncidentListResponse>('/admin/incidents', {
+    headers: authHeaders(),
+  });
+}
+
+/** GET /admin/refund-exports — Refund export history */
+export async function listRefundExports(): Promise<ApiResult<RefundExportHistoryResponse>> {
+  return fetchApi<RefundExportHistoryResponse>('/admin/refund-exports', {
+    headers: authHeaders(),
+  });
+}
+
+/** POST /admin/refund-exports — Generate a new refund export and return its CSV payload */
+export async function createRefundExport(body: {
+  purpose: string;
+  includeExported?: boolean;
+}): Promise<ApiResult<RefundExportResponse>> {
+  const headers = new Headers(authHeaders());
+  headers.set('Content-Type', 'application/json');
+
+  try {
+    const response = await fetch(`${API_BASES[0]}/admin/refund-exports`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      credentials: 'include',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const error = toProblemDetails(body, response.status, response.statusText);
+      return { ok: false, status: response.status, error };
+    }
+
+    const csv = await response.text();
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
+    return {
+      ok: true,
+      data: {
+        csv,
+        batchId: response.headers.get('X-Refund-Export-Batch-Id'),
+        sha256: response.headers.get('X-Refund-Export-Sha256'),
+        filename: filenameMatch?.[1] ?? null,
+      },
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      error: { type: 'about:blank', title: 'Network error', status: 0, detail: 'Failed to reach the API.' },
+    };
+  }
+}
+
 /** POST /admin/reportability-reviews/{id}/close — Close reportability review */
 export async function closeReportabilityReview(
   reviewId: string,
-  body: { decision: 'filed' | 'documented_non_reportable'; notes?: string },
-): Promise<ApiResult<ReportabilityReview>> {
-  return fetchApi<ReportabilityReview>(
+  body: { outcome: 'filed' | 'documented_non_reportable'; rationale: string; cpscReference?: string },
+): Promise<ApiResult<void>> {
+  return fetchApi<void>(
     `/admin/reportability-reviews/${encodeURIComponent(reviewId)}/close`,
     { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
   );

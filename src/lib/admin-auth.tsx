@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { staffLogin, staffLogout, updateOwnProfile, setAdminSessionToken } from '@/lib/api-client';
 
 interface AdminUser {
@@ -37,16 +37,6 @@ const AdminAuthCtx = createContext<AuthCtx | undefined>(undefined);
 
 const STORAGE_KEY = 'koi_admin_session';
 
-function getStored(): AdminUser | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 function setStored(user: AdminUser) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 }
@@ -66,24 +56,10 @@ function getInitials(name: string): string {
 
 export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'password'>('profile');
-
-  useEffect(() => {
-    const stored = getStored();
-    if (stored?.token && stored.expiresAt && new Date(stored.expiresAt).getTime() > Date.now()) {
-      // Session still valid — restore the API token so calls survive reloads
-      setAdminSessionToken(stored.token);
-      setUser(stored);
-    } else if (stored) {
-      // Expired session — force re-login
-      clearStored();
-      setAdminSessionToken(null);
-    }
-    setLoading(false);
-  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await staffLogin({ email, password });
@@ -154,7 +130,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const changePassword = useCallback(
-    (_current: string, _newPw: string) => {
+    () => {
       return { ok: false, error: 'Password change not yet available via API' };
     },
     [],

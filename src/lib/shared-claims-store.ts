@@ -15,7 +15,6 @@
 
 import {
   listCases as apiListCases,
-  getCaseDetail as apiGetCaseDetail,
   transitionCaseStatus as apiTransitionStatus,
   isPhase1NotImplemented,
 } from '@/lib/api-client';

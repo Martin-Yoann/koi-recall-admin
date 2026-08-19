@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { Megaphone, Plus, Search, X, SlidersHorizontal } from 'lucide-react';
+import { Megaphone, Plus, Search, X } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { mockCampaigns } from '@/data/mock-recalls';
 import { getAllClaims } from '@/lib/shared-claims-store';
 import { RISK_LEVEL_LABELS } from '@/lib/admin-constants';
-import type { Campaign } from '@/types';
 import { cn } from '@/lib/utils';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -125,7 +123,7 @@ export default function CampaignsPage() {
                       {RISK_LEVEL_LABELS[c.riskLevel]}
                     </span>
                   </TableCell>
-                  <TableCell><StatusBadge variant={c.status as any} /></TableCell>
+                  <TableCell><StatusBadge variant={c.status} /></TableCell>
                   <TableCell className="font-mono text-sm text-text-secondary">{c.estimatedUnits.toLocaleString()}</TableCell>
                   <TableCell className="text-sm font-semibold text-text-primary">{getAllClaims().filter((cl) => cl.campaignId === c.id).length}</TableCell>
                   <TableCell className="text-sm text-text-tertiary">

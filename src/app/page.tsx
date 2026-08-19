@@ -6,7 +6,7 @@
 // Campaign cards from public GET /v1/recall-campaigns/{slug}
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Clock, CheckCircle2, FileText, ArrowRight, Shield,
   Megaphone, RefreshCw, Flame,
@@ -44,14 +44,22 @@ export default function DashboardPage() {
   const [campaigns, setCampaigns] = useState<CampaignCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const initialLoadStartedRef = useRef(false);
 
-  const refresh = async () => {
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!mountedRef.current) return;
     setRefreshing(true);
     setError(null);
     const [casesResult, ...campaignResults] = await Promise.all([
       listCases({ limit: 200 }),
       ...KNOWN_CAMPAIGN_SLUGS.map(slug => getCampaign(slug)),
     ]);
+    if (!mountedRef.current) return;
     if (casesResult.ok) {
       setCases(casesResult.data.cases);
     } else if (casesResult.status === 401 || casesResult.status === 403) {
@@ -76,10 +84,25 @@ export default function DashboardPage() {
           : [],
       ),
     );
-    setTimeout(() => setRefreshing(false), 300);
-  };
+    window.setTimeout(() => {
+      if (mountedRef.current) {
+        setRefreshing(false);
+      }
+    }, 300);
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    if (initialLoadStartedRef.current || refreshing || cases.length > 0 || campaigns.length > 0 || error) {
+      return;
+    }
+    initialLoadStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [campaigns.length, cases.length, error, refresh, refreshing]);
 
   const openCases = cases.filter(c => !TERMINAL.includes(c.status));
   const pending = cases.filter(c => ACTIVE_CASE_STATUSES.includes(c.status));

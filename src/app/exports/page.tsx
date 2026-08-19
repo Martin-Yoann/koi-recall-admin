@@ -1,36 +1,96 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Download, FileSpreadsheet, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { seedOperations, getAllJobs, type JobRecord } from '@/lib/operations-repository';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { Download, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { createRefundExport, listRefundExports, type RefundExportBatch } from '@/lib/api-client';
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function ExportsPage() {
-  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [batches, setBatches] = useState<RefundExportBatch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { seedOperations(); setJobs(getAllJobs()); }, []);
+  const fetchBatches = async () => {
+    setLoading(true);
+    setError(null);
+    const result = await listRefundExports();
+    if (result.ok) {
+      setBatches(result.data.batches);
+    } else if (result.status === 401 || result.status === 403) {
+      setError('Please log in to view refund exports.');
+    } else {
+      setError(result.error?.detail || 'Failed to load refund exports.');
+    }
+    setLoading(false);
+  };
+
+  if (!loading && batches.length === 0 && !error) {
+    void fetchBatches();
+  }
+
+  const handleCreate = async () => {
+    const purpose = window.prompt('Purpose for this refund export (1-500 chars):', 'Finance reconciliation');
+    if (!purpose) return;
+
+    setSubmitting(true);
+    setError(null);
+    const result = await createRefundExport({ purpose, includeExported: false });
+    if (result.ok) {
+      downloadCsv(result.data.filename ?? `refund-export-${result.data.batchId ?? 'latest'}.csv`, result.data.csv);
+      await fetchBatches();
+    } else {
+      setError(result.error?.detail || 'Failed to create refund export.');
+    }
+    setSubmitting(false);
+  };
 
   return (
     <div className="space-y-5 max-w-screen-2xl mx-auto">
-      <div className="flex items-center justify-between"><div><h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Exports & Jobs</h1><p className="text-sm text-text-secondary mt-0.5">{jobs.length} job{jobs.length !== 1 ? 's' : ''} · {jobs.filter(j => j.status === 'partial_failure' || j.status === 'failed').length} with failures</p></div>
-        <button className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer"><Download className="h-4 w-4" />New Export</button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Refund Exports</h1>
+          <p className="text-sm text-text-secondary mt-0.5">{batches.length} batch{batches.length !== 1 ? 'es' : ''} generated</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={fetchBatches} disabled={loading} className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors">
+            <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} />
+            Refresh
+          </button>
+          <button onClick={handleCreate} disabled={submitting} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer disabled:opacity-50">
+            <Download className="h-4 w-4" />
+            New Export
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-surface-elevated overflow-hidden">
-        <div className="px-5 py-4 border-b"><h2 className="text-sm font-bold text-text-primary">Job History</h2></div>
-        {jobs.length > 0 ? (
-          <table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="h-10 px-4 font-semibold text-text-secondary">Job</th><th className="h-10 px-4 font-semibold text-text-secondary">Progress</th><th className="h-10 px-4 font-semibold text-text-secondary">Failed</th><th className="h-10 px-4 font-semibold text-text-secondary">Retries</th><th className="h-10 px-4 font-semibold text-text-secondary">Status</th><th className="h-10 px-4 font-semibold text-text-secondary">Created</th></tr></thead>
-            <tbody>{jobs.map(j => (
-              <tr key={j.id} className="border-b hover:bg-surface-secondary transition-colors">
-                <td className="px-4 py-3"><p className="text-sm font-semibold text-text-primary">{j.type}</p></td>
-                <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-24 h-1.5 rounded-full bg-surface-secondary overflow-hidden"><div className={cn('h-full rounded-full', j.status === 'completed' ? 'bg-emerald-500' : j.status === 'partial_failure' ? 'bg-amber-500' : j.status === 'failed' ? 'bg-red-500' : 'bg-blue-500')} style={{ width: `${Math.round((j.recordsProcessed / j.recordsTotal) * 100)}%` }} /></div><span className="text-xs text-text-tertiary">{j.recordsProcessed}/{j.recordsTotal}</span></div></td>
-                <td className="px-4 py-3">{j.recordsFailed > 0 ? <span className="text-xs font-semibold text-red-600">{j.recordsFailed} rows · <button className="text-red-600 hover:underline cursor-pointer text-xs" onClick={() => alert('Download failed rows — demo: 26 rows would download as CSV')}>Download</button></span> : <span className="text-xs text-text-tertiary">0</span>}</td>
-                <td className="px-4 py-3"><span className="text-xs text-text-secondary">{j.retryCount}</span></td>
-                <td className="px-4 py-3"><span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', j.status === 'completed' && 'bg-emerald-50 text-emerald-700', j.status === 'partial_failure' && 'bg-amber-50 text-amber-700', j.status === 'failed' && 'bg-red-50 text-red-700', j.status === 'running' && 'bg-blue-50 text-blue-700', j.status === 'pending' && 'bg-surface-secondary text-text-tertiary')}>{j.status === 'partial_failure' ? 'PARTIAL' : j.status.toUpperCase()}</span></td>
-                <td className="px-4 py-3 text-xs text-text-tertiary">{new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+        <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold text-text-primary">Export History</h2>
+          {error ? <span className="text-xs text-red-600">{error}</span> : null}
+        </div>
+        {batches.length > 0 ? (
+          <table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="h-10 px-4 font-semibold text-text-secondary">Batch</th><th className="h-10 px-4 font-semibold text-text-secondary">Purpose</th><th className="h-10 px-4 font-semibold text-text-secondary">Rows</th><th className="h-10 px-4 font-semibold text-text-secondary">Requested By</th><th className="h-10 px-4 font-semibold text-text-secondary">SHA-256</th><th className="h-10 px-4 font-semibold text-text-secondary">Created</th></tr></thead>
+            <tbody>{batches.map((batch) => (
+              <tr key={batch.batchId} className="border-b hover:bg-surface-secondary transition-colors">
+                <td className="px-4 py-3 font-mono text-xs text-text-primary">{batch.batchId}</td>
+                <td className="px-4 py-3 text-sm text-text-secondary">{batch.purpose}</td>
+                <td className="px-4 py-3 text-sm text-text-primary">{batch.rowCount}</td>
+                <td className="px-4 py-3 text-sm text-text-secondary">{batch.createdBy}</td>
+                <td className="px-4 py-3 font-mono text-[11px] text-text-tertiary">{batch.fileSha256}</td>
+                <td className="px-4 py-3 text-xs text-text-tertiary">{new Date(batch.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
               </tr>
             ))}</tbody></table>
-        ) : <div className="text-center py-14"><FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" /><p className="text-sm font-semibold text-text-primary mb-1">No jobs yet</p><p className="text-xs text-text-tertiary">Exports and batch jobs will appear here.</p></div>}
+        ) : <div className="text-center py-14"><FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" /><p className="text-sm font-semibold text-text-primary mb-1">No exports yet</p><p className="text-xs text-text-tertiary">{loading ? 'Loading export history…' : 'Refund export batches will appear here.'}</p></div>}
       </div>
     </div>
   );

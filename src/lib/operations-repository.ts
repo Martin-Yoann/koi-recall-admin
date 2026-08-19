@@ -68,7 +68,7 @@ export function getCaseByRef(ref: string): CaseRecord | undefined { return load(
 export function getCasesByStatus(s: CaseStatus): CaseRecord[] { return load().cases.filter(c => c.status === s); }
 
 export function getQueues(): QueueCard[] {
-  const cases = getAllCases(); const now = Date.now();
+  const cases = getAllCases();
   const defs: Omit<QueueCard, 'count' | 'oldestAt'>[] = [
     { kind: 'urgent_injury_safety', label: 'Urgent Injury / Safety', description: 'Cases with reported injuries or safety hazards', sla: '4h', icon: 'AlertTriangle', color: '#BA1A1A' },
     { kind: 'manual_review', label: 'Manual Review', description: 'Cases requiring human review of evidence', sla: '24h', icon: 'Search', color: '#D97706' },

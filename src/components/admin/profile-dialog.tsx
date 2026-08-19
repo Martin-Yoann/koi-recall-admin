@@ -1,6 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
+
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { X, Eye, EyeOff, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
@@ -39,12 +41,36 @@ const MAX_AVATAR_BYTES = 512 * 1024; // 512 KiB
 
 export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) {
   const { user, updateProfile, changePassword } = useAdminAuth();
+
+  if (!open || !user) return null;
+
+  return (
+    <ProfileDialogContent
+      key={`${user.email}-${initialTab}`}
+      user={user}
+      onClose={onClose}
+      initialTab={initialTab}
+      updateProfile={updateProfile}
+      changePassword={changePassword}
+    />
+  );
+}
+
+interface ProfileDialogContentProps {
+  user: NonNullable<ReturnType<typeof useAdminAuth>['user']>;
+  onClose: () => void;
+  initialTab: 'profile' | 'password';
+  updateProfile: ReturnType<typeof useAdminAuth>['updateProfile'];
+  changePassword: ReturnType<typeof useAdminAuth>['changePassword'];
+}
+
+function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword }: ProfileDialogContentProps) {
   const [tab, setTab] = useState<'profile' | 'password'>(initialTab);
 
-  const [name, setName] = useState(user?.name || '');
-  const [initials, setInitials] = useState(user?.initials || '');
-  const [avatarBg, setAvatarBg] = useState(user?.avatarBg || '#0D9488');
-  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user?.avatarDataUrl ?? null);
+  const [name, setName] = useState(user.name || '');
+  const [initials, setInitials] = useState(user.initials || '');
+  const [avatarBg, setAvatarBg] = useState(user.avatarBg || '#0D9488');
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState('');
 
@@ -56,25 +82,6 @@ export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) 
   const [pwSaved, setPwSaved] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open && user) {
-      setName(user.name || '');
-      setInitials(user.initials || '');
-      setAvatarBg(user.avatarBg || '#0D9488');
-      setAvatarDataUrl(user.avatarDataUrl ?? null);
-      setCurrentPw('');
-      setNewPw('');
-      setConfirmPw('');
-      setPwError('');
-      setPwSaved(false);
-      setProfileSaved(false);
-      setProfileError('');
-      setTab(initialTab);
-    }
-  }, [open, user, initialTab]);
-
-  if (!open || !user) return null;
 
   const handleSaveProfile = () => {
     setProfileError('');

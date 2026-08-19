@@ -2,7 +2,7 @@
 // KOI Admin — Mock Claims (Music Lollipop Demo)
 // ============================================================
 
-import { type Claim, ClaimStatus, EvidenceType, IncidentSeverity } from '@/types';
+import { type Claim, ClaimStatus, EvidenceType } from '@/types';
 
 export const mockClaims: Claim[] = [
   {

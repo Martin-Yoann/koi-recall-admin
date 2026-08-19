@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Shield, Eye, EyeOff, X, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
 
 export function LoginDrawer() {

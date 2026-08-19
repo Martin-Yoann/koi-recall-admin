@@ -6,12 +6,12 @@ KOI 召回平台管理后台 — 面向运营与合规团队的内部管理系�
 
 | 维度 | 状态 |
 |---|---|
-| 阶段 | Phase 1 — 前端骨架完成，接入后端部分端点 |
+| 阶段 | Phase 1.5 — 前端骨架完成，Admin 核心页面逐步切到真实 API |
 | 构建 | ✅ Next.js 16 + TypeScript + Tailwind CSS v4 |
 | 部署 | ✅ [koi-recall-admin.vercel.app](https://koi-recall-admin.vercel.app) |
-| 后端集成 | partial — `GET /campaigns/{slug}` 接通，其余端点返回 501 时回退模拟数据 |
-| Mock 数据 | ✅ Music Lollipop 召回活动 + 6 个索赔 + 共享 localStorage 存储 |
-| 认证 | ✅ 模拟登录（邮箱+密码），localStorage 持久化，支持修改资料与密码 |
+| 后端集成 | active — `cases` / `cases/{id}` / `exports` / `incidents` / staff session 已接入真实 Admin API |
+| Demo 数据 | 保留 — `campaigns` 与部分 claims 视图仍使用本地示例数据或桥接存储，等待继续迁移 |
+| 认证 | ✅ Staff session 登录，token 持久化在 `localStorage`，支持修改资料与密码 |
 | 暗色模式 | CSS 变量已定义，未启用切换 |
 
 ### 与上下游关系
@@ -21,15 +21,15 @@ KOI 召回平台管理后台 — 面向运营与合规团队的内部管理系�
 │   KOI-web        │     │   KOI-admin      │     │  KOI-Recall-Backend  │
 │  (消费者网站)     │     │  (管理后台)       │     │  (API 服务端)         │
 │                  │     │                  │     │                      │
-│  提交索赔 ─────────┼───→│  shared-claims    │     │  GET /campaigns/{slug}│
-│  查询进度          │     │  (localStorage)  │     │  POST /product-checks │
-│                  │     │                  │     │  ...                 │
+│  提交索赔 ─────────┼───→│  Admin API        │     │  /admin/cases        │
+│  查询进度          │     │  + 迁移中页面     │     │  /admin/incidents    │
+│                  │     │  (部分仍保留桥接) │     │  /admin/refund-exports│
 │  Next.js 16       │     │  ✅ 审核&流转     │     │  Hono + Drizzle       │
 │  Vercel           │     │  Vercel          │     │  Vercel Functions     │
 └─────────────────┘     └─────────────────┘     └──────────────────────┘
 ```
 
-消费者在 KOI-web 提交索赔后，管理员在 KOI-admin **同一浏览器的 Dashboard** 即刻看到新条目，可通过 `submitted → under_review → verified → remedy_issued → resolved` 路径或 `rejected` 路径流转状态。Phase 2 接通后端 `POST /claims` 端点后替换为 API-first 持久化。
+消费者索赔数据正在从早期浏览器桥接模式迁移到 Admin API。当前 `cases`、`cases/[id]`、`exports`、`incidents` 已以真实后端为准；`campaigns` 与部分 `claims` 相关页面仍保留示例/桥接数据，后续会继续收口到统一的 API-first 链路。
 
 ---
 
@@ -87,9 +87,9 @@ src/
 ├── lib/
 │   ├── admin-auth.tsx            # 管理端认证 Context + Provider
 │   ├── admin-constants.ts        # 风险色/状态标签/流转规则
-│   ├── api-client.ts             # API 客户端 — campaign/product-check
+│   ├── api-client.ts             # API 客户端 — recall/public + admin/cases/incidents/exports
 │   ├── api-adapter.ts            # API → 领域模型适配层
-│   ├── shared-claims-store.ts    # 跨项目共享索赔存储 (localStorage)
+│   ├── shared-claims-store.ts    # 旧 claims 桥接存储（仅剩部分页面使用）
 │   ├── utils.ts                  # cn() — clsx + tailwind-merge
 │   └── validators.ts             # Zod 校验 schema
 ├── types/

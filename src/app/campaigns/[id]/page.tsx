@@ -6,7 +6,7 @@
 // Claims data: shared-claims-store
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -50,13 +50,10 @@ export default function CampaignDetailPage() {
   const id = params.id as string;
   const campaign: Campaign | undefined = getCampaignBySlug(id);
 
-  const [claims, setClaims] = useState<ReturnType<typeof getClaimsByCampaign>>([]);
-
-  useEffect(() => {
-    if (campaign) {
-      setClaims(getClaimsByCampaign(campaign.id));
-    }
-  }, [campaign]);
+  const claims = useMemo(
+    () => (campaign ? getClaimsByCampaign(campaign.id) : []),
+    [campaign],
+  );
 
   if (!campaign) notFound();
 

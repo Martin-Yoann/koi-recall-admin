@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FolderOpen, Search, RefreshCw } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -11,14 +11,22 @@ import {
 
 export default function CasesPage() {
   const [cases, setCases] = useState<CaseSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const mountedRef = useRef(true);
+  const initialLoadStartedRef = useRef(false);
 
-  const fetchCases = async () => {
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const fetchCases = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
     const result = await listCases({ limit: 50 });
+    if (!mountedRef.current) return;
     if (result.ok) {
       setCases(result.data.cases);
     } else if (result.status === 401 || result.status === 403) {
@@ -29,11 +37,20 @@ export default function CasesPage() {
       setError(result.error?.detail || 'Failed to load cases.');
     }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    fetchCases();
-  }, []);
+    if (initialLoadStartedRef.current || loading || cases.length > 0 || error) {
+      return;
+    }
+    initialLoadStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void fetchCases();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [cases.length, error, fetchCases, loading]);
 
   const filtered = search
     ? cases.filter((c) =>
