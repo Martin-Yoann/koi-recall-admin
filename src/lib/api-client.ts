@@ -238,13 +238,13 @@ export interface ReportabilityReview {
 
 // ── Runtime ──
 
-const LOCAL_API_BASE = 'http://localhost:3002';
 const ONLINE_API_BASE = 'https://koi-recall-backend.vercel.app';
 
 const configuredApi = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
 
-// Primary base: explicit NEXT_PUBLIC_API_URL when set, otherwise the local backend.
-const PRIMARY_API_BASE = configuredApi || LOCAL_API_BASE;
+// Default to the deployed API. Local development remains opt-in through
+// NEXT_PUBLIC_API_URL so production builds never try a visitor's localhost.
+const PRIMARY_API_BASE = configuredApi || ONLINE_API_BASE;
 
 // When the primary points at a local backend that isn't running, transparently
 // fall back to the deployed API so the admin panel keeps working. Only localhost
@@ -300,6 +300,9 @@ async function fetchApi<T>(
     try {
       const res = await fetch(url, {
         ...options,
+        // Prevent an unreachable API from leaving page-level loading states
+        // pending indefinitely.
+        signal: options.signal ?? AbortSignal.timeout(10_000),
         headers: {
           'Content-Type': 'application/json',
           'X-Request-Id': rid,
