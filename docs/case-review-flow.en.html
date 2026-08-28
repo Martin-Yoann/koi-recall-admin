@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Review Workflow · KOI Admin</title>
+<style>
+  :root {
+    --ink: #1a2b33;
+    --muted: #5b6b73;
+    --bg: #f3f6f7;
+    --card: #ffffff;
+    --brand: #003527;
+    --navy: #052745;
+    --cs: #2563eb;        /* customer service */
+    --compliance: #7c3aed;/* compliance */
+    --logistics: #d97706; /* logistics */
+    --finance: #006c49;   /* finance */
+    --system: #64748b;    /* system / consumer */
+    --good: #006c49;
+    --warn: #d97706;
+    --bad: #ba1a1a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 40px 20px 60px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 28px; color: var(--brand); letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  /* Role legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center;
+    background: var(--card); border-radius: 12px; padding: 12px 20px;
+    box-shadow: 0 1px 3px rgba(5,39,69,.08); margin-bottom: 32px; font-size: 13px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+  /* Flow body: 3-column grid (gutter / main line / side branches) */
+  .flow { display: grid; grid-template-columns: 1fr 380px 1fr; column-gap: 26px; }
+  .col-main { grid-column: 2; }
+  .col-side { grid-column: 3; align-self: center; position: relative; }
+
+  .step {
+    background: var(--card); border-radius: 14px; padding: 14px 18px 14px 20px;
+    box-shadow: 0 1px 4px rgba(5,39,69,.10);
+    border-left: 6px solid var(--system);
+    position: relative;
+  }
+  .step h3 { font-size: 16px; margin-bottom: 4px; color: var(--brand); }
+  .step p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .step .tag {
+    display: inline-block; font-size: 11px; color: #fff; background: var(--system);
+    border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; font-weight: 600; letter-spacing: .5px;
+  }
+  .step .code {
+    position: absolute; top: 12px; right: 14px; font-size: 10.5px; color: #94a3b8;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .cs { border-left-color: var(--cs); }        .cs .tag { background: var(--cs); }
+  .compliance { border-left-color: var(--compliance); } .compliance .tag { background: var(--compliance); }
+  .logistics { border-left-color: var(--logistics); }   .logistics .tag { background: var(--logistics); }
+  .finance { border-left-color: var(--finance); }       .finance .tag { background: var(--finance); }
+  .system { border-left-color: var(--system); }         .system .tag { background: var(--system); }
+  .done { background: var(--brand); }
+  .done h3 { color: #fff; }
+  .done p { color: #cfe4db; }
+  .done .tag { background: #006c49; }
+
+  .arrow {
+    grid-column: 2; text-align: center; color: #8fa8b3; font-size: 15px; line-height: 1;
+    padding: 7px 0; user-select: none;
+  }
+  .arrow::before { content: "▼"; }
+
+  /* Dashed connector: from the side card's left edge toward the main flow */
+  .side { position: relative; }
+  .side::before {
+    content: ""; position: absolute; left: -28px; top: 50%;
+    width: 26px; border-top: 2px dashed #b8c8cf;
+  }
+
+  /* Side branch cards */
+  .side {
+    background: #fff; border: 2px dashed #b8c8cf; border-radius: 12px;
+    padding: 12px 16px; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .side b { color: var(--ink); font-size: 13.5px; }
+  .side .mini { display: inline-block; font-size: 11px; border-radius: 999px; padding: 1px 8px; color: #fff; margin-bottom: 6px; font-weight: 600; }
+
+  /* Two parallel tracks (replacement / refund) */
+  .split { grid-column: 1 / 4; display: grid; grid-template-columns: 34px 1fr 34px 1fr; column-gap: 14px; padding: 0 48px; align-items: stretch; }
+  .split .h-arrow { align-self: center; color: #8fa8b3; font-size: 15px; text-align: center; }
+
+  /* Gate card */
+  .gate {
+    background: #fff8ec; border: 2px solid var(--warn); border-radius: 14px;
+    padding: 14px 18px; box-shadow: 0 1px 4px rgba(5,39,69,.08);
+  }
+  .gate h3 { font-size: 16px; color: #92400e; margin-bottom: 8px; }
+  .gate h3 .tag { background: var(--compliance); color: #fff; font-size: 11px; border-radius: 999px; padding: 2px 10px; margin-right: 8px; font-weight: 600; }
+  .gate ul { list-style: none; font-size: 13px; color: #7c5a22; }
+  .gate li { margin: 5px 0; padding-left: 24px; position: relative; }
+  .gate li::before { content: "⛔"; position: absolute; left: 0; font-size: 12px; }
+  .gate .note { margin-top: 8px; font-size: 12px; color: #a16207; }
+
+  /* Terminal states row */
+  .terminals { grid-column: 1 / 4; display: flex; gap: 10px; justify-content: center; margin-top: 4px; flex-wrap: wrap; }
+  .terminal {
+    border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: #fff; text-align: center;
+    box-shadow: 0 1px 4px rgba(5,39,69,.12); min-width: 140px;
+  }
+  .terminal small { display: block; opacity: .85; font-size: 10.5px; margin-top: 3px; }
+
+  footer { text-align: center; margin-top: 34px; font-size: 12px; color: #8aa0a9; line-height: 1.7; }
+  footer a { color: var(--cs); }
+
+  @media print {
+    body { padding: 16px; background: #fff; }
+    .step, .legend, .terminal { box-shadow: none; }
+    .step, .legend { border: 1px solid #e2e8ea; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Case Review &amp; Processing Workflow</h1>
+    <div class="sub">KOI Recall Platform Admin · A one-page overview for operations &amp; compliance teams</div>
+  </header>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--system)"></i>System / Consumer</span>
+    <span><i class="dot" style="background:var(--cs)"></i>Customer Service</span>
+    <span><i class="dot" style="background:var(--compliance)"></i>Compliance</span>
+    <span><i class="dot" style="background:var(--logistics)"></i>Logistics</span>
+    <span><i class="dot" style="background:var(--finance)"></i>Finance</span>
+  </div>
+
+  <div class="flow">
+
+    <!-- 1 Consumer submits -->
+    <div class="col-main step system">
+      <span class="code">submitted</span>
+      <span class="tag">Consumer / System</span>
+      <h3>① Consumer submits a claim</h3>
+      <p>The consumer submits a claim on the KOI website; the system automatically records the requested remedy (replacement or refund).</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 2 Intake check -->
+    <div class="col-main step cs">
+      <span class="code">intake_review</span>
+      <span class="tag">Customer Service</span>
+      <h3>② Intake check</h3>
+      <p>Check that the submission is complete and ready to move into triage.</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 3 Triage + compliance branch -->
+    <div class="col-main step cs" id="triage">
+      <span class="code">triage</span>
+      <span class="tag">Customer Service</span>
+      <h3>③ Triage &amp; verification</h3>
+      <p>Verify product details and evidence; resolve any product or evidence anomalies.</p>
+    </div>
+    <div class="col-side side">
+      <span class="mini" style="background:var(--compliance)">If a safety incident is involved</span><br>
+      <b>⚠ Compliance goes first: reportability review</b><br>
+      If the case involves a safety incident, Compliance must first complete the "does this need to be reported to CPSC?" review; the customer-service flow pauses here until it is done.
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 4 Case review + branches -->
+    <div class="col-main step cs" id="review">
+      <span class="code">case_review</span>
+      <span class="tag">Customer Service</span>
+      <h3>④ Case review</h3>
+      <p>Complete the product, evidence, and risk assessment; decide whether the claim qualifies.</p>
+    </div>
+    <div class="col-side side">
+      <span class="mini" style="background:var(--warn)">Awaiting info</span><br>
+      <b>✉ Need more info from the consumer?</b><br>
+      Put the case into "need info" and notify the consumer; once the materials arrive, return to Case review.<br>
+      <span class="mini" style="background:var(--bad); margin-top:8px">Not qualified</span><br>
+      If the claim doesn't qualify you can <b>reject</b> it; you can also mark it a <b>duplicate</b>, or the consumer may <b>withdraw</b> — all three are final states.
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 5 Approve remedy -->
+    <div class="col-main step cs">
+      <span class="code">resolution_approval</span>
+      <span class="tag">Customer Service</span>
+      <h3>⑤ Approve the remedy</h3>
+      <p>Once the claim is approved, sign off the remedy for the consumer: replacement or refund.</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 6 Parallel execution -->
+    <div class="split">
+      <div class="h-arrow">▶</div>
+      <div class="step logistics">
+        <span class="code">replacement_processing</span>
+        <span class="tag">Logistics</span>
+        <h3>⑥A Ship the replacement</h3>
+        <p>Logistics arranges the shipment in the external fulfillment system.</p>
+      </div>
+      <div class="h-arrow">▶</div>
+      <div class="step finance">
+        <span class="code">refund_processing</span>
+        <span class="tag">Finance</span>
+        <h3>⑥B Issue the refund</h3>
+        <p>Finance completes the payout via Refund Export in the external system.</p>
+      </div>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 7 Closure review (gates) -->
+    <div class="col-main step gate">
+      <h3><span class="tag">Compliance</span>⑦ Closure review <span style="font-weight:400;font-size:12px;color:#b45309">closure_review</span></h3>
+      <ul>
+        <li>The remedy must be <b>fully completed externally</b> (shipped / paid) — otherwise this step cannot be entered</li>
+        <li>If a safety incident was involved, the reportability review must be <b>concluded</b> (filed, or confirmed non-reportable)</li>
+      </ul>
+      <p class="note">Both gates must pass before the case can close; if issues are found in review, send it back to Case review.</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 8 Closed -->
+    <div class="col-main step done">
+      <span class="code" style="color:#7fa99a">completed</span>
+      <span class="tag">✔ Flow complete</span>
+      <h3>⑧ Case closed</h3>
+      <p>The consumer sees "Completed" on the website; every action leaves an audit trail.</p>
+    </div>
+  </div>
+
+  <!-- Terminal states -->
+  <div class="terminals">
+    <div class="terminal" style="background:var(--good)">✔ Closed<small>closed · Remedy done &amp; review passed</small></div>
+    <div class="terminal" style="background:var(--bad)">✖ Rejected<small>rejected · Claim did not qualify</small></div>
+    <div class="terminal" style="background:#64748b">⧉ Duplicate<small>duplicate · Same as another case</small></div>
+    <div class="terminal" style="background:#64748b">↩ Withdrawn<small>withdrawn · Consumer withdrew</small></div>
+  </div>
+
+  <footer>
+    The small gray codes are internal status IDs, for mapping to the admin UI / consumer lookup page.<br>
+    Full rules (role permissions, gate logic): <a href="./case-review-workflow.md">docs/case-review-workflow.md</a> · The backend CaseWorkflowPolicy is the source of truth.
+  </footer>
+</div>
+</body>
+</html>

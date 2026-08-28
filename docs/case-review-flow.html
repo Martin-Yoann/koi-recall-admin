@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>案件审核处理流程 · KOI Admin</title>
+<style>
+  :root {
+    --ink: #1a2b33;
+    --muted: #5b6b73;
+    --bg: #f3f6f7;
+    --card: #ffffff;
+    --brand: #003527;
+    --navy: #052745;
+    --cs: #2563eb;        /* 客服 */
+    --compliance: #7c3aed;/* 合规 */
+    --logistics: #d97706; /* 物流 */
+    --finance: #006c49;   /* 财务 */
+    --system: #64748b;    /* 系统/消费者 */
+    --good: #006c49;
+    --warn: #d97706;
+    --bad: #ba1a1a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 40px 20px 60px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 28px; color: var(--brand); letter-spacing: 1px; }
+  header .sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  /* 角色图例 */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center;
+    background: var(--card); border-radius: 12px; padding: 12px 20px;
+    box-shadow: 0 1px 3px rgba(5,39,69,.08); margin-bottom: 32px; font-size: 13px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+  /* 流程主体：三列网格（左留白 / 主线 / 右侧分支） */
+  .flow { display: grid; grid-template-columns: 1fr 380px 1fr; column-gap: 26px; }
+  .col-main { grid-column: 2; }
+  .col-side { grid-column: 3; align-self: center; position: relative; }
+
+  .step {
+    background: var(--card); border-radius: 14px; padding: 14px 18px 14px 20px;
+    box-shadow: 0 1px 4px rgba(5,39,69,.10);
+    border-left: 6px solid var(--system);
+    position: relative;
+  }
+  .step h3 { font-size: 16px; margin-bottom: 4px; color: var(--brand); }
+  .step p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .step .tag {
+    display: inline-block; font-size: 11px; color: #fff; background: var(--system);
+    border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; font-weight: 600; letter-spacing: .5px;
+  }
+  .step .code {
+    position: absolute; top: 12px; right: 14px; font-size: 10.5px; color: #94a3b8;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .cs { border-left-color: var(--cs); }        .cs .tag { background: var(--cs); }
+  .compliance { border-left-color: var(--compliance); } .compliance .tag { background: var(--compliance); }
+  .logistics { border-left-color: var(--logistics); }   .logistics .tag { background: var(--logistics); }
+  .finance { border-left-color: var(--finance); }       .finance .tag { background: var(--finance); }
+  .system { border-left-color: var(--system); }         .system .tag { background: var(--system); }
+  .done { background: var(--brand); }
+  .done h3 { color: #fff; }
+  .done p { color: #cfe4db; }
+  .done .tag { background: #006c49; }
+
+  .arrow {
+    grid-column: 2; text-align: center; color: #8fa8b3; font-size: 15px; line-height: 1;
+    padding: 7px 0; user-select: none;
+  }
+  .arrow::before { content: "▼"; }
+
+  /* 分支虚线连接：从右侧分支卡左边缘指向主流程 */
+  .side { position: relative; }
+  .side::before {
+    content: ""; position: absolute; left: -28px; top: 50%;
+    width: 26px; border-top: 2px dashed #b8c8cf;
+  }
+
+  /* 右侧分支卡 */
+  .side {
+    background: #fff; border: 2px dashed #b8c8cf; border-radius: 12px;
+    padding: 12px 16px; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .side b { color: var(--ink); font-size: 13.5px; }
+  .side .mini { display: inline-block; font-size: 11px; border-radius: 999px; padding: 1px 8px; color: #fff; margin-bottom: 6px; font-weight: 600; }
+
+  /* 双轨（换货 / 退款）：两条并行支路，各自以 ▶ 进入 */
+  .split { grid-column: 1 / 4; display: grid; grid-template-columns: 34px 1fr 34px 1fr; column-gap: 14px; padding: 0 48px; align-items: stretch; }
+  .split .h-arrow { align-self: center; color: #8fa8b3; font-size: 15px; text-align: center; }
+
+  /* 门槛卡 */
+  .gate {
+    background: #fff8ec; border: 2px solid var(--warn); border-radius: 14px;
+    padding: 14px 18px; box-shadow: 0 1px 4px rgba(5,39,69,.08);
+  }
+  .gate h3 { font-size: 16px; color: #92400e; margin-bottom: 8px; }
+  .gate h3 .tag { background: var(--compliance); color: #fff; font-size: 11px; border-radius: 999px; padding: 2px 10px; margin-right: 8px; font-weight: 600; }
+  .gate ul { list-style: none; font-size: 13px; color: #7c5a22; }
+  .gate li { margin: 5px 0; padding-left: 24px; position: relative; }
+  .gate li::before { content: "⛔"; position: absolute; left: 0; font-size: 12px; }
+  .gate .pass { color: var(--good); }
+  .gate .pass::before { content: "✅"; }
+  .gate .note { margin-top: 8px; font-size: 12px; color: #a16207; }
+
+  /* 终态行 */
+  .terminals { grid-column: 1 / 4; display: flex; gap: 14px; justify-content: center; margin-top: 4px; flex-wrap: wrap; }
+  .terminal {
+    border-radius: 12px; padding: 10px 18px; font-size: 13px; color: #fff; text-align: center;
+    box-shadow: 0 1px 4px rgba(5,39,69,.12); min-width: 150px;
+  }
+  .terminal small { display: block; opacity: .85; font-size: 11px; margin-top: 3px; }
+
+  footer { text-align: center; margin-top: 34px; font-size: 12px; color: #8aa0a9; line-height: 1.7; }
+  footer a { color: var(--cs); }
+
+  @media print {
+    body { padding: 16px; background: #fff; }
+    .step, .legend, .terminal { box-shadow: none; }
+    .step, .legend { border: 1px solid #e2e8ea; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>案件（Case）审核处理流程</h1>
+    <div class="sub">KOI 召回平台管理后台 · 面向运营与合规同事的流程总览</div>
+  </header>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--system)"></i>系统 / 消费者</span>
+    <span><i class="dot" style="background:var(--cs)"></i>客服团队</span>
+    <span><i class="dot" style="background:var(--compliance)"></i>合规团队</span>
+    <span><i class="dot" style="background:var(--logistics)"></i>物流团队</span>
+    <span><i class="dot" style="background:var(--finance)"></i>财务团队</span>
+  </div>
+
+  <div class="flow">
+
+    <!-- 1 消费者提交 -->
+    <div class="col-main step system">
+      <span class="code">submitted</span>
+      <span class="tag">消费者 / 系统</span>
+      <h3>① 消费者提交索赔</h3>
+      <p>消费者在 KOI 网站提交索赔，系统自动登记其想要的补偿方式（换货或退款）。</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 2 受理检查 -->
+    <div class="col-main step cs">
+      <span class="code">intake_review</span>
+      <span class="tag">客服</span>
+      <h3>② 受理检查</h3>
+      <p>检查提交资料是否完整、是否可以进入分诊。</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 3 分诊核对 + 合规分支 -->
+    <div class="col-main step cs" id="triage">
+      <span class="code">triage</span>
+      <span class="tag">客服</span>
+      <h3>③ 分诊核对</h3>
+      <p>核对产品信息与证据；解决产品或证据的异常。</p>
+    </div>
+    <div class="col-side side">
+      <span class="mini" style="background:var(--compliance)">涉及安全事故时</span><br>
+      <b>⚠ 合规先行：可报告性审查</b><br>
+      若案件涉及安全事故，合规团队需先完成"是否需向 CPSC 上报"的审查；审查未结束前，客服流程暂停在此。
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 4 案件审核 + 分支 -->
+    <div class="col-main step cs" id="review">
+      <span class="code">case_review</span>
+      <span class="tag">客服</span>
+      <h3>④ 案件审核</h3>
+      <p>完成产品、证据与风险评估，判断索赔是否符合条件。</p>
+    </div>
+    <div class="col-side side">
+      <span class="mini" style="background:var(--warn)">等待补充</span><br>
+      <b>✉ 需要消费者补充信息？</b><br>
+      可将案件置为"待补充信息"并通知消费者；收到材料后回到案件审核继续。<br>
+      <span class="mini" style="background:var(--bad); margin-top:8px">不符合条件</span><br>
+      审核不通过可<b>拒绝</b>；也可标记<b>重复件</b>，或消费者<b>主动撤回</b> —— 三者均为最终状态。
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 5 批准 -->
+    <div class="col-main step cs">
+      <span class="code">resolution_approval</span>
+      <span class="tag">客服</span>
+      <h3>⑤ 批准补偿方案</h3>
+      <p>审核通过后，批准给消费者的补偿：换货 或 退款。</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 6 双轨执行（并行） -->
+    <div class="split">
+      <div class="h-arrow">▶</div>
+      <div class="step logistics">
+        <span class="code">replacement_processing</span>
+        <span class="tag">物流</span>
+        <h3>⑥A 执行换货</h3>
+        <p>物流团队在外部履约系统安排发货。</p>
+      </div>
+      <div class="h-arrow">▶</div>
+      <div class="step finance">
+        <span class="code">refund_processing</span>
+        <span class="tag">财务</span>
+        <h3>⑥B 执行退款</h3>
+        <p>财务团队通过"退款导出"在外部系统完成打款。</p>
+      </div>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 7 关闭复核（门槛） -->
+    <div class="col-main step gate">
+      <h3><span class="tag">合规</span>⑦ 关闭复核 <span style="font-weight:400;font-size:12px;color:#b45309">closure_review</span></h3>
+      <ul>
+        <li>补偿必须已在外部<b>执行完成</b>（已发货 / 已打款），否则无法进入本环节</li>
+        <li>如涉及安全事故，可报告性审查必须<b>已有结论</b>（已上报或确认无需上报）</li>
+      </ul>
+      <p class="note">两条门槛都满足才能关闭案件；复核发现问题可打回"案件审核"重新处理。</p>
+    </div>
+    <div class="arrow"></div>
+
+    <!-- 8 关闭 -->
+    <div class="col-main step done">
+      <span class="code" style="color:#7fa99a">completed</span>
+      <span class="tag">✔ 流程结束</span>
+      <h3>⑧ 案件关闭</h3>
+      <p>消费者在网站看到"已完成"；全部操作留有审计记录。</p>
+    </div>
+  </div>
+
+  <!-- 终态总览 -->
+  <div class="terminals">
+    <div class="terminal" style="background:var(--good)">✔ 已关闭<small>closed · 补偿执行完毕并通过复核</small></div>
+    <div class="terminal" style="background:var(--bad)">✖ 已拒绝<small>rejected · 索赔不符合条件</small></div>
+    <div class="terminal" style="background:#64748b">⧉ 重复件<small>duplicate · 与已有案件重复</small></div>
+    <div class="terminal" style="background:#64748b">↩ 已撤回<small>withdrawn · 消费者主动撤回</small></div>
+  </div>
+
+  <footer>
+    灰色小字为系统内部状态编码，便于与后台界面 / 消费者查询页对照。<br>
+    详细规则（含角色权限、门槛逻辑）见 <a href="./case-review-workflow.md">docs/case-review-workflow.md</a> · 最终解释以后端 CaseWorkflowPolicy 为准。
+  </footer>
+</div>
+</body>
+</html>
