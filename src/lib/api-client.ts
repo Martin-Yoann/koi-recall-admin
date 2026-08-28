@@ -17,11 +17,13 @@ export type ProblemDetails = components['schemas']['ProblemDetails'];
 
 // ── Admin B-end types (inline until openapi-typescript regenerates with admin paths) ──
 
+export type StaffRole = 'viewer' | 'reviewer' | 'compliance' | 'administrator';
+
 export interface StaffPrincipal {
   staffUserId: string;
   email: string;
   displayName: string;
-  role: 'viewer' | 'reviewer' | 'compliance' | 'administrator';
+  role: StaffRole;
 }
 
 export interface StaffLoginRequest {
@@ -33,8 +35,11 @@ export interface StaffLoginResponse {
   token: string;
   sessionId: string;
   expiresAt: string;
+  /** The authenticated staff user's id (uuid) — needed for self-assignment. */
+  staffUserId?: string | null;
   displayName?: string;
   avatarDataUrl?: string | null;
+  role?: StaffRole;
 }
 
 export interface StaffSession {
@@ -118,6 +123,62 @@ export interface CaseEvent {
   occurredAt: string;
 }
 
+/** The recall campaign a case was submitted against (review context). */
+export interface CaseCampaign {
+  slug: string;
+  code: string;
+  title?: string;
+}
+
+/** A product the consumer claimed, with the identifiers needed to re-check the lot match. */
+export interface CaseProduct {
+  id: string;
+  quantity: number;
+  shape: string;
+  flavor: string;
+  lotCode: string;
+  dateCode: string;
+  purchaseChannel: string;
+  purchaseDate?: string | null;
+  checkResult: string;
+  identificationMode?: string | null;
+  reasonCodes?: string[] | null;
+}
+
+/** Evidence file metadata (no storage pathnames, no blob URLs). */
+export interface CaseDocument {
+  id: string;
+  category: string;
+  categorySlot?: number | null;
+  originalFileName: string;
+  declaredMimeType: string;
+  sizeBytes: number;
+  uploadStatus: string;
+  scanStatus: string;
+  uploadedAt?: string | null;
+}
+
+/** The safety incident reported with a case, plus its reportability gate. */
+export interface CaseIncidentReport {
+  id: string;
+  answer: string;
+  eventTypes: string[];
+  injurySeverity?: string | null;
+  medicalTreatment?: string | null;
+  usedAsIntended?: string | null;
+  occurredAt?: string | null;
+  occurredDateUnknown: boolean;
+  companyObtainedAt: string;
+  reportability: {
+    id: string;
+    status: string;
+    cpscReference?: string | null;
+    filedAt?: string | null;
+  } | null;
+  /** Decrypted narrative — present only for the raw PII tier (audited read). */
+  narrative?: string;
+}
+
 export interface CaseDetail {
   caseReference: string;
   status: string;
@@ -126,6 +187,10 @@ export interface CaseDetail {
   submittedAt: string;
   assignedToStaffUserId: string | null;
   assignedAt: string | null;
+  campaign?: CaseCampaign;
+  products?: CaseProduct[];
+  documents?: CaseDocument[];
+  incident?: CaseIncidentReport | null;
   consumer: CaseConsumer;
   resolution?: CaseResolution | null;
   workflow?: CaseWorkflow | null;
@@ -143,7 +208,8 @@ export interface CaseAssignRequest {
 
 export interface CaseStatusTransitionRequest {
   status: string;
-  reason?: string;
+  /** Persisted on the transition event; required (≥10 chars) for need_info. */
+  note?: string;
 }
 
 export interface StaffUser {
@@ -169,20 +235,42 @@ export interface UpdateStaffRequest {
   status?: string;
 }
 
+export interface IncidentReportability {
+  id: string;
+  status: 'pending' | 'filed' | 'documented_non_reportable';
+  cpscReference?: string | null;
+  filedAt?: string | null;
+  decisionAt?: string | null;
+}
+
+/** GET /admin/incidents row — an incident joined to its case and review gate. */
 export interface IncidentSummary {
-  incidentId: string;
+  id: string;
   caseReference: string;
+  caseStatus: string;
+  answer: string;
   eventTypes: string[];
-  companyObtainedAt: string | null;
-  injurySeverity: string | null;
-  reportabilityReviewId: string | null;
-  reportabilityStatus: 'pending' | 'filed' | 'documented_non_reportable' | null;
-  reviewerId: string | null;
-  nextAction: string;
+  injurySeverity?: string | null;
+  medicalTreatment?: string | null;
+  occurredAt?: string | null;
+  createdAt: string;
+  reportability: IncidentReportability | null;
 }
 
 export interface IncidentListResponse {
   incidents: IncidentSummary[];
+}
+
+/** GET /admin/campaigns row — read-only campaign overview with case counts. */
+export interface AdminCampaignSummary {
+  id: string;
+  slug: string;
+  code: string;
+  status: string;
+  launchAt?: string | null;
+  closeAt?: string | null;
+  title?: string;
+  caseCount: number;
 }
 
 export interface RefundExportBatch {
@@ -621,6 +709,13 @@ export async function listIncidents(): Promise<ApiResult<IncidentListResponse>> 
   });
 }
 
+/** GET /admin/campaigns — Read-only campaign overview with case counts */
+export async function listCampaigns(): Promise<ApiResult<{ campaigns: AdminCampaignSummary[] }>> {
+  return fetchApi<{ campaigns: AdminCampaignSummary[] }>('/admin/campaigns', {
+    headers: authHeaders(),
+  });
+}
+
 /** GET /admin/refund-exports — Refund export history */
 export async function listRefundExports(): Promise<ApiResult<RefundExportHistoryResponse>> {
   return fetchApi<RefundExportHistoryResponse>('/admin/refund-exports', {
@@ -696,11 +791,13 @@ export async function queryAuditEvents(params?: {
   cursor?: string;
 }): Promise<ApiResult<AuditQueryResponse>> {
   const searchParams = new URLSearchParams();
-  if (params?.actor) searchParams.set('actor', params.actor);
+  // Keep these names aligned with the backend contract:
+  // actorUserId, resourceType, since, and until.
+  if (params?.actor) searchParams.set('actorUserId', params.actor);
   if (params?.action) searchParams.set('action', params.action);
-  if (params?.resource) searchParams.set('resource', params.resource);
-  if (params?.from) searchParams.set('from', params.from);
-  if (params?.to) searchParams.set('to', params.to);
+  if (params?.resource) searchParams.set('resourceType', params.resource);
+  if (params?.from) searchParams.set('since', params.from);
+  if (params?.to) searchParams.set('until', params.to);
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.cursor) searchParams.set('cursor', params.cursor);
   const qs = searchParams.toString();

@@ -1,24 +1,26 @@
 'use client';
 
 // ============================================================
-// KOI Recall Admin — Routing Queues v3.0 (live Neon data)
+// KOI Recall Admin — Routing Queues v3.1 (live Neon data)
 // Queue cards + in-queue search, backed by GET /admin/cases
 //
 // Queue derivation (backend case list exposes status / subtype /
-// incidentFlag only, so queues are derived client-side):
-//   urgent_injury_safety  ← incidentFlag && case still active
-//   manual_review         ← status submitted / triage / under_review
-//   unable_to_confirm     ← status need_info
-//   possible_duplicate    ← status duplicate
-//   remedy_exception      ← status approved / closure_review
-//   integration_exception ← no API signal yet (always 0)
+// incidentFlag only, so queues are derived client-side). Aligned with the
+// backend QUEUE_STATUS map (drizzle-admin-service.ts):
+//   urgent_injury_safety  ← incidentFlag && case still active (= backend incident queue)
+//   standard              ← submitted (= backend standard queue)
+//   manual_review         ← triage / under_review (backend manual_review, with
+//                            need_info split into its own queue below)
+//   unable_to_confirm     ← need_info (awaiting consumer information)
+//   possible_duplicate    ← duplicate
+//   remedy_exception      ← approved / closure_review
 // ============================================================
 
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  AlertTriangle, Search, XCircle, Copy, Package, Wifi, ArrowRight,
-  Inbox, Flame, ListFilter, X, RefreshCw,
+  AlertTriangle, Search, XCircle, Copy, Package, Inbox, ArrowRight,
+  Flame, ListFilter, X, RefreshCw,
 } from 'lucide-react';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -27,14 +29,14 @@ import { cn } from '@/lib/utils';
 
 type QueueKind =
   | 'urgent_injury_safety'
+  | 'standard'
   | 'manual_review'
   | 'unable_to_confirm'
   | 'possible_duplicate'
-  | 'remedy_exception'
-  | 'integration_exception';
+  | 'remedy_exception';
 
 type QIcons = Record<string, React.ComponentType<{ className?: string }>>;
-const ICONS: QIcons = { AlertTriangle, Search, XCircle, Copy, Package, Wifi };
+const ICONS: QIcons = { AlertTriangle, Search, XCircle, Copy, Package, Inbox };
 
 interface QueueDef {
   kind: QueueKind;
@@ -46,11 +48,11 @@ interface QueueDef {
 
 const QUEUE_DEFS: QueueDef[] = [
   { kind: 'urgent_injury_safety', label: 'Urgent Injury / Safety', description: 'Cases with reported injuries or safety hazards', sla: '4h', icon: 'AlertTriangle' },
-  { kind: 'manual_review', label: 'Manual Review', description: 'Cases awaiting or undergoing human review', sla: '24h', icon: 'Search' },
+  { kind: 'standard', label: 'Standard Intake', description: 'New submissions awaiting first review', sla: '24h', icon: 'Inbox' },
+  { kind: 'manual_review', label: 'Manual Review', description: 'Cases in triage or active review', sla: '24h', icon: 'Search' },
   { kind: 'unable_to_confirm', label: 'Need Info', description: 'Cases waiting on additional consumer information', sla: '48h', icon: 'XCircle' },
   { kind: 'possible_duplicate', label: 'Possible Duplicate', description: 'Potential duplicate submissions', sla: '24h', icon: 'Copy' },
   { kind: 'remedy_exception', label: 'Remedy Exception', description: 'Approved cases pending remedy or closure review', sla: '8h', icon: 'Package' },
-  { kind: 'integration_exception', label: 'Integration Exception', description: 'External system integration errors', sla: '12h', icon: 'Wifi' },
 ];
 
 const TERMINAL = ['closed', 'withdrawn', 'rejected', 'duplicate'];
@@ -59,8 +61,10 @@ function queueCases(kind: QueueKind, cases: CaseSummary[]): CaseSummary[] {
   switch (kind) {
     case 'urgent_injury_safety':
       return cases.filter(c => c.incidentFlag && !TERMINAL.includes(c.status));
+    case 'standard':
+      return cases.filter(c => c.status === 'submitted');
     case 'manual_review':
-      return cases.filter(c => ['submitted', 'triage', 'under_review'].includes(c.status));
+      return cases.filter(c => ['triage', 'under_review'].includes(c.status));
     case 'unable_to_confirm':
       return cases.filter(c => c.status === 'need_info');
     case 'possible_duplicate':
@@ -75,11 +79,11 @@ function queueCases(kind: QueueKind, cases: CaseSummary[]): CaseSummary[] {
 // Per-queue accent colors (border/dot/badge)
 const QUEUE_STYLES: Record<QueueKind, { accent: string; icon: string; badge: string; selectedRing: string }> = {
   urgent_injury_safety: { accent: 'border-l-red-500', icon: 'text-red-600', badge: 'bg-red-100 text-red-700', selectedRing: 'ring-red-400' },
+  standard: { accent: 'border-l-sky-500', icon: 'text-sky-600', badge: 'bg-sky-100 text-sky-700', selectedRing: 'ring-sky-400' },
   manual_review: { accent: 'border-l-amber-500', icon: 'text-amber-600', badge: 'bg-amber-100 text-amber-700', selectedRing: 'ring-amber-400' },
   unable_to_confirm: { accent: 'border-l-orange-500', icon: 'text-orange-600', badge: 'bg-orange-100 text-orange-700', selectedRing: 'ring-orange-400' },
   possible_duplicate: { accent: 'border-l-blue-500', icon: 'text-blue-600', badge: 'bg-blue-100 text-blue-700', selectedRing: 'ring-blue-400' },
   remedy_exception: { accent: 'border-l-rose-500', icon: 'text-rose-600', badge: 'bg-rose-100 text-rose-700', selectedRing: 'ring-rose-400' },
-  integration_exception: { accent: 'border-l-purple-500', icon: 'text-purple-600', badge: 'bg-purple-100 text-purple-700', selectedRing: 'ring-purple-400' },
 };
 
 export default function QueuesPage() {

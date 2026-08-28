@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Download, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { createRefundExport, listRefundExports, type RefundExportBatch } from '@/lib/api-client';
 
@@ -20,7 +20,7 @@ export default function ExportsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchBatches = async () => {
+  const fetchBatches = useCallback(async () => {
     setLoading(true);
     setError(null);
     const result = await listRefundExports();
@@ -32,11 +32,14 @@ export default function ExportsPage() {
       setError(result.error?.detail || 'Failed to load refund exports.');
     }
     setLoading(false);
-  };
+  }, []);
 
-  if (!loading && batches.length === 0 && !error) {
-    void fetchBatches();
-  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchBatches();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchBatches]);
 
   const handleCreate = async () => {
     const purpose = window.prompt('Purpose for this refund export (1-500 chars):', 'Finance reconciliation');

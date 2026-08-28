@@ -1,9 +1,9 @@
 'use client';
 
 // ============================================================
-// KOI Recall Admin — Operations Overview v3.0 (live Neon data)
+// KOI Recall Admin — Operations Overview v3.1 (live Neon data)
 // Stats & submissions from GET /admin/cases
-// Campaign cards from public GET /v1/recall-campaigns/{slug}
+// Campaign cards from admin GET /admin/campaigns
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,15 +18,8 @@ import { cn } from '@/lib/utils';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { listCases, getCampaign, type CaseSummary } from '@/lib/api-client';
+import { listCases, listCampaigns, type CaseSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
-
-// Campaigns seeded into Neon (test data)
-const KNOWN_CAMPAIGN_SLUGS = [
-  'music-lollipop-demo-2026',
-  'baby-stroller-safety-recall-2026',
-  'electric-kettle-recall-2026',
-];
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 const ACTIVE_CASE_STATUSES = ['submitted', 'triage', 'under_review', 'need_info'];
@@ -36,6 +29,7 @@ interface CampaignCard {
   title: string;
   code: string;
   status: string;
+  caseCount: number;
 }
 
 export default function DashboardPage() {
@@ -55,9 +49,9 @@ export default function DashboardPage() {
     if (!mountedRef.current) return;
     setRefreshing(true);
     setError(null);
-    const [casesResult, ...campaignResults] = await Promise.all([
+    const [casesResult, campaignsResult] = await Promise.all([
       listCases({ limit: 200 }),
-      ...KNOWN_CAMPAIGN_SLUGS.map(slug => getCampaign(slug)),
+      listCampaigns(),
     ]);
     if (!mountedRef.current) return;
     if (casesResult.ok) {
@@ -72,18 +66,19 @@ export default function DashboardPage() {
       setError(casesResult.error?.detail || 'Failed to load cases.');
       setCases([]);
     }
-    setCampaigns(
-      campaignResults.flatMap((r, i) =>
-        r.ok
-          ? [{
-              slug: KNOWN_CAMPAIGN_SLUGS[i]!,
-              title: r.data.campaign.title,
-              code: r.data.campaign.code,
-              status: 'active',
-            }]
-          : [],
-      ),
-    );
+    if (campaignsResult.ok) {
+      setCampaigns(
+        campaignsResult.data.campaigns.map((c) => ({
+          slug: c.slug,
+          title: c.title || c.slug,
+          code: c.code,
+          status: c.status,
+          caseCount: c.caseCount,
+        })),
+      );
+    } else {
+      setCampaigns([]);
+    }
     window.setTimeout(() => {
       if (mountedRef.current) {
         setRefreshing(false);
@@ -163,7 +158,7 @@ export default function DashboardPage() {
           </div>
           <div className="divide-y">
             {campaigns.map(c => (
-              <div key={c.slug}
+              <Link key={c.slug} href={`/campaigns/${c.slug}`}
                 className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-secondary transition-colors group">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
@@ -171,13 +166,17 @@ export default function DashboardPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary truncate">{c.title}</p>
-                    <p className="text-xs text-text-tertiary font-mono mt-0.5">{c.code} · {c.slug}</p>
+                    <p className="text-xs text-text-tertiary font-mono mt-0.5">{c.code} · {c.status}</p>
                   </div>
                 </div>
-              </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold text-text-primary">{c.caseCount}</p>
+                  <p className="text-[10px] text-text-tertiary uppercase tracking-wider">cases</p>
+                </div>
+              </Link>
             ))}
             {campaigns.length === 0 && (
-              <p className="text-sm text-text-tertiary text-center py-8">No published campaigns found.</p>
+              <p className="text-sm text-text-tertiary text-center py-8">No campaigns found.</p>
             )}
           </div>
         </div>

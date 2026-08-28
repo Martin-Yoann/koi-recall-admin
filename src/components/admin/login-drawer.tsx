@@ -120,7 +120,7 @@ export function LoginDrawer() {
           </form>
 
           <p className="mt-6 text-xs text-white/25 text-center">
-            Demo: admin@koi-platform.com / KoiAdmin2026!
+            Demo: admin@koi-platform.com / happyglobal123!
           </p>
         </div>
       </div>

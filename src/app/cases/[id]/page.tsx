@@ -10,16 +10,19 @@ import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, User, AlertTriangle, RefreshCw, Users, Clock,
-  CheckCircle2, ArrowRight, Shield, MapPin, Mail, Phone, Globe,
+  CheckCircle2, ArrowRight, Shield, MapPin, Mail, Phone, Globe, Package,
+  FileText, Eye, Lock, Siren,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { cn } from '@/lib/utils';
 import {
   getCaseDetail, transitionCaseStatus, assignCase, listStaff, queryAuditEvents,
-  type CaseDetail, type StaffUser, type AuditEvent,
+  closeReportabilityReview,
+  type CaseDetail, type StaffUser, type AuditEvent, type CaseDocument,
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { usePermissions } from '@/lib/rbac';
 import {
   formatBlockingReason,
   formatWorkflowLabel,
@@ -28,6 +31,63 @@ import {
 } from '@/lib/case-operations';
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
+
+/** Transitions that close the case negatively — always require a reason. */
+const REASON_REQUIRED = ['rejected', 'duplicate', 'withdrawn'];
+
+/** Prefill options for the "request more information" dialog (need_info). */
+const INFO_REQUEST_OPTIONS = [
+  'A photo or copy of the proof of purchase',
+  'Clearer product photos (shape and flavor visible)',
+  'A close-up photo of the lot and date codes',
+  'More details about the incident (timeline, injuries, treatment)',
+];
+
+/** One evidence file row — metadata only (no storage pathname, no blob URL). */
+function DocumentRow({ doc }: { doc: CaseDocument }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border px-3 py-2 text-xs">
+      <FileText className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-text-primary truncate">{doc.originalFileName}</p>
+        <p className="text-[10px] text-text-tertiary mt-0.5">
+          {doc.declaredMimeType} · {(doc.sizeBytes / 1024).toFixed(0)} KiB
+          {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+        </p>
+      </div>
+      <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0', UPLOAD_STATUS_STYLES[doc.uploadStatus] ?? 'bg-slate-100 text-slate-600')}>
+        {doc.uploadStatus.replace(/_/g, ' ')}
+      </span>
+      <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0', SCAN_STATUS_STYLES[doc.scanStatus] ?? 'bg-slate-100 text-slate-600')}>
+        scan: {doc.scanStatus.replace(/_/g, ' ')}
+      </span>
+    </div>
+  );
+}
+
+const EVIDENCE_CATEGORIES: Array<{ id: string; label: string }> = [
+  { id: 'proof_of_purchase', label: 'Proof of Purchase' },
+  { id: 'product_photo', label: 'Product Photos' },
+  { id: 'incident_evidence', label: 'Incident Evidence' },
+];
+
+const UPLOAD_STATUS_STYLES: Record<string, string> = {
+  linked: 'bg-emerald-50 text-emerald-700',
+  verified: 'bg-emerald-50 text-emerald-700',
+  uploaded: 'bg-blue-50 text-blue-700',
+  authorized: 'bg-slate-100 text-slate-600',
+  rejected: 'bg-red-50 text-red-700',
+  deletion_pending: 'bg-amber-50 text-amber-700',
+  deleted: 'bg-slate-100 text-slate-400',
+};
+
+const SCAN_STATUS_STYLES: Record<string, string> = {
+  clean: 'bg-emerald-50 text-emerald-700',
+  pending: 'bg-amber-50 text-amber-700',
+  infected: 'bg-red-100 text-red-800 font-bold',
+  failed: 'bg-red-50 text-red-700',
+  not_run: 'bg-slate-100 text-slate-500',
+};
 
 const TRANSITION_STYLES: Record<string, string> = {
   approved: 'bg-emerald-600 hover:bg-emerald-700 text-white',
@@ -63,6 +123,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 }
 
 function CaseDetailContent({ caseRef }: { caseRef: string }) {
+  const { can, role } = usePermissions();
   const [record, setRecord] = useState<CaseDetail | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
@@ -74,22 +135,35 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
   const [transitionReason, setTransitionReason] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [assignTarget, setAssignTarget] = useState('');
-  const [resolutionType, setResolutionType] = useState<'replacement' | 'refund'>('replacement');
+  /** Null = follow the consumer's requested remedy type (pre-filled). */
+  const [resolutionTypeOverride, setResolutionTypeOverride] = useState<'replacement' | 'refund' | null>(null);
+  /** Refund amount typed in DOLLARS — converted to minor units on submit. */
   const [refundAmount, setRefundAmount] = useState('');
   const [refundCurrency, setRefundCurrency] = useState('USD');
   const [externalReference, setExternalReference] = useState('');
+  const [viewingRawPii, setViewingRawPii] = useState(false);
+  const [needInfoOpen, setNeedInfoOpen] = useState(false);
+  const [needInfoNote, setNeedInfoNote] = useState('');
+  const [repOutcome, setRepOutcome] = useState<'filed' | 'documented_non_reportable'>('filed');
+  const [repCpsc, setRepCpsc] = useState('');
+  const [repRationale, setRepRationale] = useState('');
+  const [repSubmitting, setRepSubmitting] = useState(false);
+  const [repError, setRepError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
+  /** Kept in a ref so refresh() always reloads at the tier currently on screen. */
+  const piiLevelRef = useRef<'masked' | 'raw'>('masked');
 
   useEffect(() => () => {
     mountedRef.current = false;
   }, []);
 
   const refresh = useCallback(async () => {
-    const result = await getCaseDetail(caseRef);
+    const result = await getCaseDetail(caseRef, piiLevelRef.current);
     if (!mountedRef.current) return;
     if (result.ok) {
       setRecord(result.data.case);
+      setViewingRawPii(result.data.case.consumer.piiTier === 'raw');
       setNotFound(false);
       setAuthError(false);
       setActionError(null);
@@ -111,6 +185,24 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
       setActionError(result.error?.detail || 'Failed to load case.');
     }
   }, [caseRef]);
+
+  /**
+   * Switch to the raw PII tier. The raw read decrypts PII (and the incident
+   * narrative) server-side and writes a pii.view_raw audit row — make sure the
+   * reviewer confirms before we trigger it.
+   */
+  const toggleRawPii = async () => {
+    if (piiLevelRef.current === 'masked') {
+      const confirmed = window.confirm(
+        'You are about to decrypt this consumer\'s raw PII. This read is recorded in the audit log (pii.view_raw). Continue?',
+      );
+      if (!confirmed) return;
+      piiLevelRef.current = 'raw';
+    } else {
+      piiLevelRef.current = 'masked';
+    }
+    await refresh();
+  };
 
   const loadInitialData = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -148,11 +240,26 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
 
   const handleTransition = async (next: string) => {
     if (!record) return;
+
+    // need_info requires telling the consumer what to provide — open the
+    // dedicated request dialog instead of transitioning silently.
+    if (next === 'need_info') {
+      setNeedInfoNote('');
+      setNeedInfoOpen(true);
+      return;
+    }
+
+    // Negative closures are auditable decisions: require a written reason.
+    if (REASON_REQUIRED.includes(next) && transitionReason.trim().length === 0) {
+      setActionError(`A written reason is required before moving this case to ${next.replace(/_/g, ' ')}.`);
+      return;
+    }
+
     setSubmitting(true);
     setActionError(null);
     const result = await transitionCaseStatus(caseRef, {
       status: next,
-      ...(transitionReason.trim() ? { reason: transitionReason.trim() } : {}),
+      ...(transitionReason.trim() ? { note: transitionReason.trim() } : {}),
     });
     if (result.ok) {
       setTransitionReason('');
@@ -161,6 +268,55 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
       setActionError(result.error?.detail || `Transition to ${next} failed (${result.status})`);
     }
     setSubmitting(false);
+  };
+
+  /** Submit the need_info request built in the dialog. */
+  const submitNeedInfo = async () => {
+    const note = needInfoNote.trim();
+    if (note.length < 10) {
+      setActionError('Please describe what the consumer should provide (at least 10 characters).');
+      return;
+    }
+    setSubmitting(true);
+    setActionError(null);
+    const result = await transitionCaseStatus(caseRef, { status: 'need_info', note });
+    if (result.ok) {
+      setNeedInfoOpen(false);
+      setNeedInfoNote('');
+      await refresh();
+    } else {
+      setActionError(result.error?.detail || `Request for information failed (${result.status})`);
+    }
+    setSubmitting(false);
+  };
+
+  /** Close the pending reportability review from the closure checklist. */
+  const submitReportabilityClose = async () => {
+    const review = cse?.incident?.reportability;
+    if (!review) return;
+    if (repRationale.trim().length < 10) {
+      setRepError('A rationale of at least 10 characters is required.');
+      return;
+    }
+    if (repOutcome === 'filed' && !repCpsc.trim()) {
+      setRepError('CPSC reference is required when closing as filed.');
+      return;
+    }
+    setRepSubmitting(true);
+    setRepError(null);
+    const result = await closeReportabilityReview(review.id, {
+      outcome: repOutcome,
+      rationale: repRationale.trim(),
+      ...(repCpsc.trim() ? { cpscReference: repCpsc.trim() } : {}),
+    });
+    if (result.ok) {
+      setRepRationale('');
+      setRepCpsc('');
+      await refresh();
+    } else {
+      setRepError(result.error?.detail || 'Failed to close the reportability review.');
+    }
+    setRepSubmitting(false);
   };
 
   const handleAssign = async () => {
@@ -187,12 +343,13 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
       return;
     }
 
-    const refundAmountMinor =
-      resolutionType === 'refund' && refundAmount.trim() ? Number(refundAmount.trim()) : undefined;
+    const refundDollars =
+      resolutionType === 'refund' && refundAmount.trim() ? Number.parseFloat(refundAmount.trim()) : NaN;
+    const refundAmountMinor = Number.isFinite(refundDollars) ? Math.round(refundDollars * 100) : undefined;
 
     if (action === 'resolution:approve' && resolutionType === 'refund') {
-      if (!Number.isInteger(refundAmountMinor) || (refundAmountMinor ?? 0) <= 0) {
-        setActionError('Refund approvals require a positive integer refund amount in minor units.');
+      if (refundAmountMinor === undefined || refundAmountMinor <= 0) {
+        setActionError('Refund approvals require a positive refund amount in dollars.');
         return;
       }
       if (!refundCurrency.trim()) {
@@ -215,6 +372,7 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
       setResolutionNote('');
       setExternalReference('');
       if (action === 'resolution:approve') {
+        setResolutionTypeOverride(null);
         setRefundAmount('');
         setRefundCurrency('USD');
       }
@@ -257,8 +415,26 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
   const canApproveResolution = resolutionActions.includes('resolution:approve');
   const canCompleteResolution = resolutionActions.includes('resolution:complete');
   const resolution = cse.resolution;
+  /** Approval type pre-fills from what the consumer requested (overridable). */
+  const resolutionType = resolutionTypeOverride ?? resolution?.requestedType ?? 'replacement';
   const assignedStaff = staff.find(s => s.id === cse.assignedToStaffUserId);
   const consumerName = `${cse.consumer.firstName} ${cse.consumer.lastName}`.trim();
+  /** Latest need_info transition note — what the review team asked the consumer to provide. */
+  const infoRequest = (() => {
+    const events = cse.events ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i]!;
+      const data = event.data as Record<string, unknown> | null;
+      if (
+        event.eventType === 'case.status.transitioned' &&
+        data?.nextStatus === 'need_info' &&
+        typeof data.note === 'string'
+      ) {
+        return { note: data.note, at: event.occurredAt };
+      }
+    }
+    return null;
+  })();
 
   return (
     <div className="space-y-5 max-w-screen-2xl mx-auto">
@@ -303,10 +479,335 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
         </div>
       )}
 
+      {/* Requested information (need_info loop with the consumer) */}
+      {(cse.status === 'need_info' || infoRequest) && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
+            <Clock className="h-4 w-4" />Information Requested
+          </p>
+          {infoRequest ? (
+            <>
+              <p className="text-xs text-amber-900 mt-1.5 whitespace-pre-wrap leading-relaxed">{infoRequest.note}</p>
+              <p className="text-[10px] text-amber-700 mt-2">
+                Requested {new Date(infoRequest.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · the consumer sees this case as “Action required” with this message.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-amber-700 mt-1">
+              This case is waiting for consumer information, but no request note was recorded (legacy transition). Move it back to under review once the consumer responds.
+            </p>
+          )}
+        </div>
+      )}
+
       {actionError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
           {actionError}
         </div>
+      )}
+
+      {/* ── Campaign & claimed products (review context) ── */}
+      {(cse.campaign || (cse.products && cse.products.length > 0)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <Package className="h-4 w-4 text-text-tertiary" />Campaign &amp; Claimed Products
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {cse.campaign && (
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="font-semibold text-text-primary">{cse.campaign.title || cse.campaign.slug}</span>
+                <span className="font-mono text-text-tertiary px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">{cse.campaign.code}</span>
+                <Link
+                  href={`/campaigns/${cse.campaign.slug}`}
+                  className="text-brand-emerald hover:underline"
+                >
+                  View campaign →
+                </Link>
+              </div>
+            )}
+            {cse.products && cse.products.length > 0 ? (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-surface-secondary/60 text-left text-text-tertiary">
+                      <th className="px-3 py-2 font-semibold">Match</th>
+                      <th className="px-3 py-2 font-semibold">Shape</th>
+                      <th className="px-3 py-2 font-semibold">Flavor</th>
+                      <th className="px-3 py-2 font-semibold">Lot</th>
+                      <th className="px-3 py-2 font-semibold">Date code</th>
+                      <th className="px-3 py-2 font-semibold">Qty</th>
+                      <th className="px-3 py-2 font-semibold">Channel</th>
+                      <th className="px-3 py-2 font-semibold">Purchased</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cse.products.map((product) => (
+                      <tr key={product.id} className="border-b last:border-0">
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
+                            product.checkResult === 'potential_match' && 'bg-emerald-50 text-emerald-700',
+                            product.checkResult === 'manual_review' && 'bg-amber-50 text-amber-700',
+                            product.checkResult === 'not_matched' && 'bg-red-50 text-red-700',
+                          )}>
+                            {product.checkResult.replace(/_/g, ' ')}
+                          </span>
+                          {product.identificationMode && product.identificationMode !== 'product_identifiers' && (
+                            <span className="block text-[10px] text-text-tertiary mt-1">via {product.identificationMode.replace(/_/g, ' ')}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-text-secondary">{product.shape}</td>
+                        <td className="px-3 py-2 text-text-secondary">{product.flavor}</td>
+                        <td className="px-3 py-2 font-mono text-text-primary">{product.lotCode}</td>
+                        <td className="px-3 py-2 font-mono text-text-primary">{product.dateCode}</td>
+                        <td className="px-3 py-2 text-text-secondary">{product.quantity}</td>
+                        <td className="px-3 py-2 text-text-secondary">{product.purchaseChannel.replace(/_/g, ' ')}</td>
+                        <td className="px-3 py-2 text-text-tertiary">
+                          {product.purchaseDate ?? '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-text-tertiary">No claimed products were recorded on this case.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Evidence (document metadata grouped by category) ── */}
+      {cse.documents && cse.documents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <FileText className="h-4 w-4 text-text-tertiary" />Evidence ({cse.documents.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {EVIDENCE_CATEGORIES.map((category) => {
+              const docs = cse.documents?.filter(d => d.category === category.id) ?? [];
+              if (docs.length === 0) return null;
+              return (
+                <div key={category.id}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-2">{category.label}</p>
+                  <div className="space-y-2">
+                    {docs.map((doc) => (
+                      <DocumentRow key={doc.id} doc={doc} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {cse.documents.some(d => !EVIDENCE_CATEGORIES.some(c => c.id === d.category)) && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-2">Other</p>
+                <div className="space-y-2">
+                  {cse.documents.filter(d => !EVIDENCE_CATEGORIES.some(c => c.id === d.category)).map((doc) => (
+                    <DocumentRow key={doc.id} doc={doc} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Incident detail (review context for the compliance gate) ── */}
+      {cse.incident && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <Siren className="h-4 w-4 text-red-500" />Incident Report
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Consumer answer</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.answer}</p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Injury severity</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.injurySeverity?.replace(/_/g, ' ') ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Medical treatment</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.medicalTreatment?.replace(/_/g, ' ') ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Occurred</p>
+                <p className="mt-1 font-semibold text-text-primary">
+                  {cse.incident.occurredAt
+                    ? new Date(cse.incident.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : cse.incident.occurredDateUnknown ? 'Date unknown' : '—'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {cse.incident.eventTypes.map((type) => (
+                <span key={type} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">{type.replace(/_/g, ' ')}</span>
+              ))}
+            </div>
+            <div className="rounded-lg border p-3 text-xs flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-text-tertiary">Reportability review</p>
+                {cse.incident.reportability ? (
+                  <p className="mt-1 font-semibold text-text-primary">
+                    {cse.incident.reportability.status === 'filed'
+                      ? <>Filed with CPSC{cse.incident.reportability.cpscReference ? ` · ${cse.incident.reportability.cpscReference}` : ''}</>
+                      : cse.incident.reportability.status.replace(/_/g, ' ')}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-semibold text-text-primary">No review record</p>
+                )}
+              </div>
+              {cse.incident.reportability?.status === 'pending' && (
+                <Link
+                  href="/incidents"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800"
+                >
+                  Open incidents queue <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+            {cse.incident.narrative !== undefined ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 mb-1 flex items-center gap-1">
+                  <Eye className="h-3 w-3" />Narrative · decrypted · audited
+                </p>
+                <p className="text-xs text-text-primary leading-relaxed whitespace-pre-wrap">{cse.incident.narrative}</p>
+              </div>
+            ) : (
+              <p className="text-xs text-text-tertiary rounded-lg bg-surface-secondary/60 p-3 flex items-center gap-1.5">
+                <Lock className="h-3 w-3" />Narrative is encrypted. Use “View raw PII” (compliance role) to decrypt — the read is audited.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Closure checklist (the two gates before closed) ── */}
+      {['approved', 'closure_review'].includes(cse.status) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 text-text-tertiary" />Closure Checklist
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Gate 1 — resolution externally completed */}
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <span className={cn(
+                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
+                resolution?.status === 'externally_completed' ? 'bg-emerald-600' : 'bg-slate-300',
+              )}>
+                {resolution?.status === 'externally_completed' ? '✓' : '✗'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-text-primary">Resolution externally completed</p>
+                <p className="text-xs text-text-tertiary mt-0.5">
+                  {resolution?.status === 'externally_completed'
+                    ? `Recorded${resolution?.completedAt ? ` on ${new Date(resolution.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.`
+                    : 'Approve the resolution, then record its external completion (refund batch or fulfilment reference).'}
+                </p>
+              </div>
+              {resolution?.status !== 'externally_completed' && (
+                <button
+                  onClick={() => document.getElementById('resolution-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  className="shrink-0 rounded-md border px-2 py-1 text-xs font-semibold text-text-secondary cursor-pointer hover:bg-surface-secondary"
+                >
+                  Open resolution
+                </button>
+              )}
+            </div>
+
+            {/* Gate 2 — reportability closed (incident cases only) */}
+            {cse.incidentFlag && (
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <span className={cn(
+                  'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
+                  cse.incident?.reportability && cse.incident.reportability.status !== 'pending' ? 'bg-emerald-600' : 'bg-slate-300',
+                )}>
+                  {cse.incident?.reportability && cse.incident.reportability.status !== 'pending' ? '✓' : '✗'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-text-primary">Reportability review closed</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">
+                    {!cse.incident?.reportability
+                      ? 'No reportability review record — open the incidents queue.'
+                      : cse.incident.reportability.status === 'pending'
+                        ? 'The safety incident still needs a CPSC filing decision.'
+                        : cse.incident.reportability.status === 'filed'
+                          ? `Filed with CPSC${cse.incident.reportability.cpscReference ? ` · ${cse.incident.reportability.cpscReference}` : ''}.`
+                          : 'Documented as non-reportable.'}
+                  </p>
+                </div>
+                {(!cse.incident?.reportability || cse.incident.reportability.status !== 'pending') ? null : (
+                  <Link
+                    href="/incidents"
+                    className="shrink-0 rounded-md border px-2 py-1 text-xs font-semibold text-text-secondary cursor-pointer hover:bg-surface-secondary"
+                  >
+                    Open incidents
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {/* Inline close form for the pending review */}
+            {cse.incident?.reportability?.status === 'pending' && can('review.close') && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Close reportability review</p>
+                <div className="flex gap-2 flex-wrap">
+                  <select
+                    value={repOutcome}
+                    onChange={e => setRepOutcome(e.target.value as 'filed' | 'documented_non_reportable')}
+                    className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer"
+                  >
+                    <option value="filed">Filed with CPSC</option>
+                    <option value="documented_non_reportable">Documented non-reportable</option>
+                  </select>
+                  {repOutcome === 'filed' && (
+                    <input
+                      value={repCpsc}
+                      onChange={e => setRepCpsc(e.target.value)}
+                      placeholder="CPSC reference (e.g. CPSC-2026-001)"
+                      className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                    />
+                  )}
+                </div>
+                <textarea
+                  value={repRationale}
+                  onChange={e => setRepRationale(e.target.value)}
+                  placeholder="Rationale for the decision (minimum 10 characters)…"
+                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-elevated outline-none resize-none"
+                  style={{ borderColor: 'var(--border)' }}
+                  maxLength={2000}
+                />
+                {repError && <p className="text-xs text-red-600">{repError}</p>}
+                <button
+                  onClick={submitReportabilityClose}
+                  disabled={repSubmitting}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {repSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  {repSubmitting ? 'Closing…' : 'Close review'}
+                </button>
+              </div>
+            )}
+
+            {operations.blockingReasons.length > 0 && (
+              <div className="space-y-1 rounded-lg bg-surface-secondary/60 p-3 text-xs text-text-secondary">
+                {operations.blockingReasons.map((reason) => (
+                  <p key={reason}>• {formatBlockingReason(reason)}</p>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -340,6 +841,21 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                 Submitted {new Date(cse.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
+            {can('case.detail.read_pii_raw') && (
+              <button
+                onClick={toggleRawPii}
+                disabled={loading || submitting}
+                className={cn(
+                  'w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50',
+                  viewingRawPii
+                    ? 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    : 'border border-slate-300 text-text-secondary hover:bg-surface-secondary',
+                )}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                {viewingRawPii ? 'Hide raw PII (back to masked)' : 'View raw PII (audited)'}
+              </button>
+            )}
           </CardContent>
         </Card>
 
@@ -366,7 +882,9 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
               <select
                 value={assignTarget}
                 onChange={e => setAssignTarget(e.target.value)}
-                className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald"
+                disabled={!can('case.assign')}
+                title={can('case.assign') ? undefined : 'Requires the case.assign permission (reviewer+)'}
+                className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Select staff member...</option>
                 {staff.filter(s => s.status === 'active').map(s => (
@@ -377,8 +895,9 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
               </select>
               <button
                 onClick={handleAssign}
-                disabled={submitting || !assignTarget}
-                className="h-9 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-900 cursor-pointer transition-colors disabled:opacity-50"
+                disabled={submitting || !assignTarget || !can('case.assign')}
+                title={can('case.assign') ? undefined : 'Requires the case.assign permission (reviewer+)'}
+                className="h-9 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-900 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Assign
               </button>
@@ -387,7 +906,7 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
         </Card>
 
         {/* ── Resolution ── */}
-        <Card>
+        <Card id="resolution-card">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-text-tertiary" />Resolution</CardTitle>
           </CardHeader>
@@ -415,13 +934,19 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
 
                 {resolution.refundAmountMinor !== null && (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-text-secondary">
-                    Refund amount: {resolution.refundAmountMinor} {resolution.currency ?? ''}
+                    Refund amount: <span className="font-bold text-text-primary">${(resolution.refundAmountMinor / 100).toFixed(2)}</span> {resolution.currency ?? ''}
                   </div>
                 )}
 
                 {resolution.externalReference && (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-text-secondary">
                     External reference: {resolution.externalReference}
+                  </div>
+                )}
+
+                {resolution.completedAt && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                    Completed externally {new Date(resolution.completedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
 
@@ -436,11 +961,13 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                     />
                     {canApproveResolution ? (
                       <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Approval details</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+                          Approval details{resolution?.requestedType ? ' (pre-filled from the consumer’s request)' : ''}
+                        </p>
                         <div className="flex gap-2">
                           <select
                             value={resolutionType}
-                            onChange={e => setResolutionType(e.target.value as 'replacement' | 'refund')}
+                            onChange={e => setResolutionTypeOverride(e.target.value as 'replacement' | 'refund')}
                             className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald"
                           >
                             <option value="replacement">Replacement</option>
@@ -453,13 +980,14 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                                 onChange={e => setRefundCurrency(e.target.value.toUpperCase())}
                                 maxLength={3}
                                 placeholder="USD"
-                                className="w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                                className="w-16 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
                               />
                               <input
                                 value={refundAmount}
-                                onChange={e => setRefundAmount(e.target.value.replace(/[^\d]/g, ''))}
-                                placeholder="Amount"
-                                className="w-28 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                                onChange={e => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                                placeholder="$ dollars"
+                                inputMode="decimal"
+                                className="flex-1 min-w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
                               />
                             </>
                           ) : null}
@@ -479,9 +1007,10 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                         <button
                           key={action}
                           onClick={() => handleResolutionAction(action)}
-                          disabled={submitting}
+                          disabled={submitting || !can('case.status.transition')}
+                          title={can('case.status.transition') ? undefined : 'Requires the case.status.transition permission (reviewer+)'}
                           className={cn(
-                            'text-xs font-semibold px-3 py-1.5 rounded-md cursor-pointer transition-colors disabled:opacity-50',
+                            'text-xs font-semibold px-3 py-1.5 rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                             RESOLUTION_ACTION_STYLES[action] ?? 'bg-slate-600 hover:bg-slate-700 text-white',
                           )}
                         >
@@ -522,14 +1051,22 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                 {operations.blockingReasons.length > 0 ? (
                   <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
                     {operations.blockingReasons.map((reason) => (
-                      <p key={reason}>{formatBlockingReason(reason)}</p>
+                      <p key={reason} className="flex items-center justify-between gap-2">
+                        <span>{formatBlockingReason(reason)}</span>
+                        <button
+                          onClick={() => document.getElementById('resolution-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                          className="shrink-0 underline cursor-pointer hover:no-underline"
+                        >
+                          resolve
+                        </button>
+                      </p>
                     ))}
                   </div>
                 ) : null}
                 <textarea
                   value={transitionReason}
                   onChange={e => setTransitionReason(e.target.value)}
-                  placeholder="Reason for the transition (optional)..."
+                  placeholder="Reason for the transition (required for rejected / duplicate / withdrawn)..."
                   className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary outline-none resize-none"
                   style={{ borderColor: 'var(--border)' }}
                 />
@@ -538,9 +1075,10 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                     <button
                       key={next}
                       onClick={() => handleTransition(next)}
-                      disabled={submitting}
+                      disabled={submitting || !can('case.status.transition')}
+                      title={can('case.status.transition') ? undefined : 'Requires the case.status.transition permission (reviewer+)'}
                       className={cn(
-                        'text-xs font-semibold px-3 py-1.5 rounded-md cursor-pointer transition-colors disabled:opacity-50',
+                        'text-xs font-semibold px-3 py-1.5 rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                         TRANSITION_STYLES[next] ?? 'bg-slate-600 hover:bg-slate-700 text-white',
                       )}
                     >
@@ -548,6 +1086,11 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                       {next.replace(/_/g, ' ')}
                     </button>
                   ))}
+                  {!can('case.status.transition') && (
+                    <p className="text-xs text-text-tertiary w-full">
+                      Your role ({role ?? 'signed out'}) is read-only — transitions require a reviewer, compliance, or administrator account.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -583,6 +1126,73 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Request more information (need_info) dialog ── */}
+      {needInfoOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="need-info-title">
+          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 id="need-info-title" className="text-base font-bold text-text-primary">Request More Information</h2>
+                <p className="text-xs text-text-tertiary mt-1">
+                  Case {cse.caseReference} · the consumer will see this case as “Action required” with your message.
+                </p>
+              </div>
+              <button type="button" onClick={() => setNeedInfoOpen(false)} className="text-text-tertiary hover:text-text-primary cursor-pointer" aria-label="Close dialog">
+                <ArrowLeft className="h-4 w-4 rotate-180" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                {INFO_REQUEST_OPTIONS.map((option) => (
+                  <label key={option} className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 cursor-pointer"
+                      checked={needInfoNote.includes(option)}
+                      onChange={(e) => {
+                        setNeedInfoNote((prev) => {
+                          if (e.target.checked) {
+                            return prev.trim() ? `${prev.trim()}\n• ${option}` : `• ${option}`;
+                          }
+                          return prev
+                            .replace(`\n• ${option}`, '')
+                            .replace(`• ${option}\n`, '')
+                            .replace(`• ${option}`, '');
+                        });
+                      }}
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+              <textarea
+                value={needInfoNote}
+                onChange={e => setNeedInfoNote(e.target.value)}
+                placeholder="Describe what the consumer should provide (minimum 10 characters)…"
+                className="w-full h-28 text-xs p-3 rounded-lg border bg-surface-secondary outline-none resize-none"
+                style={{ borderColor: 'var(--border)' }}
+                maxLength={2000}
+              />
+              <p className="text-[10px] text-text-tertiary">
+                Saved to the case timeline and shown to the consumer. Free-form edits are welcome — checkboxes are just a starting point.
+              </p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setNeedInfoOpen(false)} className="rounded-lg border px-3 py-2 text-xs font-semibold text-text-secondary cursor-pointer">Cancel</button>
+              <button
+                type="button"
+                onClick={submitNeedInfo}
+                disabled={submitting || needInfoNote.trim().length < 10}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-orange-700 disabled:opacity-50"
+              >
+                {submitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                {submitting ? 'Submitting…' : 'Request information'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

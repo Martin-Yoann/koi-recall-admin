@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'KOI Admin', template: '%s | KOI Admin' },
-  description: 'Manage recall campaigns, review consumer claims, and monitor operations.',
+  description: 'Monitor recall campaigns, manage cases, and monitor operations.',
   icons: { icon: '/favicon.ico' },
 };
 

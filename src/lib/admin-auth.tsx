@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { staffLogin, staffLogout, updateOwnProfile, setAdminSessionToken } from '@/lib/api-client';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { staffLogin, staffLogout, updateOwnProfile, setAdminSessionToken, type StaffRole } from '@/lib/api-client';
 
 interface AdminUser {
   email: string;
@@ -14,6 +14,10 @@ interface AdminUser {
   token?: string;
   /** ISO expiry of the session token */
   expiresAt?: string;
+  /** Fixed staff role from the login response — drives client-side RBAC UI. */
+  role?: StaffRole;
+  /** Staff user id (uuid) — used for self-assignment ("claim to me"). */
+  staffUserId?: string;
 }
 
 interface AuthCtx {
@@ -56,7 +60,26 @@ function getInitials(name: string): string {
 
 export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Restore the staff session before child pages issue authenticated requests.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as AdminUser;
+      if (!parsed.token || (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now())) {
+        clearStored();
+        return;
+      }
+      setAdminSessionToken(parsed.token);
+      window.setTimeout(() => setUser(parsed), 0);
+    } catch {
+      clearStored();
+    } finally {
+      window.setTimeout(() => setLoading(false), 0);
+    }
+  }, []);
   const [loginOpen, setLoginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'password'>('profile');
@@ -75,6 +98,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         token: result.data.token,
         expiresAt: result.data.expiresAt,
         ...(result.data.avatarDataUrl ? { avatarDataUrl: result.data.avatarDataUrl } : {}),
+        ...(result.data.role ? { role: result.data.role } : {}),
+        ...(result.data.staffUserId ? { staffUserId: result.data.staffUserId } : {}),
       };
       setStored(u);
       setUser(u);
@@ -129,10 +154,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // The backend currently exposes staff creation and role/status updates, but
+  // no self-service password-change endpoint. Keep this explicit rather than
+  // pretending that the profile form can persist a password.
   const changePassword = useCallback(
-    () => {
-      return { ok: false, error: 'Password change not yet available via API' };
-    },
+    () => ({ ok: false, error: 'Password changes are not available until the backend endpoint is enabled.' }),
     [],
   );
 
