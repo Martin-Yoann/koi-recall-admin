@@ -19,26 +19,11 @@ export type Permission =
   | 'case.status.transition'
   | 'review.close'
   | 'audit.read'
+  | 'staff.read'
   | 'staff.manage';
 
 const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
-  viewer: ['case.queue.read', 'case.detail.read'],
-  reviewer: [
-    'case.queue.read',
-    'case.detail.read',
-    'case.assign',
-    'case.status.transition',
-  ],
-  compliance: [
-    'case.queue.read',
-    'case.detail.read',
-    'case.detail.read_pii_raw',
-    'case.export',
-    'case.assign',
-    'case.status.transition',
-    'review.close',
-  ],
-  administrator: [
+  MANAGER: [
     'case.queue.read',
     'case.detail.read',
     'case.detail.read_pii_raw',
@@ -47,6 +32,18 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'case.status.transition',
     'review.close',
     'audit.read',
+    'staff.read',
+  ],
+  ADMIN: [
+    'case.queue.read',
+    'case.detail.read',
+    'case.detail.read_pii_raw',
+    'case.export',
+    'case.assign',
+    'case.status.transition',
+    'review.close',
+    'audit.read',
+    'staff.read',
     'staff.manage',
   ],
 };
@@ -60,19 +57,18 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'case.status.transition': 'Transition & resolve cases',
   'review.close': 'Close reportability reviews',
   'audit.read': 'Read audit events',
+  'staff.read': 'View staff directory',
   'staff.manage': 'Manage staff',
 };
 
 export const ROLE_LABELS: Record<StaffRole, string> = {
-  viewer: 'Viewer',
-  reviewer: 'Reviewer',
-  compliance: 'Compliance',
-  administrator: 'Administrator',
+  ADMIN: 'Admin',
+  MANAGER: 'Manager',
 };
 
 export function roleHasPermission(role: StaffRole | undefined | null, permission: Permission): boolean {
   if (!role) return false;
-  return ROLE_PERMISSIONS[role].includes(permission);
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 }
 
 /**
@@ -86,6 +82,6 @@ export function usePermissions() {
     role,
     isAuthenticated,
     can: (permission: Permission) => roleHasPermission(role, permission),
-    permissions: role ? ROLE_PERMISSIONS[role] : [],
+    permissions: role && ROLE_PERMISSIONS[role] ? ROLE_PERMISSIONS[role] : [],
   };
 }

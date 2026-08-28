@@ -11,7 +11,7 @@ KOI 召回平台管理后台 — 面向运营与合规团队的内部管理系�
 | 部署 | ✅ [koi-recall-admin.vercel.app](https://koi-recall-admin.vercel.app) |
 | 后端集成 | active — cases / case 详情（含活动、产品、证据、事故）/ assign / 状态流转（含 note）/ resolution / incidents / reportability / refund-exports / staff / audit 全部真实 API |
 | Demo 数据 | 已移除 — 不再依赖 mock / localStorage 桥接 |
-| 认证 | ✅ Staff session 登录（含角色与 staffUserId），登录响应返回 `role` 驱动前端 RBAC UI；密码修改等待后端接口 |
+| 认证 | ✅ Staff session 登录（含 `ADMIN`/`MANAGER` 角色与 staffUserId），登录响应返回 `role` 驱动前端 RBAC UI；密码修改等待后端接口 |
 | 暗色模式 | CSS 变量已定义，未启用切换 |
 
 ### 与上下游关系
@@ -70,7 +70,7 @@ src/
 │   ├── queues/page.tsx           # 队列管理 — 与后端 QUEUE_STATUS 口径对齐的 6 个队列
 │   ├── incidents/page.tsx        # 事故与安全 — GET /admin/incidents + reportability 关闭
 │   ├── exports/page.tsx          # 导出与作业 — 退款导出批次
-│   └── access/page.tsx           # 访问与审计 — Staff 管理（staff.manage）+ 审计查询
+│   └── access/page.tsx           # 访问与审计 — Staff 目录（staff.read）/管理（staff.manage）+ 审计查询
 ├── components/
 │   ├── admin/                    # admin-shell / admin-providers / stat-card / data-table / …
 │   ├── shared/status-badge.tsx   # 语义化状态徽章
@@ -125,7 +125,7 @@ src/
 - 活动与产品卡：campaign 标题/编号 + 消费者申报产品（shape/flavor/lot/date/数量/渠道/校验结果徽标）
 - Evidence 卡：证据文件按类别分组，含上传状态与恶意软件扫描状态（infected 高亮）
 - Incident 卡：事故类型/严重度/治疗/发生时间 + reportability 门闩状态；叙述仅明文 PII 级别解密展示（审计）
-- Consumer 卡：两级 PII（masked 默认）；compliance+ 可 "View raw PII"（确认提示，读取写入 pii.view_raw 审计）
+- Consumer 卡：两级 PII（默认脱敏）；MANAGER/ADMIN 可 "View raw PII"（确认提示，读取写入 pii.view_raw 审计）
 - Assignment 卡：指派/改派（case.assign）
 - Resolution 卡：决议审批（预填消费者请求类型、退款按美元输入）、外部完成登记
 - Status Transition 卡：仅渲染后端 workflow.allowedActions 允许的流转；need_info 弹出请求说明对话框；negative 流转必填原因
@@ -148,29 +148,27 @@ src/
 
 ### Access & Audit `/access`
 
-- 4 角色 × 权限矩阵说明
-- Staff 管理（staff.manage）：创建员工（≥12 位密码）、改角色、停用/启用、强制下线
+- 2 角色 × 权限矩阵说明（MANAGER / ADMIN）
+- Staff Management：ADMIN 可创建、修改角色、停用/启用、强制下线、删除员工；MANAGER 仅可查看员工目录（staff.read），不显示任何操作按钮
 - 审计日志查询（audit.read）：resourceType 过滤 + 关键字搜索
 
 ---
 
 ## 认证与角色
 
-账号由后端 `staff_users` 表管理（首个管理员通过后端 `pnpm staff:bootstrap` 创建，或在 Access 页创建）。
+系统只有两个后台角色：`ADMIN`（最高权限，可管理全部业务数据和员工账户）与 `MANAGER`（可管理业务数据，但不能管理员工账户）。
+账号由后端 `staff_users` 表管理（首个 ADMIN 通过后端 `pnpm staff:bootstrap` 创建，或在 Access 页创建）。
 会话 token、角色（role）与 staffUserId 缓存在 `localStorage` 的 `koi_admin_session` 键下，登录后可通过右上角
 头像 → **Edit Profile** 修改昵称/头像。
 
 前端 RBAC（`src/lib/rbac.ts`，镜像后端 `permissions.ts`）按角色控制按钮的可用性；后端仍是权限权威（403 + denied 审计）：
 
-| 权限 | viewer | reviewer | compliance | administrator |
-|---|---|---|---|---|
-| 查看队列 / 案件详情 | ✔ | ✔ | ✔ | ✔ |
-| 查看明文 PII（审计） | — | — | ✔ | ✔ |
-| 认领 / 指派、状态流转、补救操作 | — | ✔ | ✔ | ✔ |
-| CSV 导出、退款导出 | — | — | ✔ | ✔ |
-| 关闭 reportability 审查 | — | — | ✔ | ✔ |
-| 读取审计日志 | — | — | — | ✔ |
-| Staff 管理（创建/改角色/停用/强制下线） | — | — | — | ✔ |
+| 权限 | MANAGER | ADMIN |
+|---|---|---|
+| 查看、编辑和操作业务数据 | ✔ | ✔ |
+| 查看明文 PII（审计） | ✔ | ✔ |
+| 读取审计日志 | ✔ | ✔ |
+| 员工账户创建/修改/停用/强制下线/删除 | — | ✔ |
 
 ---
 

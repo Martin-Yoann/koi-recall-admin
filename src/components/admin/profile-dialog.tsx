@@ -71,7 +71,6 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const [initials, setInitials] = useState(user.initials || '');
   const [avatarBg, setAvatarBg] = useState(user.avatarBg || '#0D9488');
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
-  const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState('');
 
   const [currentPw, setCurrentPw] = useState('');
@@ -79,11 +78,12 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const [confirmPw, setConfirmPw] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [pwError, setPwError] = useState('');
-  const [pwSaved, setPwSaved] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     setProfileError('');
     const err = validateName(name);
     if (err) {
@@ -99,9 +99,14 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
         .join('')
         .slice(0, 2)
         .toUpperCase();
-    updateProfile({ name: n, initials: init, avatarBg, avatarDataUrl });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2200);
+    setProfileSaving(true);
+    const result = await updateProfile({ name: n, initials: init, avatarBg, avatarDataUrl });
+    setProfileSaving(false);
+    if (result.ok) {
+      onClose();
+    } else {
+      setProfileError(result.error || 'Failed to update profile.');
+    }
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,30 +140,28 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
     setAvatarDataUrl(null);
   };
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     setPwError('');
     if (!currentPw) {
       setPwError('Enter your current password');
       return;
     }
-    if (newPw.length < 6) {
-      setPwError('New password must be at least 6 characters');
+    if (newPw.length < 12) {
+      setPwError('New password must be at least 12 characters');
       return;
     }
     if (newPw !== confirmPw) {
       setPwError('Passwords do not match');
       return;
     }
-    const r = changePassword(currentPw, newPw);
-    if (!r.ok) {
-      setPwError(r.error!);
-      return;
+    setPwSaving(true);
+    const result = await changePassword(currentPw, newPw);
+    setPwSaving(false);
+    if (result.ok) {
+      onClose();
+    } else {
+      setPwError(result.error || 'Failed to change password.');
     }
-    setPwSaved(true);
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
-    setTimeout(() => setPwSaved(false), 2200);
   };
 
   const inputClass =
@@ -400,16 +403,17 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
                 <button
                   onClick={handleSaveProfile}
+                  disabled={profileSaving}
                   className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98]',
-                    profileSaved ? 'bg-emerald-600' : 'hover:bg-emerald-800',
+                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
+                    'hover:bg-emerald-800',
                   )}
-                  style={{ background: profileSaved ? '#059669' : '#003527' }}
+                  style={{ background: '#003527' }}
                 >
-                  {profileSaved ? (
+                  {profileSaving ? (
                     <>
                       <Check className="h-4 w-4" />
-                      Profile Updated
+                      Saving…
                     </>
                   ) : (
                     'Save Changes'
@@ -472,7 +476,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                         setNewPw(e.target.value);
                         setPwError('');
                       }}
-                      placeholder="Minimum 6 characters"
+                      placeholder="Minimum 12 characters"
                     />
                     <button
                       type="button"
@@ -517,16 +521,17 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
                 <button
                   onClick={handleSavePassword}
+                  disabled={pwSaving}
                   className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98]',
-                    pwSaved ? 'bg-emerald-600' : 'hover:bg-emerald-800',
+                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
+                    'hover:bg-emerald-800',
                   )}
-                  style={{ background: pwSaved ? '#059669' : '#003527' }}
+                  style={{ background: '#003527' }}
                 >
-                  {pwSaved ? (
+                  {pwSaving ? (
                     <>
                       <Check className="h-4 w-4" />
-                      Password Updated
+                      Saving…
                     </>
                   ) : (
                     'Update Password'

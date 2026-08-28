@@ -41,8 +41,10 @@ export default function IncidentsPage() {
     const result = await listIncidents();
     if (result.ok) {
       setIncidents(result.data.incidents);
-    } else if (result.status === 401 || result.status === 403) {
-      setError('Please log in to view incidents.');
+    } else if (result.status === 401) {
+      setError('Please sign in with a staff account to view incidents.');
+    } else if (result.status === 403) {
+      setError('Your staff role does not have permission to view incidents.');
     } else {
       setError(result.error?.detail || 'Failed to load incidents.');
     }
@@ -128,7 +130,7 @@ export default function IncidentsPage() {
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="h-10 px-4 font-semibold text-text-secondary">Incident</th><th className="h-10 px-4 font-semibold text-text-secondary">Linked Case</th><th className="h-10 px-4 font-semibold text-text-secondary">Severity</th><th className="h-10 px-4 font-semibold text-text-secondary">Event Types</th><th className="h-10 px-4 font-semibold text-text-secondary">Reportability</th><th className="h-10 px-4 font-semibold text-text-secondary">Action</th></tr></thead><tbody>{incidents.map((incident) => (
             <tr key={incident.id} className="border-b hover:bg-surface-secondary transition-colors">
               <td className="px-4 py-3 font-mono text-xs text-text-tertiary" title={incident.id}>{shortId(incident.id)}…</td>
-              <td className="px-4 py-3"><button className="text-sm font-medium text-text-primary hover:text-brand-emerald hover:underline cursor-pointer" onClick={() => { window.location.href = `/cases/${incident.caseReference}`; }}>{incident.caseReference}</button></td>
+              <td className="px-4 py-3"><button className="text-sm font-medium text-text-primary hover:text-brand-emerald hover:underline cursor-pointer" onClick={() => { window.location.href = `/cases/${encodeURIComponent(incident.caseReference)}`; }}>{incident.caseReference}</button></td>
               <td className="px-4 py-3 text-xs text-text-secondary">{incident.injurySeverity ? <span className="capitalize">{incident.injurySeverity}</span> : <span className="text-text-tertiary">—</span>}{incident.medicalTreatment ? <span className="block text-[10px] text-text-tertiary mt-0.5">treatment: {incident.medicalTreatment}</span> : null}</td>
               <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{incident.eventTypes.map((type) => <span key={type} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">{type}</span>)}</div></td>
               <td className="px-4 py-3"><span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', REPORTABILITY_STYLES[incident.reportability?.status ?? ''] ?? 'bg-slate-50 text-slate-700')}>{reportabilityLabel(incident)}</span></td>
@@ -140,7 +142,7 @@ export default function IncidentsPage() {
 
       {reviewing ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="review-title">
-          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl">
+          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <div><h2 id="review-title" className="text-base font-bold text-text-primary">Close Reportability Review</h2><p className="text-xs text-text-tertiary mt-1">Incident {shortId(reviewing.id)}… · Case {reviewing.caseReference}</p></div>
               <button type="button" onClick={() => setReviewing(null)} className="text-text-tertiary hover:text-text-primary cursor-pointer" aria-label="Close review dialog"><X className="h-4 w-4" /></button>

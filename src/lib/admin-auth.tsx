@@ -1,7 +1,16 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { staffLogin, staffLogout, updateOwnProfile, setAdminSessionToken, type StaffRole } from '@/lib/api-client';
+import {
+  staffLogin,
+  staffLogout,
+  refreshSession,
+  updateOwnProfile,
+  updatePassword,
+  setAdminSessionToken,
+  SESSION_STORAGE_KEY,
+  type StaffRole,
+} from '@/lib/api-client';
 
 interface AdminUser {
   email: string;
@@ -26,8 +35,8 @@ interface AuthCtx {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
-  updateProfile: (data: { name?: string; initials?: string; avatarBg?: string; avatarDataUrl?: string | null }) => void;
-  changePassword: (current: string, newPw: string) => { ok: boolean; error?: string };
+  updateProfile: (data: { name?: string; initials?: string; avatarBg?: string; avatarDataUrl?: string | null }) => Promise<{ ok: boolean; error?: string }>;
+  changePassword: (current: string, newPw: string) => Promise<{ ok: boolean; error?: string }>;
   loginOpen: boolean;
   openLogin: () => void;
   closeLogin: () => void;
@@ -39,7 +48,22 @@ interface AuthCtx {
 
 const AdminAuthCtx = createContext<AuthCtx | undefined>(undefined);
 
-const STORAGE_KEY = 'koi_admin_session';
+// Single storage key shared with the api-client (which also writes it during
+// session refresh and 401 recovery) — keeping one constant avoids drift.
+const STORAGE_KEY = SESSION_STORAGE_KEY;
+
+/**
+ * Sessions written by versions before the ADMIN/MANAGER migration may still
+ * contain the old UI-only role names. Map only those known roles; the backend
+ * remains the authority and refreshes the current role from the staff record.
+ */
+function normalizeStoredRole(value: unknown): StaffRole | undefined {
+  if (value === 'ADMIN' || value === 'administrator') return 'ADMIN';
+  if (value === 'MANAGER' || value === 'viewer' || value === 'reviewer' || value === 'compliance') {
+    return 'MANAGER';
+  }
+  return undefined;
+}
 
 function setStored(user: AdminUser) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -62,23 +86,108 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore the staff session before child pages issue authenticated requests.
+  // Restore and rotate the staff session before child pages issue authenticated
+  // requests. A transient refresh/network failure must not turn into a local
+  // logout; only an explicit authentication failure clears the saved session.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as AdminUser;
-      if (!parsed.token || (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now())) {
-        clearStored();
-        return;
+    let cancelled = false;
+
+    const restore = async () => {
+      let parsedSession: AdminUser | null = null;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) return;
+
+        parsedSession = JSON.parse(stored) as AdminUser;
+        const parsed = parsedSession;
+        const role = normalizeStoredRole(parsed.role);
+        if (parsed.role !== undefined && !role) {
+          clearStored();
+          return;
+        }
+        if (typeof parsed.token !== 'string' || parsed.token.length === 0) {
+          clearStored();
+          return;
+        }
+
+        // The in-memory client token must be set before refreshSession() and
+        // before any child page can make an API request.
+        setAdminSessionToken(parsed.token);
+        const refreshed = await refreshSession();
+        if (cancelled) return;
+
+        if (refreshed.ok) {
+          const refreshedRole = normalizeStoredRole(refreshed.data.role) ?? role;
+          const restored: AdminUser = {
+            ...parsed,
+            token: refreshed.data.token,
+            expiresAt: refreshed.data.expiresAt,
+            ...(refreshedRole ? { role: refreshedRole } : {}),
+            ...(refreshed.data.staffUserId ? { staffUserId: refreshed.data.staffUserId } : {}),
+            ...(refreshed.data.displayName ? { name: refreshed.data.displayName } : {}),
+            ...(refreshed.data.avatarDataUrl ? { avatarDataUrl: refreshed.data.avatarDataUrl } : {}),
+          };
+          if (refreshed.data.displayName) {
+            restored.initials = getInitials(refreshed.data.displayName);
+          }
+          setStored(restored);
+          setUser(restored);
+          return;
+        }
+
+        if (refreshed.status === 401 || refreshed.status === 403) {
+          setAdminSessionToken(null);
+          clearStored();
+          return;
+        }
+
+        // Keep the existing session for temporary network/5xx failures. The
+        // token may still be valid and the next API request can succeed.
+        setUser({ ...parsed, ...(role ? { role } : {}) });
+      } catch {
+        if (!cancelled && parsedSession) {
+          // Keep a syntactically valid session when an unexpected refresh error
+          // occurs. Network errors are normally returned by fetchApi, but this
+          // guard prevents an exception from becoming an accidental logout.
+          setUser(parsedSession);
+        } else if (!cancelled) {
+          clearStored();
+          setAdminSessionToken(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setAdminSessionToken(parsed.token);
-      window.setTimeout(() => setUser(parsed), 0);
-    } catch {
-      clearStored();
-    } finally {
-      window.setTimeout(() => setLoading(false), 0);
-    }
+    };
+
+    void restore();
+
+    /**
+     * The api-client owns 401 recovery: it rotates the session and retries,
+     * or — when the session is truly dead — removes the stored snapshot and
+     * dispatches these events. The provider just mirrors the outcome into
+     * React state so the UI always agrees with the request layer.
+     */
+    const handleExpired = () => {
+      setAdminSessionToken(null);
+      setUser(null);
+    };
+    const handleRefreshed = () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) return;
+        const parsed = JSON.parse(stored) as AdminUser;
+        if (parsed.token) setUser(parsed);
+      } catch {
+        // ignore malformed storage writes from another tab
+      }
+    };
+    window.addEventListener('koi_admin_session_expired', handleExpired);
+    window.addEventListener('koi_admin_session_refreshed', handleRefreshed);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('koi_admin_session_expired', handleExpired);
+      window.removeEventListener('koi_admin_session_refreshed', handleRefreshed);
+    };
   }, []);
   const [loginOpen, setLoginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -123,8 +232,17 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  // Persists profile edits to the backend first; only on success does it
+  // update the in-memory session so the dialog can close with confidence.
   const updateProfile = useCallback(
-    (data: { name?: string; initials?: string; avatarBg?: string; avatarDataUrl?: string | null }) => {
+    async (data: { name?: string; initials?: string; avatarBg?: string; avatarDataUrl?: string | null }) => {
+      const result = await updateOwnProfile({
+        displayName: data.name,
+        avatarDataUrl: data.avatarDataUrl,
+      }).catch(() => null);
+      if (!result?.ok) {
+        return { ok: false, error: result && !result.ok ? result.error?.detail : 'Failed to update profile.' };
+      }
       setUser((prev) => {
         if (!prev) return null;
         const updated: AdminUser = { ...prev };
@@ -139,26 +257,24 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         setStored(updated);
-
-        // Fire-and-forget: sync to backend database
-        updateOwnProfile({
-          displayName: data.name,
-          avatarDataUrl: data.avatarDataUrl,
-        }).catch(() => {
-          // Local storage already updated — API sync is best-effort
-        });
-
         return updated;
       });
+      return { ok: true };
     },
     [],
   );
 
-  // The backend currently exposes staff creation and role/status updates, but
-  // no self-service password-change endpoint. Keep this explicit rather than
-  // pretending that the profile form can persist a password.
   const changePassword = useCallback(
-    () => ({ ok: false, error: 'Password changes are not available until the backend endpoint is enabled.' }),
+    async (current: string, newPw: string) => {
+      const result = await updatePassword({ currentPassword: current, newPassword: newPw });
+      if (result.ok) {
+        // Keep the refresh token flowing so the session stays valid after the
+        // password rotation (other sessions were revoked server-side).
+        await refreshSession().catch(() => {});
+        return { ok: true };
+      }
+      return { ok: false, error: result.error?.detail || 'Failed to change password.' };
+    },
     [],
   );
 

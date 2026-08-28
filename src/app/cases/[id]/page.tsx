@@ -11,14 +11,14 @@ import Link from 'next/link';
 import {
   ArrowLeft, User, AlertTriangle, RefreshCw, Users, Clock,
   CheckCircle2, ArrowRight, Shield, MapPin, Mail, Phone, Globe, Package,
-  FileText, Eye, Lock, Siren,
+  FileText, Eye, Lock, Siren, ExternalLink, Download, ZoomIn, X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { cn } from '@/lib/utils';
 import {
   getCaseDetail, transitionCaseStatus, assignCase, listStaff, queryAuditEvents,
-  closeReportabilityReview,
+  closeReportabilityReview, getDocumentAccessUrl,
   type CaseDetail, type StaffUser, type AuditEvent, type CaseDocument,
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
@@ -43,11 +43,34 @@ const INFO_REQUEST_OPTIONS = [
   'More details about the incident (timeline, injuries, treatment)',
 ];
 
-/** One evidence file row — metadata only (no storage pathname, no blob URL). */
-function DocumentRow({ doc }: { doc: CaseDocument }) {
+/** One evidence file row — metadata plus a viewable thumbnail when the
+ * short-lived access URL has been minted (image preview / PDF open). */
+function DocumentRow({
+  doc,
+  access,
+  onOpen,
+}: {
+  doc: CaseDocument;
+  access?: { url: string; downloadUrl: string };
+  onOpen: (doc: CaseDocument) => void;
+}) {
+  const isImage = doc.declaredMimeType.toLowerCase().startsWith('image/');
   return (
     <div className="flex items-center gap-3 rounded-lg border px-3 py-2 text-xs">
-      <FileText className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+      {isImage && access ? (
+        <button
+          type="button"
+          onClick={() => onOpen(doc)}
+          title="Click to view full size"
+          className="shrink-0 rounded-md overflow-hidden border cursor-zoom-in hover:opacity-90 transition-opacity"
+        >
+          {/* Short-lived signed blob URL — not eligible for next/image optimization. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={access.url} alt={doc.originalFileName} className="h-14 w-14 object-cover" />
+        </button>
+      ) : (
+        <FileText className="h-8 w-8 text-text-tertiary shrink-0" />
+      )}
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text-primary truncate">{doc.originalFileName}</p>
         <p className="text-[10px] text-text-tertiary mt-0.5">
@@ -55,6 +78,15 @@ function DocumentRow({ doc }: { doc: CaseDocument }) {
           {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
         </p>
       </div>
+      {access && !isImage && (
+        <button
+          type="button"
+          onClick={() => window.open(access.url, '_blank', 'noopener')}
+          className="shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold text-text-secondary cursor-pointer hover:bg-surface-secondary"
+        >
+          <ExternalLink className="h-3 w-3" />Open
+        </button>
+      )}
       <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0', UPLOAD_STATUS_STYLES[doc.uploadStatus] ?? 'bg-slate-100 text-slate-600')}>
         {doc.uploadStatus.replace(/_/g, ' ')}
       </span>
@@ -116,20 +148,49 @@ const RESOLUTION_ACTION_STYLES: Record<string, string> = {
 };
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: caseRef } = use(params);
-  useAdminAuth();
+  const { id: rawCaseRef } = use(params);
+  const caseRef = (rawCaseRef ?? '').trim();
+  const { openLogin, isAuthenticated, isLoading: authLoading } = useAdminAuth();
 
-  return <CaseDetailContent key={caseRef} caseRef={caseRef} />;
+  if (!caseRef) {
+    return (
+      <div className="p-12 text-center">
+        <p className="text-text-primary font-bold mb-2">Case Not Found</p>
+        <p className="text-sm text-text-tertiary mb-3">No case reference was provided.</p>
+        <Link href="/cases" className="text-brand-emerald hover:underline text-sm">Back to Cases</Link>
+      </div>
+    );
+  }
+
+  return (
+    <CaseDetailContent
+      key={caseRef}
+      caseRef={caseRef}
+      openLogin={openLogin}
+      isAuthenticated={isAuthenticated}
+      authLoading={authLoading}
+    />
+  );
 }
 
-function CaseDetailContent({ caseRef }: { caseRef: string }) {
+function CaseDetailContent({
+  caseRef,
+  openLogin,
+  isAuthenticated,
+  authLoading,
+}: {
+  caseRef: string;
+  openLogin: () => void;
+  isAuthenticated: boolean;
+  authLoading: boolean;
+}) {
   const { can, role } = usePermissions();
   const [record, setRecord] = useState<CaseDetail | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  const [authError, setAuthError] = useState<'signin' | 'forbidden' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [transitionReason, setTransitionReason] = useState('');
@@ -149,13 +210,22 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
   const [repRationale, setRepRationale] = useState('');
   const [repSubmitting, setRepSubmitting] = useState(false);
   const [repError, setRepError] = useState<string | null>(null);
+  /** Short-lived access URLs per document id (minted lazily for previews). */
+  const [docAccess, setDocAccess] = useState<Record<string, { url: string; downloadUrl: string }>>({});
+  const [lightbox, setLightbox] = useState<CaseDocument | null>(null);
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
   /** Kept in a ref so refresh() always reloads at the tier currently on screen. */
   const piiLevelRef = useRef<'masked' | 'raw'>('masked');
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    // Reset on every setup so React StrictMode's dev double-invoke (setup →
+    // cleanup → setup) cannot permanently poison the flag and stall the page
+    // on "Unable to load case".
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -164,8 +234,9 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
     if (result.ok) {
       setRecord(result.data.case);
       setViewingRawPii(result.data.case.consumer.piiTier === 'raw');
+      setDocAccess({});
       setNotFound(false);
-      setAuthError(false);
+      setAuthError(null);
       setActionError(null);
       const auditResult = await queryAuditEvents({ limit: 100, resource: caseRef });
       if (!mountedRef.current) return;
@@ -177,10 +248,12 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
             .reverse(),
         );
       }
-    } else if (result.status === 401) {
-      setAuthError(true);
+    } else if (result.status === 401 || result.status === 403) {
+      setAuthError(result.status === 401 ? 'signin' : 'forbidden');
+      setActionError(result.error?.detail || 'You do not have permission to view this case.');
     } else if (result.status === 404) {
       setNotFound(true);
+      setActionError(null);
     } else {
       setActionError(result.error?.detail || 'Failed to load case.');
     }
@@ -191,6 +264,15 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
    * narrative) server-side and writes a pii.view_raw audit row — make sure the
    * reviewer confirms before we trigger it.
    */
+  const retryLoad = async () => {
+    setLoading(true);
+    setNotFound(false);
+    setAuthError(null);
+    setActionError(null);
+    await refresh();
+    if (mountedRef.current) setLoading(false);
+  };
+
   const toggleRawPii = async () => {
     if (piiLevelRef.current === 'masked') {
       const confirmed = window.confirm(
@@ -218,6 +300,12 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
           })
           .catch(() => {}),
       ]);
+    } catch (err) {
+      // Surface the real failure instead of leaving the silent
+      // "Unable to load case" fallback that hides the cause.
+      if (mountedRef.current) {
+        setActionError(err instanceof Error ? err.message : 'Failed to load the case.');
+      }
     } finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -226,7 +314,9 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (initialLoadStartedRef.current || loading || record || notFound || authError || actionError) {
+    if (authLoading) return;
+    if (!isAuthenticated) return;
+    if (initialLoadStartedRef.current || loading || record || notFound) {
       return;
     }
     initialLoadStartedRef.current = true;
@@ -236,7 +326,32 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [actionError, authError, loadInitialData, loading, notFound, record]);
+  }, [authError, authLoading, isAuthenticated, loadInitialData, loading, notFound, record]);
+
+  // Mint short-lived access URLs for evidence files so images can render and
+  // PDFs can be opened. Re-minted after every refresh (fresh expiry window).
+  useEffect(() => {
+    const docs = record?.documents ?? [];
+    if (docs.length === 0) return;
+    let cancelled = false;
+    docs.forEach((doc) => {
+      getDocumentAccessUrl(caseRef, doc.id)
+        .then((result) => {
+          if (cancelled || !result.ok) return;
+          setDocAccess((prev) =>
+            prev[doc.id]
+              ? prev
+              : { ...prev, [doc.id]: { url: result.data.url, downloadUrl: result.data.downloadUrl } },
+          );
+        })
+        .catch(() => {
+          // Access URL minting is best-effort; rows fall back to metadata-only.
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseRef, record]);
 
   const handleTransition = async (next: string) => {
     if (!record) return;
@@ -383,26 +498,63 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
     setSubmitting(false);
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return <div className="animate-pulse p-8 text-text-tertiary">Loading case from Neon...</div>;
   }
 
-  if (authError) {
+  const visibleAuthError = authError ?? (!isAuthenticated ? 'signin' : null);
+
+  if (visibleAuthError) {
     return (
       <div className="p-12 text-center">
         <Shield className="h-10 w-10 mx-auto text-text-tertiary mb-3" />
-        <p className="text-text-primary font-bold mb-2">Sign in required</p>
-        <p className="text-sm text-text-tertiary">Log in with a staff account to view this case.</p>
+        <p className="text-text-primary font-bold mb-2">
+          {visibleAuthError === 'signin' ? 'Sign in required' : 'Case access denied'}
+        </p>
+        <p className="text-sm text-text-tertiary mb-4">
+          {visibleAuthError === 'signin'
+            ? 'Log in with a staff account to view and operate this case.'
+            : actionError || 'Your staff role does not have permission to view this case.'}
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          {visibleAuthError === 'signin' && (
+            <button
+              onClick={openLogin}
+              className="inline-flex items-center h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-800 cursor-pointer"
+            >
+              Sign in
+            </button>
+          )}
+          <Link href="/cases" className="text-brand-emerald hover:underline text-sm">Back to Cases</Link>
+        </div>
       </div>
     );
   }
 
-  if (notFound || !record) {
+  if (notFound) {
     return (
       <div className="p-12 text-center">
         <p className="text-text-primary font-bold mb-2">Case Not Found</p>
         <p className="text-sm text-text-tertiary mb-3 font-mono">{caseRef}</p>
         <Link href="/cases" className="text-brand-emerald hover:underline text-sm">Back to Cases</Link>
+      </div>
+    );
+  }
+
+  if (!record) {
+    return (
+      <div className="p-12 text-center">
+        <p className="text-text-primary font-bold mb-2">Unable to load case</p>
+        <p className="text-sm text-text-tertiary mb-4">{actionError || 'The case details are not available yet.'}</p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={retryLoad}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-800 cursor-pointer"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />Retry
+          </button>
+          <Link href="/cases" className="text-brand-emerald hover:underline text-sm">Back to Cases</Link>
+        </div>
       </div>
     );
   }
@@ -540,6 +692,9 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                       <th className="px-3 py-2 font-semibold">Qty</th>
                       <th className="px-3 py-2 font-semibold">Channel</th>
                       <th className="px-3 py-2 font-semibold">Purchased</th>
+                      <th className="px-3 py-2 font-semibold">Order #</th>
+                      <th className="px-3 py-2 font-semibold">Corroboration</th>
+                      <th className="px-3 py-2 font-semibold">Flags</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -566,6 +721,35 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                         <td className="px-3 py-2 text-text-secondary">{product.purchaseChannel.replace(/_/g, ' ')}</td>
                         <td className="px-3 py-2 text-text-tertiary">
                           {product.purchaseDate ?? '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-text-secondary">
+                          {product.orderNumber ?? '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          {product.purchaseCorroboration ? (
+                            <span className={cn(
+                              'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
+                              product.purchaseCorroboration === 'verified' && 'bg-emerald-50 text-emerald-700',
+                              product.purchaseCorroboration === 'partial' && 'bg-amber-50 text-amber-700',
+                              product.purchaseCorroboration === 'conflict' && 'bg-red-50 text-red-700',
+                              !['verified', 'partial', 'conflict'].includes(product.purchaseCorroboration) && 'bg-slate-50 text-slate-600',
+                            )}>
+                              {product.purchaseCorroboration.replace(/_/g, ' ')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-tertiary">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {product.riskFlags && product.riskFlags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {product.riskFlags.map((flag) => (
+                                <span key={flag} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-700">{flag.replace(/_/g, ' ')}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-text-tertiary">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -596,7 +780,12 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-2">{category.label}</p>
                   <div className="space-y-2">
                     {docs.map((doc) => (
-                      <DocumentRow key={doc.id} doc={doc} />
+                      <DocumentRow
+                        key={doc.id}
+                        doc={doc}
+                        access={docAccess[doc.id]}
+                        onOpen={(d) => setLightbox(d)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -607,7 +796,12 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-2">Other</p>
                 <div className="space-y-2">
                   {cse.documents.filter(d => !EVIDENCE_CATEGORIES.some(c => c.id === d.category)).map((doc) => (
-                    <DocumentRow key={doc.id} doc={doc} />
+                    <DocumentRow
+                      key={doc.id}
+                      doc={doc}
+                      access={docAccess[doc.id]}
+                      onOpen={(d) => setLightbox(d)}
+                    />
                   ))}
                 </div>
               </div>
@@ -645,6 +839,10 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                     ? new Date(cse.incident.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                     : cse.incident.occurredDateUnknown ? 'Date unknown' : '—'}
                 </p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Used as intended</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.usedAsIntended?.replace(/_/g, ' ') ?? '—'}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -831,9 +1029,23 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
               <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-text-tertiary shrink-0" />{cse.consumer.email || '—'}</p>
               <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-text-tertiary shrink-0" />{cse.consumer.phone || '—'}</p>
               <p className="flex items-center gap-2"><Globe className="h-3.5 w-3.5 text-text-tertiary shrink-0" />{cse.consumer.countryCode || '—'}</p>
-              {cse.consumer.address?.raw && (
-                <p className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 text-text-tertiary shrink-0 mt-0.5" />{cse.consumer.address.raw}</p>
-              )}
+              {(() => {
+                const address = cse.consumer.address as Record<string, unknown> | undefined;
+                const lines = address
+                  ? [
+                      typeof address.line1 === 'string' && address.line1 ? address.line1 : null,
+                      typeof address.line2 === 'string' && address.line2 ? address.line2 : null,
+                      [address.city, address.state, address.postalCode].filter(Boolean).join(', ') || null,
+                      typeof address.countryCode === 'string' && address.countryCode ? address.countryCode : null,
+                    ].filter(Boolean)
+                  : [];
+                return lines.length > 0 ? (
+                  <p className="flex items-start gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-text-tertiary shrink-0 mt-0.5" />
+                    <span className="whitespace-pre-line">{lines.join('\n')}</span>
+                  </p>
+                ) : null;
+              })()}
             </div>
             <div className="pt-3 border-t text-xs text-text-tertiary space-y-1">
               <p className="flex items-center gap-1.5">
@@ -1130,7 +1342,7 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
       {/* ── Request more information (need_info) dialog ── */}
       {needInfoOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="need-info-title">
-          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl">
+          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h2 id="need-info-title" className="text-base font-bold text-text-primary">Request More Information</h2>
@@ -1190,6 +1402,64 @@ function CaseDetailContent({ caseRef }: { caseRef: string }) {
                 {submitting ? 'Submitting…' : 'Request information'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Evidence image lightbox ── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-sm font-semibold text-white truncate">{lightbox.originalFileName}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                {docAccess[lightbox.id] && (
+                  <>
+                    <a
+                      href={docAccess[lightbox.id]!.downloadUrl}
+                      download
+                      className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-white/20"
+                    >
+                      <Download className="h-3.5 w-3.5" />Download
+                    </a>
+                    <a
+                      href={docAccess[lightbox.id]!.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-white/20"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />Open original
+                    </a>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLightbox(null)}
+                  className="rounded-md bg-white/10 p-1.5 text-white cursor-pointer hover:bg-white/20"
+                  aria-label="Close preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            {/* eslint-disable @next/next/no-img-element -- dynamic signed blob URL */}
+            {docAccess[lightbox.id] ? (
+              <img
+                src={docAccess[lightbox.id]!.url}
+                alt={lightbox.originalFileName}
+                className="w-full max-h-[80vh] object-contain rounded-lg"
+              />
+            ) : (
+              <div className="rounded-lg bg-surface-elevated p-10 text-center text-sm text-text-tertiary">
+                <ZoomIn className="h-8 w-8 mx-auto mb-2 text-text-tertiary" />
+                Preview unavailable — the access link may have expired or the file is not an image. Use “Open original”.
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -63,64 +63,66 @@
   --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Brand */
-  --brand-emerald: #003527;
-  --brand-emerald-light: #ecfdf5;
-  --brand-emerald-dark: #002117;
+  /* Brand — Navy / Blue: #0D1B2A (dark) + #3A86FF (primary) */
+  --brand-emerald: #3A86FF;
+  --brand-emerald-light: #EAF2FF;
+  --brand-emerald-dark: #2C6BD9;
 
   /* Status */
-  --status-positive: #006c49;
-  --status-warning: #d98c31;
-  --status-danger: #ba1a1a;
-  --status-info: #2563EB;
-  --status-neutral: #707974;
+  --status-positive: #16A34A;
+  --status-warning: #F59E0B;
+  --status-danger: #DC2626;
+  --status-info: #3A86FF;
+  --status-neutral: #64748B;
 
   /* Surface */
-  --surface-primary: #F3F6F7;
-  --surface-secondary: #F3F6F7;
+  --surface-primary: #F4F6F9;
+  --surface-secondary: #F4F6F9;
   --surface-elevated: #FFFFFF;
-  --surface-inverse: #131b2e;
-  --surface-muted: #eaedff;
+  --surface-inverse: #0D1B2A;
+  --surface-muted: #EAF2FF;
 
   /* Text */
-  --text-primary: #131b2e;
-  --text-secondary: #404944;
-  --text-tertiary: #707974;
-  --text-on-inverse: #faf8ff;
+  --text-primary: #0D1B2A;
+  --text-secondary: #3A4A5E;
+  --text-tertiary: #64748B;
+  --text-on-inverse: #f6f8fa;
 
   /* shadcn mapped */
-  --background: #F3F6F7;
-  --foreground: #131b2e;
+  --background: #F4F6F9;
+  --foreground: #0D1B2A;
   --card: #ffffff;
-  --card-foreground: #131b2e;
+  --card-foreground: #0D1B2A;
   --popover: #ffffff;
-  --popover-foreground: #131b2e;
-  --primary: #003527;
+  --popover-foreground: #0D1B2A;
+  --primary: #3A86FF;
   --primary-foreground: #ffffff;
-  --secondary: #f2f3ff;
-  --secondary-foreground: #131b2e;
-  --muted: #f2f3ff;
-  --muted-foreground: #707974;
-  --accent: #ecfdf5;
-  --accent-foreground: #003527;
-  --destructive: #ba1a1a;
-  --border: rgba(0, 53, 39, 0.08);
-  --input: rgba(0, 53, 39, 0.08);
-  --ring: #003527;
-  --chart-1: #003527;
-  --chart-2: #006c49;
-  --chart-3: #d98c31;
-  --chart-4: #707974;
-  --chart-5: #2563EB;
+  --secondary: #EAF2FF;
+  --secondary-foreground: #0D1B2A;
+  --muted: #EAF2FF;
+  --muted-foreground: #64748B;
+  --accent: #EAF2FF;
+  --accent-foreground: #2C6BD9;
+  --destructive: #DC2626;
+  --border: #E4E7ED;
+  --border-strong: #C0C4CC;
+  --input: #E4E7ED;
+  --input-hover: #C0C4CC;
+  --ring: #3A86FF;
+  --chart-1: #3A86FF;
+  --chart-2: #16A34A;
+  --chart-3: #F59E0B;
+  --chart-4: #64748B;
+  --chart-5: #8FB4FF;
   --radius: 0.5rem;
-  --sidebar: #052745;
-  --sidebar-foreground: #faf8ff;
-  --sidebar-primary: #006c49;
+  --sidebar: #0D1B2A;
+  --sidebar-foreground: #f6f8fa;
+  --sidebar-primary: #3A86FF;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255,255,255,0.06);
-  --sidebar-accent-foreground: #faf8ff;
-  --sidebar-border: rgba(255,255,255,0.08);
-  --sidebar-ring: #006c49;
+  --sidebar-accent: rgba(255,255,255,0.08);
+  --sidebar-accent-foreground: #f6f8fa;
+  --sidebar-border: rgba(255,255,255,0.10);
+  --sidebar-ring: #3A86FF;
 
   --section-gap: 4rem;
   --content-max: 1280px;
@@ -177,33 +179,68 @@
    Keep native controls consistent on admin pages that use inline markup.
    ============================================================ */
 @layer base {
+  /* Element-UI-style form controls: white surface, soft neutral border,
+     clean blue focus halo, smooth 0.18s transitions. */
   input:not([type='checkbox']):not([type='radio']):not([type='file']),
   select,
   textarea {
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
     background-color: var(--surface-elevated);
     color: var(--text-primary);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    font-size: 0.8125rem; /* 13px */
+    padding-inline: 0.625rem;
+    padding-block: 0.375rem;
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='file']),
   select {
-    min-height: 32px;
+    min-height: 36px;
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='file']):hover,
   select:hover,
   textarea:hover {
-    border-color: color-mix(in srgb, var(--brand-emerald) 45%, var(--border));
+    border-color: var(--input-hover);
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
   select:focus,
   textarea:focus {
-    border-color: var(--brand-emerald);
+    border-color: var(--primary);
     outline: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-emerald) 14%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+
+  ::placeholder {
+    color: #A8ABB2;
+    opacity: 1;
+  }
+
+  /* Smooth, consistent interaction on interactive elements. */
+  button:not(:disabled),
+  [role='button'],
+  a[href],
+  select,
+  summary,
+  label {
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.12s ease,
+      opacity 0.18s ease;
+  }
+
+  /* Accessible focus ring */
+  :where(button, a[href], select, input, [role='button']):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 70%, transparent);
+    outline-offset: 2px;
   }
 
   input:disabled,
@@ -211,7 +248,26 @@
   textarea:disabled,
   button:disabled {
     cursor: not-allowed;
-    opacity: 0.7;
+    opacity: 0.6;
+  }
+}
+
+/* Element-style dropdown & popover surfaces: soft, modern shadow. */
+@layer components {
+  [data-slot='dropdown-menu-content'],
+  [data-slot='popover-content'],
+  [data-slot='select-content'],
+  [data-slot='combobox-content'] {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow:
+      0 4px 24px rgba(13, 27, 42, 0.10),
+      0 1px 3px rgba(13, 27, 42, 0.06);
+  }
+
+  [data-slot='dropdown-menu-item'] {
+    cursor: pointer;
+    transition: background-color 0.16s ease, color 0.16s ease;
   }
 }
 
@@ -308,4 +364,99 @@
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ============================================================
+   Scrollbars — consistent, thin, and no layout shift.
+   `scrollbar-gutter: stable` keeps a reserved gutter on scroll
+   containers so content does not shift when a scrollbar appears
+   or disappears (fixes "有时有有时没有导致变形").
+   ============================================================ */
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--border) 80%, transparent) transparent;
+  }
+
+  /* Chromium / Edge / Safari */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--border) 90%, transparent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--brand-emerald) 40%, var(--border));
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Reserve the gutter on the primary scroll surfaces so the layout is
+     stable whether or not a scrollbar is present. */
+  main,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  [data-scroll-stable] {
+    scrollbar-gutter: stable;
+  }
+}
+
+/* ============================================================
+   Navy / Blue — remap the default emerald scale to the primary
+   blue (#3A86FF) so every emerald-* control matches the theme.
+   ============================================================ */
+@theme {
+  --color-emerald-50: #EAF2FF;
+  --color-emerald-100: #DBE7FF;
+  --color-emerald-200: #B8D0FF;
+  --color-emerald-300: #8FB4FF;
+  --color-emerald-400: #649CFF;
+  --color-emerald-500: #3A86FF;
+  --color-emerald-600: #2F7BE8;
+  --color-emerald-700: #2C6BD9;
+  --color-emerald-800: #2455B0;
+  --color-emerald-900: #1E4591;
+  --color-emerald-950: #16356F;
+  --color-strawberry: #3A86FF;
+  --color-sky: #3A86FF;
+  --color-mint: #3A86FF;
+  --color-lemon: #3A86FF;
+  --color-peach: #3A86FF;
+}
+
+/* ============================================================
+   Interaction affordance — every hoverable control shows the
+   pointer (hand) cursor; disabled controls show not-allowed.
+   ============================================================ */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']):not([aria-disabled='true']),
+  a[href],
+  select,
+  summary,
+  input[type='checkbox'],
+  input[type='radio'],
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role='button'][aria-disabled='true'],
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
 }

@@ -27,7 +27,7 @@ interface Stats {
 }
 
 export default function CasesPage() {
-  const { user } = useAdminAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const { can } = usePermissions();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,8 +39,14 @@ export default function CasesPage() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    // Reset on every setup so React StrictMode's dev double-invoke (setup →
+    // cleanup → setup) cannot permanently poison the flag and stall the page
+    // on "Unable to load case".
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   // One unfiltered fetch feeds both the stat chips and the (client-side)
@@ -53,8 +59,10 @@ export default function CasesPage() {
     if (!mountedRef.current) return;
     if (result.ok) {
       setCases(result.data.cases);
-    } else if (result.status === 401 || result.status === 403) {
-      setError('Please log in to view cases.');
+    } else if (result.status === 401) {
+      setError('Please sign in with a staff account to view cases.');
+    } else if (result.status === 403) {
+      setError('Your staff role does not have permission to view cases.');
     } else if (result.status === 501) {
       setError('Backend case service is not available yet. Starting the backend with DATABASE_URL will enable this page.');
     } else {
@@ -80,11 +88,12 @@ export default function CasesPage() {
   };
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     const timer = window.setTimeout(() => {
       void fetchCases();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [fetchCases]);
+  }, [authLoading, fetchCases, isAuthenticated]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -219,7 +228,7 @@ export default function CasesPage() {
                 <TableRow key={c.caseReference}>
                   <TableCell>
                     <Link
-                      href={`/cases/${c.caseReference}`}
+                      href={`/cases/${encodeURIComponent(c.caseReference)}`}
                       className="text-sm font-semibold font-mono text-text-primary hover:text-brand-teal transition-colors"
                     >
                       {c.caseReference}

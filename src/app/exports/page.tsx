@@ -26,8 +26,10 @@ export default function ExportsPage() {
     const result = await listRefundExports();
     if (result.ok) {
       setBatches(result.data.batches);
-    } else if (result.status === 401 || result.status === 403) {
-      setError('Please log in to view refund exports.');
+    } else if (result.status === 401) {
+      setError('Please sign in with a staff account to view refund exports.');
+    } else if (result.status === 403) {
+      setError('Your staff role does not have permission to view refund exports.');
     } else {
       setError(result.error?.detail || 'Failed to load refund exports.');
     }

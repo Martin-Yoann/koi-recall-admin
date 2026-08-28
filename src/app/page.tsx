@@ -33,7 +33,7 @@ interface CampaignCard {
 }
 
 export default function DashboardPage() {
-  const { isAuthenticated } = useAdminAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,8 +41,14 @@ export default function DashboardPage() {
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    // Reset on every setup so React StrictMode's dev double-invoke (setup →
+    // cleanup → setup) cannot permanently poison the flag and stall the page
+    // on "Unable to load case".
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -56,8 +62,11 @@ export default function DashboardPage() {
     if (!mountedRef.current) return;
     if (casesResult.ok) {
       setCases(casesResult.data.cases);
-    } else if (casesResult.status === 401 || casesResult.status === 403) {
-      setError('Please log in with a staff account to view live operations data.');
+    } else if (casesResult.status === 401) {
+      setError('Please sign in with a staff account to view live operations data.');
+      setCases([]);
+    } else if (casesResult.status === 403) {
+      setError('Your staff role does not have permission to view live operations data.');
       setCases([]);
     } else if (casesResult.status === 0) {
       setError('Cannot reach the backend API — local :3002 and the online backend are both unreachable.');
@@ -87,7 +96,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (initialLoadStartedRef.current || refreshing || cases.length > 0 || campaigns.length > 0 || error) {
+    if (authLoading || !isAuthenticated || initialLoadStartedRef.current || refreshing || cases.length > 0 || campaigns.length > 0 || error) {
       return;
     }
     initialLoadStartedRef.current = true;
@@ -97,7 +106,7 @@ export default function DashboardPage() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [campaigns.length, cases.length, error, refresh, refreshing]);
+  }, [authLoading, campaigns.length, cases.length, error, isAuthenticated, refresh, refreshing]);
 
   const openCases = cases.filter(c => !TERMINAL.includes(c.status));
   const pending = cases.filter(c => ACTIVE_CASE_STATUSES.includes(c.status));
@@ -188,7 +197,7 @@ export default function DashboardPage() {
           </div>
           <div className="p-5 space-y-3">
             {recent.map(c => (
-              <Link key={c.caseReference} href={`/cases/${c.caseReference}`} className="flex items-start gap-3 group cursor-pointer">
+              <Link key={c.caseReference} href={`/cases/${encodeURIComponent(c.caseReference)}`} className="flex items-start gap-3 group cursor-pointer">
                 <div className={cn('h-2 w-2 rounded-full mt-2 shrink-0',
                   ['submitted', 'triage'].includes(c.status) && 'bg-blue-500',
                   ['under_review', 'need_info'].includes(c.status) && 'bg-amber-500',
@@ -238,7 +247,7 @@ export default function DashboardPage() {
               {pending.slice(0, 8).map(c => (
                 <TableRow key={c.caseReference} className="hover:bg-surface-secondary transition-colors">
                   <TableCell className="font-mono text-sm font-semibold text-brand-emerald">
-                    <Link href={`/cases/${c.caseReference}`}>{c.caseReference}</Link>
+                    <Link href={`/cases/${encodeURIComponent(c.caseReference)}`}>{c.caseReference}</Link>
                   </TableCell>
                   <TableCell className="text-sm text-text-secondary">{c.subtype.replace(/_/g, ' ')}</TableCell>
                   <TableCell>
@@ -253,7 +262,7 @@ export default function DashboardPage() {
                     {new Date(c.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Link href={`/cases/${c.caseReference}`}
+                    <Link href={`/cases/${encodeURIComponent(c.caseReference)}`}
                       className="inline-flex items-center gap-1 text-xs font-medium text-text-tertiary hover:text-brand-emerald transition-colors">
                       Review <ArrowRight className="h-3.5 w-3.5" />
                     </Link>

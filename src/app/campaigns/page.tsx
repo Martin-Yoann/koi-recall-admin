@@ -32,8 +32,10 @@ export default function CampaignsPage() {
     const result = await listCampaigns();
     if (result.ok) {
       setCampaigns(result.data.campaigns);
-    } else if (result.status === 401 || result.status === 403) {
-      setError('Please log in to view campaigns.');
+    } else if (result.status === 401) {
+      setError('Please sign in with a staff account to view campaigns.');
+    } else if (result.status === 403) {
+      setError('Your staff role does not have permission to view campaigns.');
     } else {
       setError(result.error?.detail || 'Failed to load campaigns.');
     }

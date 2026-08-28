@@ -17,7 +17,7 @@ export type ProblemDetails = components['schemas']['ProblemDetails'];
 
 // ── Admin B-end types (inline until openapi-typescript regenerates with admin paths) ──
 
-export type StaffRole = 'viewer' | 'reviewer' | 'compliance' | 'administrator';
+export type StaffRole = 'ADMIN' | 'MANAGER';
 
 export interface StaffPrincipal {
   staffUserId: string;
@@ -140,9 +140,14 @@ export interface CaseProduct {
   dateCode: string;
   purchaseChannel: string;
   purchaseDate?: string | null;
+  /** Order number per the viewer's PII tier (masked keeps the last 4 chars). */
+  orderNumber?: string | null;
   checkResult: string;
   identificationMode?: string | null;
   reasonCodes?: string[] | null;
+  /** Purchase corroboration outcome, when purchase evidence was submitted. */
+  purchaseCorroboration?: string | null;
+  riskFlags?: string[] | null;
 }
 
 /** Evidence file metadata (no storage pathnames, no blob URLs). */
@@ -376,15 +381,155 @@ function requestId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// ── Auth header helper ──
+
+export const SESSION_STORAGE_KEY = 'koi_admin_session';
+
+let adminSessionToken: string | null = null;
+
+export function setAdminSessionToken(token: string | null) {
+  adminSessionToken = token;
+}
+
+export function getAdminSessionToken(): string | null {
+  return adminSessionToken;
+}
+
+/** Shape of the session snapshot persisted by admin-auth (subset we need). */
+interface StoredAdminSession {
+  token?: string;
+  expiresAt?: string;
+  role?: StaffRole;
+  staffUserId?: string;
+  displayName?: string;
+}
+
+function readStoredSession(): StoredAdminSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredAdminSession;
+    if (!parsed?.token) return null;
+    // Drop definitively expired snapshots so requests fail as "logged out"
+    // instead of replaying a dead token.
+    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSession(update: StoredAdminSession) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = readStoredSession() ?? {};
+    window.localStorage.setItem(
+      SESSION_STORAGE_KEY,
+      JSON.stringify({ ...current, ...update }),
+    );
+  } catch {
+    // Storage unavailable (private mode) — the in-memory token still works.
+  }
+}
+
+function clearStoredSession() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  // Let the auth context drop its in-memory user so the UI shows signed-out.
+  window.dispatchEvent(new CustomEvent('koi_admin_session_expired'));
+}
+
+/**
+ * Reads the current bearer token. Falls back to the persisted session
+ * SYNCHRONOUSLY so a page effect that fires before the auth provider's
+ * restore effect (children mount first) still sends an authenticated
+ * request — this was the cause of "data empty until F5".
+ */
+function resolveSessionToken(): string | null {
+  if (!adminSessionToken) {
+    const stored = readStoredSession();
+    if (stored?.token) {
+      adminSessionToken = stored.token;
+      if (stored.role || stored.staffUserId) writeStoredSession(stored);
+    }
+  }
+  return adminSessionToken;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = resolveSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// ── Session-refresh-on-401 (single-flight) ──
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Rotates the staff session once. Returns true when a fresh token is in
+ * place and the failed request is worth retrying. Safe to call concurrently:
+ * parallel 401s share one refresh request.
+ */
+async function refreshAdminSession(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const token = resolveSessionToken();
+      if (!token) return false;
+      try {
+        const res = await fetch(`${API_BASES[0]}/admin/sessions/refresh`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'X-Request-Id': requestId() },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return false;
+        const body = (await res.json()) as {
+          token: string;
+          expiresAt: string;
+          displayName?: string;
+          role?: StaffRole;
+          staffUserId?: string;
+        };
+        if (!body?.token) return false;
+        adminSessionToken = body.token;
+        const stored = readStoredSession() ?? {};
+        writeStoredSession({
+          ...stored,
+          token: body.token,
+          expiresAt: body.expiresAt,
+          ...(body.role ? { role: body.role } : {}),
+          ...(body.staffUserId ? { staffUserId: body.staffUserId } : {}),
+          ...(body.displayName ? { displayName: body.displayName } : {}),
+        });
+        // admin-auth listens and refreshes its in-memory user from storage.
+        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+        return true;
+      } catch {
+        return false;
+      } finally {
+        // Release the single-flight slot once every waiter has resolved.
+        window.setTimeout(() => {
+          refreshInFlight = null;
+        }, 0);
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
 async function fetchApi<T>(
   path: string,
   options: RequestInit = {},
+  allowSessionRetry = true,
 ): Promise<ApiResult<T>> {
   const rid = requestId();
 
-  for (const base of API_BASES) {
+  const attempt = async (base: string): Promise<ApiResult<T> | null> => {
     const url = `${base}${path}`;
-
     try {
       const res = await fetch(url, {
         ...options,
@@ -420,7 +565,26 @@ async function fetchApi<T>(
       return { ok: false, error: problem, status: res.status };
     } catch {
       // Network error (e.g. local backend not running) — try the next base.
+      return null;
     }
+  };
+
+  for (const base of API_BASES) {
+    const result = await attempt(base);
+    if (!result) continue;
+
+    // A 401 on an admin route may mean the rotated/expired token — refresh
+    // the session once and replay the request before giving up.
+    if (!result.ok && result.status === 401 && path.startsWith('/admin/') && allowSessionRetry) {
+      const refreshed = await refreshAdminSession();
+      if (refreshed) {
+        return fetchApi<T>(path, options, false);
+      }
+      // Session is gone for good — drop the stored snapshot so the UI
+      // reflects the signed-out state instead of looping on dead tokens.
+      clearStoredSession();
+    }
+    return result;
   }
 
   return {
@@ -434,25 +598,6 @@ async function fetchApi<T>(
     },
     status: 0,
   };
-}
-
-// ── Auth header helper ──
-
-let adminSessionToken: string | null = null;
-
-export function setAdminSessionToken(token: string | null) {
-  adminSessionToken = token;
-}
-
-export function getAdminSessionToken(): string | null {
-  return adminSessionToken;
-}
-
-function authHeaders(): Record<string, string> {
-  if (adminSessionToken) {
-    return { Authorization: `Bearer ${adminSessionToken}` };
-  }
-  return {};
 }
 
 // ── Public API methods (shared with koi-recall-web) ──
@@ -529,6 +674,18 @@ export async function updateOwnProfile(body: {
   );
 }
 
+/** POST /admin/profile/password — self-service password change (audited) */
+export async function updatePassword(body: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ApiResult<void>> {
+  return fetchApi<void>('/admin/profile/password', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: authHeaders(),
+  });
+}
+
 // -- Case Management --
 
 /** GET /admin/cases — List/sort cases */
@@ -587,6 +744,26 @@ export async function getCaseDetail(
 ): Promise<ApiResult<CaseDetailResponse>> {
   return fetchApi<CaseDetailResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}?pii=${piiLevel}`,
+    { headers: authHeaders() },
+  );
+}
+
+/** Evidence file access URLs (short-lived; image preview / download). */
+export interface DocumentAccess {
+  documentId: string;
+  fileName: string;
+  contentType: string;
+  url: string;
+  downloadUrl: string;
+}
+
+/** GET /admin/cases/{caseRef}/documents/{documentId}/url — audited access mint */
+export async function getDocumentAccessUrl(
+  caseRef: string,
+  documentId: string,
+): Promise<ApiResult<DocumentAccess>> {
+  return fetchApi<DocumentAccess>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/documents/${encodeURIComponent(documentId)}/url`,
     { headers: authHeaders() },
   );
 }
@@ -686,6 +863,14 @@ export async function updateStaff(
   return fetchApi<StaffUser>(`/admin/staff/${encodeURIComponent(staffUserId)}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+    headers: authHeaders(),
+  });
+}
+
+/** DELETE /admin/staff/{id} — Permanently delete a staff user (ADMIN only). */
+export async function deleteStaff(staffUserId: string): Promise<ApiResult<void>> {
+  return fetchApi<void>(`/admin/staff/${encodeURIComponent(staffUserId)}`, {
+    method: 'DELETE',
     headers: authHeaders(),
   });
 }

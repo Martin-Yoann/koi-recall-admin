@@ -87,7 +87,7 @@ const QUEUE_STYLES: Record<QueueKind, { accent: string; icon: string; badge: str
 };
 
 export default function QueuesPage() {
-  const { isAuthenticated } = useAdminAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,8 +96,14 @@ export default function QueuesPage() {
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    // Reset on every setup so React StrictMode's dev double-invoke (setup →
+    // cleanup → setup) cannot permanently poison the flag and stall the page
+    // on "Unable to load case".
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const fetchCases = useCallback(async () => {
@@ -108,8 +114,10 @@ export default function QueuesPage() {
     if (!mountedRef.current) return;
     if (result.ok) {
       setCases(result.data.cases);
-    } else if (result.status === 401 || result.status === 403) {
-      setError('Please log in to view queues.');
+    } else if (result.status === 401) {
+      setError('Please sign in with a staff account to view queues.');
+    } else if (result.status === 403) {
+      setError('Your staff role does not have permission to view queues.');
     } else if (result.status === 0) {
       setError('Cannot reach the backend API — local :3002 and the online backend are both unreachable.');
     } else {
@@ -119,7 +127,7 @@ export default function QueuesPage() {
   }, []);
 
   useEffect(() => {
-    if (initialLoadStartedRef.current || loading || cases.length > 0 || error) {
+    if (authLoading || !isAuthenticated || initialLoadStartedRef.current || loading || cases.length > 0 || error) {
       return;
     }
     initialLoadStartedRef.current = true;
@@ -129,7 +137,7 @@ export default function QueuesPage() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [cases.length, error, fetchCases, loading]);
+  }, [authLoading, cases.length, error, fetchCases, isAuthenticated, loading]);
 
   const queues = useMemo(
     () =>
@@ -304,7 +312,7 @@ export default function QueuesPage() {
                   {filtered.map(c => (
                     <tr key={c.caseReference} className="border-b last:border-0 hover:bg-surface-secondary transition-colors">
                       <td className="px-4 py-3">
-                        <Link href={`/cases/${c.caseReference}`} className="font-mono text-sm font-semibold text-brand-emerald hover:underline">
+                        <Link href={`/cases/${encodeURIComponent(c.caseReference)}`} className="font-mono text-sm font-semibold text-brand-emerald hover:underline">
                           {c.caseReference}
                         </Link>
                       </td>
@@ -323,7 +331,7 @@ export default function QueuesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/cases/${c.caseReference}`} className="inline-flex items-center gap-1 text-xs font-medium text-text-tertiary hover:text-brand-emerald transition-colors">
+                        <Link href={`/cases/${encodeURIComponent(c.caseReference)}`} className="inline-flex items-center gap-1 text-xs font-medium text-text-tertiary hover:text-brand-emerald transition-colors">
                           Open <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                       </td>

@@ -47,10 +47,9 @@ Write-Host "  Admin Panel:   http://localhost:3001" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 # Keep these credentials synchronized with the backend Neon staff_users seed accounts.
-Write-Host "后台登录账号（存于后端 Neon 数据库 staff_users 表）:" -ForegroundColor Gray
-Write-Host "  admin@koi-platform.com    / happyglobal123!     (administrator)" -ForegroundColor Gray
-Write-Host "  reviewer@koi-platform.com / KoiReviewer2026!  (reviewer)" -ForegroundColor Gray
-Write-Host "  viewer@koi-platform.com   / KoiViewer2026!    (viewer)" -ForegroundColor Gray
+Write-Host "后台登录账号（存于后端 staff_users 表，密码由部署环境设置）:" -ForegroundColor Gray
+Write-Host "  admin@koi-platform.com    / 使用 SEED_ADMIN_PASSWORD 或 staff:bootstrap 设置     (ADMIN)" -ForegroundColor Gray
+Write-Host "  manager@koi-platform.com  / 使用 SEED_MANAGER_PASSWORD 设置                (MANAGER)" -ForegroundColor Gray
 Write-Host ""
 Write-Host "切换后端: .\start-dev.ps1 -ApiUrl http://localhost:3002" -ForegroundColor Gray
 Write-Host ""

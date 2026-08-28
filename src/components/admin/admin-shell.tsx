@@ -6,11 +6,13 @@ import Link from 'next/link';
 import {
   LayoutDashboard, FolderOpen, ListOrdered, AlertTriangle,
   Download, Shield, Menu, X, Pin, PinOff, LogOut, LogIn,
-  User, Key,
+  User, Key, Bell, CircleHelp, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { listCases, type CaseSummary } from '@/lib/api-client';
+import { StatusBadge } from '@/components/shared/status-badge';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
@@ -24,6 +26,178 @@ const SIDENAV = [
   { label: 'Exports & Jobs',      href: '/exports',       icon: Download },
   { label: 'Access & Audit',      href: '/access',        icon: Shield },
 ];
+
+/** Review-process steps shown in the "?" help menu. */
+const PROCESS_STEPS = [
+  { label: 'Intake',           detail: 'New consumer submissions land here (triage).', href: '/cases?status=submitted' },
+  { label: 'Review',           detail: 'Check product, evidence and PII, then assign.', href: '/cases?status=under_review' },
+  { label: 'Request info',     detail: 'ask the consumer for anything missing (need_info).', href: '/cases?status=need_info' },
+  { label: 'Decision',         detail: 'Approve refund/replacement or reject / duplicate.', href: '/cases?status=approved' },
+  { label: 'Close',            detail: 'Verify resolution done + reportability, then close.', href: '/cases?status=closure_review' },
+];
+
+/**
+ * Bell — surfaces how many submissions are waiting for first intake; clicking
+ * opens the notification drawer (see NotificationDrawer).
+ */
+function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
+  const { isAuthenticated } = useAdminAuth();
+  const [count, setCount] = useState<number>(0);
+
+  const refresh = useCallback(async () => {
+    if (!isAuthenticated) return;
+    const result = await listCases({ status: 'submitted', limit: 100 });
+    if (result.ok) setCount(result.data.cases.length);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void refresh(), 0);
+    const interval = window.setInterval(() => void refresh(), 60_000);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
+  }, [refresh]);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${count} new submissions`}
+      className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors"
+    >
+      <Bell className="h-[18px] w-[18px] text-text-secondary" />
+      {count > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-strawberry px-1 text-[10px] font-bold leading-none text-white">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** Right-side notification drawer listing the latest C-end submissions. */
+function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { isAuthenticated } = useAdminAuth();
+  const [items, setItems] = useState<CaseSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoading(true);
+    const result = await listCases({ status: 'submitted', limit: 40 });
+    if (result.ok) setItems(result.data.cases);
+    setLoading(false);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => void refresh(), 0);
+    const interval = window.setInterval(() => void refresh(), 30_000);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
+  }, [open, refresh]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60] bg-black/30 animate-[fadeIn_200ms]" onClick={onClose} />
+      <aside
+        className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] shadow-2xl animate-[slideInRight_300ms_cubic-bezier(0.25,0,0.15,1)] flex flex-col"
+        style={{ background: '#FFFFFF' }}
+        aria-label="New submissions"
+      >
+        <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-strawberry/10">
+            <Bell className="h-4.5 w-4.5 text-strawberry" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-text-primary">New Submissions</p>
+            <p className="text-xs text-text-tertiary truncate">
+              {items.length} awaiting intake · refreshes automatically
+            </p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors" aria-label="Close">
+            <X className="h-4 w-4 text-text-tertiary" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
+          {loading && items.length === 0 ? (
+            <p className="p-8 text-sm text-text-tertiary text-center">Loading…</p>
+          ) : items.length === 0 ? (
+            <div className="p-12 text-center">
+              <Bell className="h-8 w-8 mx-auto text-text-tertiary mb-3" />
+              <p className="text-sm font-semibold text-text-primary">No new submissions</p>
+              <p className="text-xs text-text-tertiary mt-1">Newly submitted cases will appear here.</p>
+            </div>
+          ) : (
+            items.map((c) => (
+              <Link
+                key={c.caseReference}
+                href={`/cases/${c.caseReference}`}
+                onClick={onClose}
+                className="flex items-center gap-3 px-5 py-3 border-b last:border-0 hover:bg-surface-secondary transition-colors"
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full bg-strawberry" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold font-mono text-text-primary truncate">{c.caseReference}</p>
+                  <p className="text-xs text-text-tertiary mt-0.5 truncate">
+                    {c.subtype.replace(/_/g, ' ')} · {new Date(c.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+                <StatusBadge variant={c.status as never} />
+                <ArrowRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+              </Link>
+            ))
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+/** Help "?" — the review-process guide in a dropdown. */
+function HelpMenu() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors outline-none">
+        <CircleHelp className="h-[18px] w-[18px] text-text-secondary" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72 mt-2">
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(240,91,120,0.10)' }}>
+          <p className="text-sm font-semibold text-text-primary">Review Workflow</p>
+          <p className="text-xs text-text-tertiary mt-0.5">How a submitted claim is processed</p>
+        </div>
+        <div className="p-1.5">
+          {PROCESS_STEPS.map((step, idx) => (
+            <DropdownMenuItem key={step.label} render={<Link href={step.href} />} className="cursor-pointer rounded-lg py-2.5 px-3">
+              <span className="flex items-start gap-3 w-full">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-strawberry/10 text-[11px] font-bold text-strawberry">
+                  {idx + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-text-primary">{step.label}</span>
+                  <span className="block text-xs text-text-tertiary">{step.detail}</span>
+                </span>
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Sidebar dimensions, timing & transitions
@@ -43,6 +217,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,8 +408,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex-1" />
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-text-tertiary select-none">KOI Recall Admin</span>
+            <HelpMenu />
+            <NewSubmissionsBell onOpen={() => setNotifOpen(true)} />
             <div className="h-5 w-px bg-border" />
+            <span className="text-xs font-medium text-text-tertiary select-none hidden lg:inline">KOI Recall Admin</span>
+            <div className="hidden lg:block h-5 w-px bg-border" />
             {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-full hover:bg-surface-secondary cursor-pointer transition-all duration-200 outline-none select-none group">
@@ -314,6 +492,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* New-submissions notification drawer */}
+      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
     </>
   );
 }
