@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Clock, CheckCircle2, FileText, ArrowRight, Shield,
-  Megaphone, RefreshCw, Flame,
+  Megaphone, Flame,
 } from 'lucide-react';
 import Link from 'next/link';
 import { RefreshButton } from '@/components/admin/refresh-button';

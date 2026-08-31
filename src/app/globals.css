@@ -484,3 +484,12 @@
     cursor: not-allowed;
   }
 }
+
+/* ============================================================
+   Login decorations — flowing "shine" sweep for the glass card
+   and a slow aurora drift for the background blobs.
+   ============================================================ */
+@keyframes shine {
+  from { transform: translateX(-130%) skewX(-16deg); }
+  to   { transform: translateX(230%) skewX(-16deg); }
+}

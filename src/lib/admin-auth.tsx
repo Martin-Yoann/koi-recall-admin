@@ -189,7 +189,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('koi_admin_session_refreshed', handleRefreshed);
     };
   }, []);
-  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'password'>('profile');
 
@@ -212,7 +212,6 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       };
       setStored(u);
       setUser(u);
-      setLoginOpen(false);
       return { ok: true };
     }
 
@@ -278,8 +277,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const openLogin = useCallback(() => setLoginOpen(true), []);
-  const closeLogin = useCallback(() => setLoginOpen(false), []);
+  // The login drawer is replaced by a dedicated /login page: "open login"
+  // now navigates there, and the legacy close is a no-op.
+  const openLogin = useCallback(() => {
+    window.location.assign('/login');
+  }, []);
+  const closeLogin = useCallback(() => {}, []);
   const openProfile = useCallback(
     (tab: 'profile' | 'password' = 'profile') => {
       setProfileTab(tab);

@@ -73,6 +73,7 @@ export default function ExportsPage() {
       setPurpose('Finance reconciliation');
       await fetchBatches();
     } else {
+      console.error('API Error details:', result.error);
       setFormError(result.error?.detail || 'Failed to create refund export.');
     }
     setSubmitting(false);

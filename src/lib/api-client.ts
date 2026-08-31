@@ -921,7 +921,7 @@ export async function createRefundExport(body: {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      credentials: 'include',
+      // credentials: 'include', // 移除该行，防止跨域权限冲突
       cache: 'no-store',
     });
 
