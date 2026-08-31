@@ -6,6 +6,7 @@ import { useState, useRef } from 'react';
 import { X, Eye, EyeOff, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { useToast } from '@/components/ui/toast';
 
 const AVATAR_COLORS = [
   { label: 'Teal', value: '#0D9488' },
@@ -65,6 +66,7 @@ interface ProfileDialogContentProps {
 }
 
 function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword }: ProfileDialogContentProps) {
+  const toast = useToast();
   const [tab, setTab] = useState<'profile' | 'password'>(initialTab);
 
   const [name, setName] = useState(user.name || '');
@@ -103,6 +105,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
     const result = await updateProfile({ name: n, initials: init, avatarBg, avatarDataUrl });
     setProfileSaving(false);
     if (result.ok) {
+      toast.success('Profile updated');
       onClose();
     } else {
       setProfileError(result.error || 'Failed to update profile.');
@@ -158,6 +161,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
     const result = await changePassword(currentPw, newPw);
     setPwSaving(false);
     if (result.ok) {
+      toast.success('Password changed');
       onClose();
     } else {
       setPwError(result.error || 'Failed to change password.');

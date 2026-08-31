@@ -1,234 +1,121 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import { Toast as ToastPrimitive } from "@base-ui/react/toast"
+// ============================================================
+// Global toast — reusable success / error / info / warning alerts.
+// Usage:
+//   const toast = useToast();
+//   toast.success('Staff user created');  toast.error('Failed to load');
+//   toast.info('Export queued');
+// Mount <ToastProvider> once near the app root; it renders the stack itself.
+// ============================================================
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CheckCircle2, XCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const toast = ToastPrimitive.createToastManager()
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
-  return <ToastPrimitive.Provider {...props} />
+export interface ToastItem {
+  id: number;
+  type: ToastType;
+  title?: string;
+  message: string;
 }
 
-function ToastPortal({ ...props }: ToastPrimitive.Portal.Props) {
-  return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />
+interface ToastApi {
+  success: (message: string, title?: string) => void;
+  error: (message: string, title?: string) => void;
+  info: (message: string, title?: string) => void;
+  warning: (message: string, title?: string) => void;
 }
 
-function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
-  return (
-    <ToastPrimitive.Viewport
-      data-slot="toast-viewport"
-      className={cn(
-        "pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const ToastCtx = createContext<ToastApi | undefined>(undefined);
 
-function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
-  return (
-    <ToastPrimitive.Root
-      data-slot="toast"
-      className={cn(
-        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-2xl border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
-        "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
-        "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
-        "data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))]",
-        "data-limited:opacity-0 data-starting-style:[transform:translateY(150%)]",
-        "[&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(150%)]",
-        "data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
-        "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const TYPE_META: Record<ToastType, { icon: typeof Info; accent: string; iconColor: string; defaultTitle: string }> = {
+  success: { icon: CheckCircle2, accent: 'border-l-emerald-600', iconColor: 'text-emerald-600', defaultTitle: 'Success' },
+  error: { icon: XCircle, accent: 'border-l-red-500', iconColor: 'text-red-600', defaultTitle: 'Error' },
+  info: { icon: Info, accent: 'border-l-primary', iconColor: 'text-primary', defaultTitle: 'Info' },
+  warning: { icon: AlertTriangle, accent: 'border-l-amber-500', iconColor: 'text-amber-600', defaultTitle: 'Warning' },
+};
 
-function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
-  return (
-    <ToastPrimitive.Content
-      data-slot="toast-content"
-      className={cn(
-        "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const AUTO_DISMISS_MS = 4200;
+const MAX_VISIBLE = 4;
 
-function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
-  return (
-    <ToastPrimitive.Title
-      data-slot="toast-title"
-      className={cn("text-sm font-medium", className)}
-      {...props}
-    />
-  )
-}
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const nextId = useRef(1);
 
-function ToastDescription({
-  className,
-  ...props
-}: ToastPrimitive.Description.Props) {
-  return (
-    <ToastPrimitive.Description
-      data-slot="toast-description"
-      className={cn("text-sm text-muted-foreground", className)}
-      {...props}
-    />
-  )
-}
+  const push = useCallback((type: ToastType, message: string, title?: string) => {
+    const id = nextId.current++;
+    setToasts((prev) => [...prev.slice(-(MAX_VISIBLE - 1)), { id, type, message, title }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, AUTO_DISMISS_MS);
+  }, []);
 
-function ToastAction({
-  className,
-  render = <Button variant="outline" size="sm" />,
-  ...props
-}: ToastPrimitive.Action.Props) {
-  return (
-    <ToastPrimitive.Action
-      data-slot="toast-action"
-      render={render}
-      className={cn("shrink-0", className)}
-      {...props}
-    />
-  )
-}
+  const remove = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
-function ToastClose({
-  className,
-  children,
-  render = <Button variant="ghost" size="icon-sm" />,
-  ...props
-}: ToastPrimitive.Close.Props) {
-  return (
-    <ToastPrimitive.Close
-      data-slot="toast-close"
-      aria-label="Close toast"
-      render={render}
-      className={cn(
-        "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
-        className
-      )}
-      {...props}
-    >
-      {children ?? (
-        <XIcon aria-hidden="true" />
-      )}
-    </ToastPrimitive.Close>
-  )
-}
-
-function ToastIcon({ type }: { type: string | undefined }) {
-  let icon: React.ReactNode = null
-
-  if (type === "success") {
-    icon = (
-      <CircleCheckIcon aria-hidden="true" />
-    )
-  }
-
-  if (type === "info") {
-    icon = (
-      <InfoIcon aria-hidden="true" />
-    )
-  }
-
-  if (type === "warning") {
-    icon = (
-      <TriangleAlertIcon aria-hidden="true" />
-    )
-  }
-
-  if (type === "error") {
-    icon = (
-      <OctagonXIcon className="text-destructive" aria-hidden="true" />
-    )
-  }
-
-  if (type === "loading") {
-    icon = (
-      <Loader2Icon className="animate-spin" aria-hidden="true" />
-    )
-  }
-
-  if (!icon) {
-    return null
-  }
+  const value: ToastApi = {
+    success: (m, t) => push('success', m, t),
+    error: (m, t) => push('error', m, t),
+    info: (m, t) => push('info', m, t),
+    warning: (m, t) => push('warning', m, t),
+  };
 
   return (
-    <span
-      data-slot="toast-icon"
-      className="shrink-0 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
-    >
-      {icon}
-    </span>
-  )
-}
-
-function ToastList() {
-  const { toasts } = ToastPrimitive.useToastManager()
-
-  return toasts.map((toastItem) => (
-    <Toast key={toastItem.id} toast={toastItem}>
-      <ToastContent>
-        <ToastIcon type={toastItem.type} />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <ToastTitle />
-          <ToastDescription />
-        </div>
-        <ToastAction />
-        <ToastClose />
-      </ToastContent>
-    </Toast>
-  ))
-}
-
-function Toaster({
-  children,
-  toastManager = toast,
-  ...props
-}: ToastPrimitive.Provider.Props) {
-  return (
-    <ToastProvider toastManager={toastManager} {...props}>
+    <ToastCtx.Provider value={value}>
       {children}
-      <ToastPortal>
-        <ToastViewport>
-          <ToastList />
-        </ToastViewport>
-      </ToastPortal>
-    </ToastProvider>
-  )
+      <Toaster toasts={toasts} onDismiss={remove} />
+    </ToastCtx.Provider>
+  );
 }
 
-const createToastManager = ToastPrimitive.createToastManager
-const useToastManager = ToastPrimitive.useToastManager
+export function useToast(): ToastApi {
+  const ctx = useContext(ToastCtx);
+  if (!ctx) throw new Error('useToast must be used within <ToastProvider>');
+  return ctx;
+}
 
-export {
-  Toaster,
-  Toast,
-  ToastAction,
-  ToastClose,
-  ToastContent,
-  ToastDescription,
-  ToastPortal,
-  ToastProvider,
-  ToastTitle,
-  ToastViewport,
-  createToastManager,
-  toast,
-  useToastManager,
+function Toaster({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: number) => void }) {
+  return (
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 w-[min(92vw,380px)] pointer-events-none">
+      <AnimatePresence initial={false}>
+        {toasts.map((toast) => {
+          const meta = TYPE_META[toast.type];
+          const Icon = meta.icon;
+          return (
+            <motion.div
+              key={toast.id}
+              layout
+              initial={{ opacity: 0, x: 40, scale: 0.96 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 40, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              role="status"
+              className={cn(
+                'pointer-events-auto flex items-start gap-3 rounded-xl border border-border bg-white shadow-xl shadow-black/[0.06] p-3.5 border-l-4',
+                meta.accent,
+              )}
+            >
+              <Icon className={cn('h-5 w-5 shrink-0 mt-0.5', meta.iconColor)} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-text-primary">{toast.title ?? meta.defaultTitle}</p>
+                <p className="text-xs text-text-secondary mt-0.5 leading-relaxed break-words">{toast.message}</p>
+              </div>
+              <button
+                onClick={() => onDismiss(toast.id)}
+                className="shrink-0 text-text-tertiary hover:text-text-primary cursor-pointer transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
 }

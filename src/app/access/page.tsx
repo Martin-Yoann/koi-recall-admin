@@ -12,6 +12,7 @@ import {
   type AuditEvent, type StaffUser,
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { useToast } from '@/components/ui/toast';
 import { PERMISSION_LABELS, ROLE_LABELS, usePermissions } from '@/lib/rbac';
 import type { StaffRole } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -127,7 +128,7 @@ export default function AccessPage() {
       </div>
 
       {/* Staff directory is visible to both roles; account mutations are ADMIN-only. */}
-      {can('staff.read') && <StaffManagement canManage={can('staff.manage')} />}
+      {isAuthenticated && <StaffManagement canManage={can('staff.manage')} />}
 
       {/* Audit */}
       <div className="rounded-xl border bg-surface-elevated overflow-hidden">
@@ -230,6 +231,7 @@ function ROLE_HAS(role: StaffRole, permission: string): boolean {
 
 function StaffManagement({ canManage }: { canManage: boolean }) {
   const { user } = useAdminAuth();
+  const toast = useToast();
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,8 +245,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
     if (!window.confirm(`Delete ${target.displayName}'s account? This cannot be undone.`)) return;
     setError(null);
     const result = await deleteStaff(target.id);
-    if (!result.ok) setError(result.error?.detail || 'Failed to delete the staff user.');
-    else await fetchStaff();
+    if (!result.ok) toast.error(result.error?.detail || 'Failed to delete the staff user.');
+    else { toast.success(`${target.displayName} deleted`); await fetchStaff(); }
   };
 
   const fetchStaff = useCallback(async () => {
@@ -259,6 +261,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
     setLoading(false);
   }, []);
 
+  // Load once on mount; every create / delete / role / status change below
+  // re-fetches once immediately after it completes (no background polling).
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void fetchStaff();
@@ -282,9 +286,11 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
     if (result.ok) {
       setCreateOpen(false);
       setForm({ email: '', displayName: '', password: '', role: 'MANAGER' });
+      toast.success(`${result.data.displayName} created as ${ROLE_LABELS[result.data.role as StaffRole] ?? result.data.role}`);
       await fetchStaff();
     } else {
       setFormError(result.error?.detail || 'Failed to create the staff user.');
+      toast.error(result.error?.detail || 'Failed to create the staff user.');
     }
     setSubmitting(false);
   };
@@ -292,16 +298,16 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
   const changeRole = async (target: StaffUser, role: string) => {
     setError(null);
     const result = await updateStaff(target.id, { role });
-    if (!result.ok) setError(result.error?.detail || 'Failed to change the role.');
-    else await fetchStaff();
+    if (!result.ok) toast.error(result.error?.detail || 'Failed to change the role.');
+    else { toast.success(`${target.displayName} → ${ROLE_LABELS[role as StaffRole] ?? role}`); await fetchStaff(); }
   };
 
   const toggleStatus = async (target: StaffUser) => {
     setError(null);
     const nextStatus = target.status === 'active' ? 'disabled' : 'active';
     const result = await updateStaff(target.id, { status: nextStatus });
-    if (!result.ok) setError(result.error?.detail || 'Failed to update the status.');
-    else await fetchStaff();
+    if (!result.ok) toast.error(result.error?.detail || 'Failed to update the status.');
+    else { toast.success(`${target.displayName} ${nextStatus === 'active' ? 'enabled' : 'disabled'}`); await fetchStaff(); }
   };
 
   const forceSignOut = async (target: StaffUser) => {
@@ -320,7 +326,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
         {canManage && (
         <button
           onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold cursor-pointer hover:bg-emerald-800"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold cursor-pointer hover:bg-emerald-800"
         >
           <UserPlus className="h-3.5 w-3.5" />New staff user
         </button>
@@ -410,7 +416,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
 
       {canManage && createOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="create-staff-title">
-          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable', background: '#FFFFFF' }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" style={{ background: '#FFFFFF' }}>
             {/* Header */}
             <div className="flex items-start justify-between gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
               <div className="flex items-center gap-3">
@@ -427,8 +433,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
               </button>
             </div>
 
-            {/* Body */}
-            <div className="px-6 py-5 space-y-4">
+            {/* Body — scrolls; header + footer stay fixed */}
+            <div className="px-6 py-5 space-y-4 overflow-y-auto min-h-0 flex-1" style={{ scrollbarGutter: 'stable' }}>
               <div className="space-y-1.5">
                 <label htmlFor="new-staff-email" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Email</label>
                 <div className="relative">
@@ -493,10 +499,10 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="flex justify-end gap-2 px-6 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
+            {/* Footer — always visible, with the primary action in a guaranteed-blue button */}
+            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
               <button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary cursor-pointer transition-colors">Cancel</button>
-              <button type="button" onClick={submitCreate} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-strawberry px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="button" onClick={submitCreate} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <UserPlus className="h-4 w-4" />{submitting ? 'Creating…' : 'Create user'}
               </button>
             </div>

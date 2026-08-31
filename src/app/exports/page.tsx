@@ -5,6 +5,7 @@ import { Download, FileSpreadsheet, RefreshCw, Shield } from 'lucide-react';
 import { createRefundExport, listRefundExports, type RefundExportBatch } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { usePermissions } from '@/lib/rbac';
+import { useToast } from '@/components/ui/toast';
 import { formatAdminDate } from '@/lib/formatters';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -25,6 +26,7 @@ function downloadCsv(filename: string, csv: string) {
 export default function ExportsPage() {
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const { can } = usePermissions();
+  const toast = useToast();
   const [batches, setBatches] = useState<RefundExportBatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -68,12 +70,14 @@ export default function ExportsPage() {
     setFormError(null);
     const result = await createRefundExport({ purpose: trimmedPurpose, includeExported: false });
     if (result.ok) {
+      toast.success(`Refund export ready (${result.data.csv ? 'CSV downloaded' : 'empty'}).`);
       downloadCsv(result.data.filename ?? `refund-export-${result.data.batchId ?? 'latest'}.csv`, result.data.csv);
       setCreateOpen(false);
       setPurpose('Finance reconciliation');
       await fetchBatches();
     } else {
       console.error('API Error details:', result.error);
+      toast.error(result.error?.detail || 'Failed to create refund export.');
       setFormError(result.error?.detail || 'Failed to create refund export.');
     }
     setSubmitting(false);

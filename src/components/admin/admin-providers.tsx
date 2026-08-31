@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ToastProvider } from '@/components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/admin-auth';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { ProfileDialog } from '@/components/admin/profile-dialog';
@@ -51,14 +52,16 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delay={300}>
-      <AdminAuthProvider>
-        <AuthInterceptor>
-          {/* The login page renders standalone (no admin chrome); every other
-              route is wrapped in the admin shell. */}
-          {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
-        </AuthInterceptor>
-        <AuthModals />
-      </AdminAuthProvider>
+      <ToastProvider>
+        <AdminAuthProvider>
+          <AuthInterceptor>
+            {/* The login page renders standalone (no admin chrome); every other
+                route is wrapped in the admin shell. */}
+            {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
+          </AuthInterceptor>
+          <AuthModals />
+        </AdminAuthProvider>
+      </ToastProvider>
     </TooltipProvider>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Shield, RefreshCw, CheckCircle2, X } from 'lucide-react';
+import { Shield, ShieldAlert, RefreshCw, CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
 import { closeReportabilityReview, listIncidents, type IncidentSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
@@ -147,18 +147,58 @@ export default function IncidentsPage() {
 
       {reviewing ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="review-title">
-          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div><h2 id="review-title" className="text-base font-bold text-text-primary">Close Reportability Review</h2><p className="text-xs text-text-tertiary mt-1">Incident {shortId(reviewing.id)}… · Case {reviewing.caseReference}</p></div>
-              <button type="button" onClick={() => setReviewing(null)} className="text-text-tertiary hover:text-text-primary cursor-pointer" aria-label="Close review dialog"><X className="h-4 w-4" /></button>
+          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" style={{ background: '#FFFFFF' }}>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600/10">
+                  <ShieldAlert className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 id="review-title" className="text-base font-bold text-text-primary">Close Reportability Review</h2>
+                  <p className="text-xs text-text-tertiary mt-0.5">Incident {shortId(reviewing.id)}… · Case {reviewing.caseReference}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setReviewing(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors" aria-label="Close review dialog">
+                <X className="h-4 w-4 text-text-tertiary" />
+              </button>
             </div>
-            <div className="space-y-3">
-              <label className="block text-xs font-semibold text-text-secondary">Outcome<select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} className="mt-1 h-9 w-full rounded-lg border bg-surface-elevated px-3 text-sm" style={{ borderColor: 'var(--border)' }}><option value="filed">Filed with CPSC</option><option value="documented_non_reportable">Documented non-reportable</option></select></label>
-              {outcome === 'filed' ? <label className="block text-xs font-semibold text-text-secondary">CPSC reference<input value={cpscReference} onChange={(e) => setCpscReference(e.target.value)} className="mt-1 h-9 w-full rounded-lg border bg-surface-elevated px-3 text-sm" placeholder="CPSC-2026-001" maxLength={200} /></label> : null}
-              <label className="block text-xs font-semibold text-text-secondary">Rationale<textarea value={rationale} onChange={(e) => setRationale(e.target.value)} className="mt-1 min-h-24 w-full rounded-lg border bg-surface-elevated p-3 text-sm" placeholder="Explain the decision (minimum 10 characters)." maxLength={2000} /></label>
-              {dialogError ? <p className="text-xs text-red-600">{dialogError}</p> : null}
+
+            {/* Body — scrolls; header + footer stay fixed */}
+            <div className="px-6 py-5 space-y-4 overflow-y-auto min-h-0 flex-1" style={{ scrollbarGutter: 'stable' }}>
+              <div className="space-y-1.5">
+                <label htmlFor="rep-outcome" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Outcome</label>
+                <select id="rep-outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} className="h-10 w-full rounded-lg border bg-surface-secondary px-3 text-sm text-text-primary outline-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }}>
+                  <option value="filed">Filed with CPSC</option>
+                  <option value="documented_non_reportable">Documented non-reportable</option>
+                </select>
+              </div>
+
+              {outcome === 'filed' && (
+                <div className="space-y-1.5">
+                  <label htmlFor="rep-cpsc" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">CPSC reference</label>
+                  <input id="rep-cpsc" value={cpscReference} onChange={(e) => setCpscReference(e.target.value)} className="h-10 w-full rounded-lg border bg-surface-secondary px-3 text-sm text-text-primary outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }} placeholder="CPSC-2026-001" maxLength={200} />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label htmlFor="rep-rationale" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Rationale</label>
+                <textarea id="rep-rationale" value={rationale} onChange={(e) => setRationale(e.target.value)} className="min-h-24 w-full rounded-lg border bg-surface-secondary p-3 text-sm text-text-primary outline-none resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }} placeholder="Explain the decision (minimum 10 characters)." maxLength={2000} />
+                <p className="text-[10px] text-text-tertiary">Minimum 10 characters · recorded in the audit trail</p>
+              </div>
+
+              {dialogError && (
+                <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700" role="alert">{dialogError}</div>
+              )}
             </div>
-            <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setReviewing(null)} className="rounded-lg border px-3 py-2 text-xs font-semibold text-text-secondary cursor-pointer">Cancel</button><button type="button" onClick={submitReview} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800 disabled:opacity-50">{submitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} {submitting ? 'Submitting…' : 'Close Review'}</button></div>
+
+            {/* Footer — always visible */}
+            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
+              <button type="button" onClick={() => setReviewing(null)} className="rounded-lg border px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary cursor-pointer transition-colors">Cancel</button>
+              <button type="button" onClick={submitReview} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {submitting ? 'Submitting…' : 'Close Review'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
