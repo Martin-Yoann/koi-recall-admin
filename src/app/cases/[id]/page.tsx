@@ -215,6 +215,11 @@ function CaseDetailContent({
   /** Short-lived access URLs per document id (minted lazily for previews). */
   const [docAccess, setDocAccess] = useState<Record<string, { url: string; downloadUrl: string }>>({});
   const [lightbox, setLightbox] = useState<CaseDocument | null>(null);
+  const needInfoDialogRef = useRef<HTMLDivElement>(null);
+  const lightboxDialogRef = useRef<HTMLDivElement>(null);
+  const needInfoCloseRef = useRef<HTMLButtonElement>(null);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
+  const needInfoNoteRef = useRef<HTMLTextAreaElement>(null);
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
   /** Kept in a ref so refresh() always reloads at the tier currently on screen. */
@@ -229,6 +234,52 @@ function CaseDetailContent({
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const overlayOpen = needInfoOpen || Boolean(lightbox);
+    if (!overlayOpen) return;
+
+    const dialog = needInfoOpen ? needInfoDialogRef.current : lightboxDialogRef.current;
+    const closeButton = needInfoOpen ? needInfoCloseRef.current : lightboxCloseRef.current;
+    const previousActiveElement = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusFrame = window.requestAnimationFrame(() => closeButton?.focus());
+    const handleOverlayKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (lightbox) setLightbox(null);
+        else setNeedInfoOpen(false);
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled])',
+        ),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleOverlayKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleOverlayKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousActiveElement && document.contains(previousActiveElement)) previousActiveElement.focus();
+    };
+  }, [lightbox, needInfoOpen]);
 
   const refresh = useCallback(async () => {
     const result = await getCaseDetail(caseRef, piiLevelRef.current);
@@ -362,6 +413,7 @@ function CaseDetailContent({
     // dedicated request dialog instead of transitioning silently.
     if (next === 'need_info') {
       setNeedInfoNote('');
+      setActionError(null);
       setNeedInfoOpen(true);
       return;
     }
@@ -392,6 +444,7 @@ function CaseDetailContent({
     const note = needInfoNote.trim();
     if (note.length < 10) {
       setActionError('Please describe what the consumer should provide (at least 10 characters).');
+      window.requestAnimationFrame(() => needInfoNoteRef.current?.focus());
       return;
     }
     setSubmitting(true);
@@ -589,6 +642,9 @@ function CaseDetailContent({
     }
     return null;
   })();
+  const selectedInfoOptions = INFO_REQUEST_OPTIONS.filter((option) => needInfoNote.includes(option)).length;
+  const needInfoNoteLength = needInfoNote.trim().length;
+  const needInfoNoteValid = needInfoNoteLength >= 10;
 
   return (
     <div className="space-y-5 max-w-screen-2xl mx-auto">
@@ -1475,130 +1531,154 @@ function CaseDetailContent({
         </CardContent>
       </Card>
 
-      {/* ── Request more information (need_info) dialog ── */}
+      {/* ── Request more information (need_info) drawer ── */}
       {needInfoOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="need-info-title" aria-describedby="need-info-description">
-          <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <h2 id="need-info-title" className="text-base font-bold text-text-primary">Request More Information</h2>
-                <p id="need-info-description" className="text-xs text-text-tertiary mt-1">
-                  Case {cse.caseReference} · the consumer will see this case as “Action required” with your message.
-                </p>
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !submitting) setNeedInfoOpen(false);
+          }}
+        >
+          <div
+            ref={needInfoDialogRef}
+            className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-surface-elevated shadow-2xl sm:max-h-[calc(100vh-2rem)] sm:max-w-xl sm:rounded-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="need-info-title"
+            aria-describedby="need-info-description"
+            aria-busy={submitting}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="shrink-0 border-b border-slate-100 px-5 pb-4 pt-4 sm:px-6">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true" />
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700"><Clock className="h-5 w-5" aria-hidden="true" /></div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><h2 id="need-info-title" className="text-base font-bold text-text-primary">Request More Information</h2><span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-700">Action required</span></div>
+                    <p id="need-info-description" className="mt-1 text-xs leading-relaxed text-text-tertiary">Case <span className="font-mono font-semibold text-text-secondary">{cse.caseReference}</span> · the consumer will see this message in their case workspace.</p>
+                  </div>
+                </div>
+                <button ref={needInfoCloseRef} type="button" onClick={() => setNeedInfoOpen(false)} disabled={submitting} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40 disabled:opacity-50" aria-label="Close request information drawer"><X className="h-4 w-4" aria-hidden="true" /></button>
               </div>
-              <button type="button" onClick={() => setNeedInfoOpen(false)} className="text-text-tertiary hover:text-text-primary cursor-pointer" aria-label="Close dialog">
-                <ArrowLeft className="h-4 w-4 rotate-180" />
-              </button>
             </div>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                {INFO_REQUEST_OPTIONS.map((option) => (
-                  <label key={option} className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 cursor-pointer"
-                      checked={needInfoNote.includes(option)}
-                      onChange={(e) => {
-                        setNeedInfoNote((prev) => {
-                          if (e.target.checked) {
-                            return prev.trim() ? `${prev.trim()}\n• ${option}` : `• ${option}`;
-                          }
-                          return prev
-                            .replace(`\n• ${option}`, '')
-                            .replace(`• ${option}\n`, '')
-                            .replace(`• ${option}`, '');
-                        });
-                      }}
-                    />
-                    {option}
-                  </label>
-                ))}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+              <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50/70 p-3.5"><div className="flex items-start gap-2.5"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" aria-hidden="true" /><div><p className="text-xs font-semibold text-orange-900">Ask only for information needed to complete the review.</p><p className="mt-1 text-[11px] leading-relaxed text-orange-800/80">This request is recorded in the case timeline and changes the consumer-facing status to Action required.</p></div></div></div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold text-text-primary">Suggested requests</p><p className="mt-0.5 text-[11px] text-text-tertiary">Select prompts to start your message.</p></div><button type="button" onClick={() => setNeedInfoNote((prev) => selectedInfoOptions === INFO_REQUEST_OPTIONS.length ? prev.split('\n').filter((line) => !INFO_REQUEST_OPTIONS.some((option) => line.trim() === `• ${option}`)).join('\n').trim() : [...prev.split('\n').filter(Boolean), ...INFO_REQUEST_OPTIONS.filter((option) => !prev.includes(option)).map((option) => `• ${option}`)].join('\n').trim())} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-brand-emerald transition-colors hover:bg-brand-emerald-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40">{selectedInfoOptions === INFO_REQUEST_OPTIONS.length ? 'Clear all' : 'Select all'}</button></div>
+                <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Suggested information requests">
+                  {INFO_REQUEST_OPTIONS.map((option) => (
+                    <label key={option} className="flex min-h-12 cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-surface-elevated p-3 text-xs leading-relaxed text-text-secondary transition-colors hover:border-orange-300 hover:bg-orange-50/50 has-[:checked]:border-orange-400 has-[:checked]:bg-orange-50 focus-within:ring-2 focus-within:ring-orange-300/40">
+                      <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-orange-600" checked={needInfoNote.includes(option)} onChange={(event) => setNeedInfoNote((prev) => event.target.checked ? (prev.trim() ? `${prev.trim()}\n• ${option}` : `• ${option}`) : prev.replace(`\n• ${option}`, '').replace(`• ${option}\n`, '').replace(`• ${option}`, ''))} />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <label htmlFor="need-info-note" className="sr-only">Information request note</label>
-              <textarea
-                id="need-info-note"
-                name="needInfoNote"
-                value={needInfoNote}
-                onChange={e => setNeedInfoNote(e.target.value)}
-                placeholder="Describe what the consumer should provide (minimum 10 characters)…"
-                className="w-full h-28 text-xs p-3 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
-                style={{ borderColor: 'var(--border)' }}
-                maxLength={2000}
-              />
-              <p className="text-[10px] text-text-tertiary">
-                Saved to the case timeline and shown to the consumer. Free-form edits are welcome — checkboxes are just a starting point.
-              </p>
+              <div className="mt-6 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="need-info-note" className="text-xs font-bold text-text-primary">Message to consumer</label>
+                  <span className={cn('text-[10px] font-semibold tabular-nums', needInfoNoteLength === 0 || needInfoNoteValid ? 'text-text-tertiary' : 'text-orange-700')}>
+                    {needInfoNoteLength}/2000 characters
+                  </span>
+                </div>
+                <textarea
+                  ref={needInfoNoteRef}
+                  id="need-info-note"
+                  name="needInfoNote"
+                  value={needInfoNote}
+                  onChange={event => setNeedInfoNote(event.target.value)}
+                  placeholder="Describe what the consumer should provide (minimum 10 characters)…"
+                  aria-invalid={needInfoNoteLength > 0 && !needInfoNoteValid}
+                  aria-describedby="need-info-note-help"
+                  className="min-h-32 w-full resize-y rounded-xl border bg-surface-secondary p-3.5 text-xs leading-relaxed text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                  style={{ borderColor: needInfoNoteLength > 0 && !needInfoNoteValid ? '#fdba74' : 'var(--border)' }}
+                  maxLength={2000}
+                />
+                <div id="need-info-note-help" className="flex items-start justify-between gap-3 text-[10px] leading-relaxed text-text-tertiary">
+                  <span>{needInfoNoteValid ? 'Ready to send. Free-form edits are welcome.' : 'Add at least 10 characters before sending.'}</span>
+                  <span className="shrink-0">Saved to timeline</span>
+                </div>
+              </div>
+              {actionError && <div role="alert" aria-live="polite" className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" aria-hidden="true" /><span>{actionError}</span></div>}
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setNeedInfoOpen(false)} className="rounded-lg border px-3 py-2 text-xs font-semibold text-text-secondary cursor-pointer">Cancel</button>
-              <button
-                type="button"
-                onClick={submitNeedInfo}
-                disabled={submitting || needInfoNote.trim().length < 10}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-orange-700 disabled:opacity-50"
-              >
-                {submitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                {submitting ? 'Submitting…' : 'Request information'}
-              </button>
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <p className="text-[10px] text-text-tertiary">{selectedInfoOptions} of {INFO_REQUEST_OPTIONS.length} suggestions selected</p>
+              <div className="flex gap-2 sm:justify-end">
+                <button type="button" onClick={() => setNeedInfoOpen(false)} disabled={submitting} className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40 disabled:opacity-50 sm:flex-none">Cancel</button>
+                <button type="button" onClick={submitNeedInfo} disabled={submitting || !needInfoNoteValid} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50 disabled:opacity-50 sm:flex-none">
+                  {submitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {submitting ? 'Submitting…' : 'Request information'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Evidence image lightbox ── */}
+      {/* ── Evidence image preview drawer ── */}
       {lightbox && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 md:p-8"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/80 p-0 backdrop-blur-[3px] sm:items-center sm:p-4 md:p-8"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setLightbox(null);
+          }}
         >
-          <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="text-sm font-semibold text-white truncate">{lightbox.originalFileName}</p>
-              <div className="flex items-center gap-2 shrink-0">
-                {docAccess[lightbox.id] && (
-                  <>
-                    <a
-                      href={docAccess[lightbox.id]!.downloadUrl}
-                      download
-                      className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-white/20"
-                    >
-                      <Download className="h-3.5 w-3.5" />Download
-                    </a>
-                    <a
-                      href={docAccess[lightbox.id]!.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-white/20"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />Open original
-                    </a>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setLightbox(null)}
-                  className="rounded-md bg-white/10 p-1.5 text-white cursor-pointer hover:bg-white/20"
-                  aria-label="Close preview"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+          <div
+            ref={lightboxDialogRef}
+            className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950 shadow-2xl sm:max-h-[calc(100vh-2rem)] sm:max-w-5xl sm:rounded-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="evidence-preview-title"
+            aria-describedby="evidence-preview-description"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="shrink-0 border-b border-white/10 px-4 pb-3 pt-3 sm:px-5 sm:pt-4">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20 sm:hidden" aria-hidden="true" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white"><ZoomIn className="h-4 w-4" aria-hidden="true" /></div>
+                  <div className="min-w-0">
+                    <h2 id="evidence-preview-title" className="truncate text-sm font-bold text-white">{lightbox.originalFileName}</h2>
+                    <p id="evidence-preview-description" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-300"><span>{lightbox.declaredMimeType}</span><span aria-hidden="true">·</span><span>{(lightbox.sizeBytes / (1024 * 1024)).toFixed(2)} MB</span><span aria-hidden="true">·</span><span>Evidence preview</span></p>
+                  </div>
+                </div>
+                <button ref={lightboxCloseRef} type="button" onClick={() => setLightbox(null)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60" aria-label="Close evidence preview"><X className="h-4 w-4" aria-hidden="true" /></button>
               </div>
             </div>
-            {/* eslint-disable @next/next/no-img-element -- dynamic signed blob URL */}
-            {docAccess[lightbox.id] ? (
-              <img
-                src={docAccess[lightbox.id]!.url}
-                alt={lightbox.originalFileName}
-                className="w-full max-h-[80vh] object-contain rounded-lg"
-              />
-            ) : (
-              <div className="rounded-lg bg-surface-elevated p-10 text-center text-sm text-text-tertiary">
-                <ZoomIn className="h-8 w-8 mx-auto mb-2 text-text-tertiary" />
-                Preview unavailable — the access link may have expired or the file is not an image. Use “Open original”.
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+              <div className="flex min-h-[min(62vh,720px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/30 p-2 sm:p-4">
+                {docAccess[lightbox.id] ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- dynamic signed blob URL
+                  <img
+                    src={docAccess[lightbox.id]!.url}
+                    alt={lightbox.originalFileName}
+                    width={1600}
+                    height={1200}
+                    className="max-h-[min(68vh,760px)] w-full rounded-lg object-contain"
+                  />
+                ) : (
+                  <div className="max-w-md rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
+                    <ZoomIn className="mx-auto mb-3 h-8 w-8 text-slate-400" aria-hidden="true" />
+                    <p className="font-semibold text-white">Preview is not available</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-400">The signed access link may have expired, or this file is not an image. Close this preview and try opening the original file from its evidence row.</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+            <div className="flex shrink-0 flex-col gap-3 border-t border-white/10 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p className="text-[10px] text-slate-400">Click outside or press <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-slate-300">Esc</kbd> to close</p>
+              <div className="flex gap-2">
+                {docAccess[lightbox.id] && (
+                  <>
+                    <a href={docAccess[lightbox.id]!.downloadUrl} download className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:flex-none"><Download className="h-3.5 w-3.5" aria-hidden="true" />Download</a>
+                    <a href={docAccess[lightbox.id]!.url} target="_blank" rel="noopener noreferrer" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 sm:flex-none"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Open original</a>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
