@@ -419,28 +419,52 @@
    blue (#3A86FF) so every emerald-* control matches the theme.
    ============================================================ */
 @theme {
-  --color-emerald-50: #EAF2FF;
-  --color-emerald-100: #DBE7FF;
-  --color-emerald-200: #B8D0FF;
-  --color-emerald-300: #8FB4FF;
-  --color-emerald-400: #649CFF;
-  --color-emerald-500: #3A86FF;
-  --color-emerald-600: #2F7BE8;
-  --color-emerald-700: #2C6BD9;
-  --color-emerald-800: #2455B0;
-  --color-emerald-900: #1E4591;
-  --color-emerald-950: #16356F;
-  --color-strawberry: #3A86FF;
-  --color-sky: #3A86FF;
-  --color-mint: #3A86FF;
-  --color-lemon: #3A86FF;
-  --color-peach: #3A86FF;
+  --color-brand-50: #EAF2FF;
+  --color-brand-100: #DBE7FF;
+  --color-brand-200: #B8D0FF;
+  --color-brand-300: #8FB4FF;
+  --color-brand-400: #649CFF;
+  --color-brand-500: #3A86FF;
+  --color-brand-600: #2F7BE8;
+  --color-brand-700: #2C6BD9;
+  --color-brand-800: #2455B0;
+  --color-brand-900: #1E4591;
+  --color-brand-950: #16356F;
 }
 
 /* ============================================================
    Interaction affordance — every hoverable control shows the
    pointer (hand) cursor; disabled controls show not-allowed.
    ============================================================ */
+/* Element UI Interaction Style */
+.card-hover {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(58, 134, 255, 0.1);
+  border-color: rgba(58, 134, 255, 0.3);
+}
+
+.btn-interactive {
+  transition: transform 0.1s ease;
+}
+.btn-interactive:active {
+  transform: scale(0.98);
+}
+
+.table-row-hover:hover {
+  background-color: rgba(58, 134, 255, 0.05);
+/* Form Interaction Styles (Element/Antd style) */
+.input-interactive {
+  @apply transition-all duration-200 border-slate-200 outline-none rounded-lg focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 hover:border-brand-400;
+}
+
+.select-interactive {
+  @apply transition-all duration-200 border-slate-200 rounded-lg cursor-pointer hover:border-brand-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
+}
+  cursor: pointer;
+}
 @layer base {
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']):not([aria-disabled='true']),

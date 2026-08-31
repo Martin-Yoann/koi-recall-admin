@@ -182,7 +182,7 @@ export default function CasesPage() {
               style={{ borderColor: 'var(--border)' }}
             />
           </div>
-          <select id="case-status-filter" name="caseStatus" aria-label="Filter cases by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer" style={{ borderColor: 'var(--border)' }}>
+          <select id="case-status-filter" name="caseStatus" aria-label="Filter cases by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-interactive h-9 px-3 text-sm cursor-pointer border" style={{ borderColor: 'var(--border)' }}>
             <option value="all">All statuses</option>
             {CASE_STATUSES.map((status) => (
               <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>

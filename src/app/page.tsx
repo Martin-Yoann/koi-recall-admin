@@ -12,6 +12,7 @@ import {
   Megaphone, RefreshCw, Flame,
 } from 'lucide-react';
 import Link from 'next/link';
+import { RefreshButton } from '@/components/admin/refresh-button';
 import { StatCard } from '@/components/admin/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { cn } from '@/lib/utils';
@@ -148,13 +149,9 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={refresh}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer hover:bg-surface-secondary text-text-secondary">
-            <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-            Refresh
-          </button>
+          <RefreshButton onRefresh={refresh} />
           <Link href="/cases"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer">
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 btn-lift btn-press transition-colors cursor-pointer">
             <FileText className="h-4 w-4" />
             All Cases
             <ArrowRight className="h-3.5 w-3.5" />
