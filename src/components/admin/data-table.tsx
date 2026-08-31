@@ -1,6 +1,7 @@
 'use client';
 
 // ============================================================
+import { cn } from "@/lib/utils";
 // KOI Admin — Generic Data Table
 // ============================================================
 
@@ -57,7 +58,7 @@ export function DataTable<T>({ columns, data, rowKey, onRowClick, emptyMessage }
           {data.map((row) => (
             <TableRow
               key={rowKey(row)}
-              className={cn(\"table-row-hover\", onRowClick ? 'cursor-pointer' : undefined)}
+              className={cn("table-row-hover", onRowClick ? 'cursor-pointer' : undefined)}
               onClick={() => onRowClick?.(row)}
             >
               {columns.map((col) => (

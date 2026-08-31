@@ -12,6 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 /** The full case status set (mirrors the backend recall_case_status enum). */
 const CASE_STATUSES = [
   'submitted', 'triage', 'under_review', 'need_info', 'approved',
@@ -182,18 +183,29 @@ export default function CasesPage() {
               style={{ borderColor: 'var(--border)' }}
             />
           </div>
-          <select id="case-status-filter" name="caseStatus" aria-label="Filter cases by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-interactive h-9 px-3 text-sm cursor-pointer border" style={{ borderColor: 'var(--border)' }}>
-            <option value="all">All statuses</option>
-            {CASE_STATUSES.map((status) => (
-              <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-          <select id="case-queue-filter" name="caseQueue" aria-label="Filter cases by queue" value={queueFilter} onChange={(e) => setQueueFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer" style={{ borderColor: 'var(--border)' }}>
-            <option value="all">All queues</option>
-            <option value="standard">Standard (submitted)</option>
-            <option value="manual_review">Manual review (triage · need info)</option>
-            <option value="incident">Incident</option>
-          </select>
+          <Select value={statusFilter} onValueChange={(val) => val !== null && setStatusFilter(val)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {CASE_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>{status.replace(/_/g, ' ')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={queueFilter} onValueChange={(val) => val !== null && setQueueFilter(val)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All queues" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All queues</SelectItem>
+              <SelectItem value="standard">Standard (submitted)</SelectItem>
+              <SelectItem value="manual_review">Manual review (triage · need info)</SelectItem>
+              <SelectItem value="incident">Incident</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {loading ? (
