@@ -13,6 +13,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { formatAdminDateTime } from '@/lib/formatters';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
@@ -111,11 +112,18 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/30 animate-[fadeIn_200ms]" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close new submissions drawer"
+        className="fixed inset-0 z-[60] cursor-default bg-black/30 animate-[fadeIn_200ms] motion-reduce:animate-none"
+        onClick={onClose}
+      />
       <aside
-        className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] shadow-2xl animate-[slideInRight_300ms_cubic-bezier(0.25,0,0.15,1)] flex flex-col"
+        className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] overflow-y-auto overscroll-contain shadow-2xl animate-[slideInRight_300ms_cubic-bezier(0.25,0,0.15,1)] motion-reduce:animate-none flex flex-col"
         style={{ background: '#FFFFFF' }}
         aria-label="New submissions"
+        aria-modal="true"
+        role="dialog"
       >
         <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-strawberry/10">
@@ -153,7 +161,7 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold font-mono text-text-primary truncate">{c.caseReference}</p>
                   <p className="text-xs text-text-tertiary mt-0.5 truncate">
-                    {c.subtype.replace(/_/g, ' ')} · {new Date(c.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {c.subtype.replace(/_/g, ' ')} · {formatAdminDateTime(c.submittedAt)}
                   </p>
                 </div>
                 <StatusBadge variant={c.status as never} />
@@ -171,7 +179,7 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
 function HelpMenu() {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors outline-none">
+      <DropdownMenuTrigger aria-label="Open review workflow help" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40">
         <CircleHelp className="h-[18px] w-[18px] text-text-secondary" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 mt-2">
@@ -209,7 +217,7 @@ const HOVER_LEAVE = 350;   // ms before collapsing (extra margin avoids jitter)
 const TRANSITION_SIDEBAR = 'transition-[width] duration-[320ms] ease-[cubic-bezier(0.25,0,0.15,1)]';
 
 /* ── Smooth, natural admin-panel feel: slow start, gentle decel ── */
-const TRANSITION_CHILD = 'transition-all duration-[280ms] ease-[cubic-bezier(0.25,0,0.15,1)]';
+const TRANSITION_CHILD = 'transition-[opacity,transform,background-color,color,padding,gap] duration-[280ms] ease-[cubic-bezier(0.25,0,0.15,1)]';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -247,7 +255,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <>
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          className="fixed inset-0 z-40 cursor-default bg-black/30 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
       {/* ═════════════════════════════════════════════════════════
@@ -286,7 +299,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         {/* ── Nav items ── */}
-        <nav className={cn(
+        <nav
+          aria-label="Primary navigation"
+          className={cn(
           'flex-1 overflow-y-auto overflow-x-hidden',
           TRANSITION_CHILD,
           expanded ? 'py-4 px-[10px]' : 'py-4 px-[6px]',
@@ -374,6 +389,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </button>
               )}
               <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setLocked((v) => !v); }}
                 className={cn(
                   'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-200 cursor-pointer',
@@ -383,6 +399,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 title={locked
                   ? 'Unpin — sidebar will auto-collapse when you move the mouse away'
                   : 'Pin — keep sidebar permanently expanded'}
+                aria-label={locked ? 'Unpin sidebar' : 'Pin sidebar'}
               >
                 {locked ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
               </button>
@@ -415,15 +432,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <div className="hidden lg:block h-5 w-px bg-border" />
             {isAuthenticated && user ? (
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-full hover:bg-surface-secondary cursor-pointer transition-all duration-200 outline-none select-none group">
+                <DropdownMenuTrigger aria-label="Open account menu" className="flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-full hover:bg-surface-secondary cursor-pointer transition-[background-color,box-shadow,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40 select-none group">
                   <span className="text-xs font-medium text-text-secondary group-hover:text-text-primary transition-colors truncate max-w-[120px] hidden sm:inline">
                     {user.name}
                   </span>
                   {'avatarDataUrl' in user && user.avatarDataUrl ? (
-                    <Image src={user.avatarDataUrl as string} alt="" width={32} height={32} className="flex h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all" unoptimized />
+                    <Image src={user.avatarDataUrl as string} alt="" width={32} height={32} className="flex h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-[box-shadow]" unoptimized />
                   ) : (
                     <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-all"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-[box-shadow]"
                       style={{ background: user.avatarBg || '#0D9488' }}
                     >
                       {(user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)).toUpperCase()}
@@ -488,7 +505,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-3 lg:p-5 xl:p-6 overflow-y-auto">
+        <main id="main-content" tabIndex={-1} className="flex-1 p-3 lg:p-5 xl:p-6 overflow-y-auto">
           {children}
         </main>
       </div>

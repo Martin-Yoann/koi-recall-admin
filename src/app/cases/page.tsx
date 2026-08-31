@@ -6,6 +6,7 @@ import { Download, FolderOpen, Search, RefreshCw, Hand } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { assignCase, exportCases, listCases, type CaseSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { formatAdminDate } from '@/lib/formatters';
 import { usePermissions } from '@/lib/rbac';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -169,21 +170,25 @@ export default function CasesPage() {
           <div className="relative flex-1 min-w-52 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
-              type="text"
-              placeholder="Search by case reference or subtype..."
+              id="case-search"
+              name="caseSearch"
+              type="search"
+              placeholder="Search by case reference or subtype…"
+              autoComplete="off"
+              spellCheck={false}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-lg border bg-surface-elevated text-sm outline-none focus:ring-2 focus:ring-brand-emerald/20 focus:border-brand-emerald transition-all"
+              className="w-full h-9 pl-9 pr-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald transition-[border-color,box-shadow]"
               style={{ borderColor: 'var(--border)' }}
             />
           </div>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm outline-none cursor-pointer" style={{ borderColor: 'var(--border)' }}>
+          <select id="case-status-filter" name="caseStatus" aria-label="Filter cases by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer" style={{ borderColor: 'var(--border)' }}>
             <option value="all">All statuses</option>
             {CASE_STATUSES.map((status) => (
               <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
             ))}
           </select>
-          <select value={queueFilter} onChange={(e) => setQueueFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm outline-none cursor-pointer" style={{ borderColor: 'var(--border)' }}>
+          <select id="case-queue-filter" name="caseQueue" aria-label="Filter cases by queue" value={queueFilter} onChange={(e) => setQueueFilter(e.target.value)} className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer" style={{ borderColor: 'var(--border)' }}>
             <option value="all">All queues</option>
             <option value="standard">Standard (submitted)</option>
             <option value="manual_review">Manual review (triage · need info)</option>
@@ -194,7 +199,7 @@ export default function CasesPage() {
         {loading ? (
           <div className="text-center py-16">
             <RefreshCw className="h-10 w-10 mx-auto text-text-tertiary mb-3 animate-spin" />
-            <p className="text-sm text-text-secondary">Loading cases...</p>
+            <p className="text-sm text-text-secondary">Loading cases…</p>
           </div>
         ) : error ? (
           <div className="text-center py-16">
@@ -214,13 +219,13 @@ export default function CasesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Case Reference</TableHead>
-                <TableHead>Subtype</TableHead>
-                <TableHead>Incident</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Owner</TableHead>
-                {can('case.assign') && <TableHead>Claim</TableHead>}
+                <TableHead scope="col">Case Reference</TableHead>
+                <TableHead scope="col">Subtype</TableHead>
+                <TableHead scope="col">Incident</TableHead>
+                <TableHead scope="col">Status</TableHead>
+                <TableHead scope="col">Submitted</TableHead>
+                <TableHead scope="col">Owner</TableHead>
+                {can('case.assign') && <TableHead scope="col">Claim</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -251,7 +256,7 @@ export default function CasesPage() {
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-text-tertiary">
-                      {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString('en-US') : '—'}
+                      {formatAdminDate(c.submittedAt)}
                     </span>
                   </TableCell>
                   <TableCell>

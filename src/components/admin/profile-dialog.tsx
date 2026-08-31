@@ -165,7 +165,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   };
 
   const inputClass =
-    'w-full h-10 px-3.5 rounded-lg text-sm outline-none border transition-all duration-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 placeholder:text-text-tertiary';
+    'w-full h-10 px-3.5 rounded-lg text-sm outline-none border transition-[border-color,box-shadow,background-color] duration-200 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 placeholder:text-text-tertiary';
   const inputStyle = {
     background: '#F3F6F7',
     borderColor: 'rgba(0,53,39,0.08)',
@@ -184,15 +184,20 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[65] bg-black/25 animate-[fadeIn_150ms]"
+      <button
+        type="button"
+        aria-label="Close account settings"
+        className="fixed inset-0 z-[65] cursor-default bg-black/25 animate-[fadeIn_150ms] motion-reduce:animate-none"
         onClick={onClose}
       />
 
       {/* Centered dialog */}
       <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
         <div
-          className="w-full max-w-[440px] rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-settings-title"
+          className="w-full max-w-[440px] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none"
           style={{ background: '#FFFFFF' }}
         >
           {/* Header */}
@@ -200,12 +205,14 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
             className="flex items-center justify-between px-6 py-4 border-b"
             style={{ borderColor: 'rgba(0,53,39,0.08)' }}
           >
-            <h3 className="text-base font-bold" style={{ color: '#131b2e' }}>
+            <h3 id="account-settings-title" className="text-base font-bold" style={{ color: '#131b2e' }}>
               Account Settings
             </h3>
             <button
+              type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+              aria-label="Close account settings"
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
             >
               <X className="h-4 w-4 text-text-tertiary" />
             </button>
@@ -213,6 +220,8 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
           {/* Tabs */}
           <div
+            role="tablist"
+            aria-label="Account settings sections"
             className="flex gap-1 px-4 py-3 border-b"
             style={{ borderColor: 'rgba(0,53,39,0.08)' }}
           >
@@ -224,9 +233,13 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
             ).map((t) => (
               <button
                 key={t.key}
+                type="button"
+                role="tab"
                 onClick={() => setTab(t.key)}
+                aria-selected={tab === t.key}
+                tabIndex={tab === t.key ? 0 : -1}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer',
+                  'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-[background-color,color,box-shadow] duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
                   tab === t.key
                     ? 'text-white shadow-sm'
                     : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
@@ -248,44 +261,50 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   className="flex flex-col items-center gap-3 pb-4 border-b"
                   style={{ borderColor: 'rgba(0,53,39,0.06)' }}
                 >
-                  <div className="relative group cursor-pointer">
+                  <button
+                    type="button"
+                    aria-label={avatarDataUrl ? 'Change avatar photo' : 'Upload avatar photo'}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="group relative rounded-full p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2"
+                  >
                     {avatarDataUrl ? (
                       /* Uploaded image avatar */
                       <img
                         src={avatarDataUrl}
-                        alt="Avatar"
+                        alt="Current avatar"
+                        width={80}
+                        height={80}
                         className="h-20 w-20 rounded-full object-cover ring-4 ring-surface-secondary"
-                        onClick={() => fileInputRef.current?.click()}
                       />
                     ) : (
                       /* Initials + color avatar */
                       <div
-                        className="flex h-20 w-20 items-center justify-center rounded-full text-white text-2xl font-bold ring-4 ring-surface-secondary transition-all"
+                        className="flex h-20 w-20 items-center justify-center rounded-full text-white text-2xl font-bold ring-4 ring-surface-secondary"
                         style={{ background: avatarBg }}
-                        onClick={() => fileInputRef.current?.click()}
                       >
                         {displayInitials}
                       </div>
                     )}
                     {/* Hover overlay */}
-                    <div
-                      className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
                       <Camera className="h-5 w-5 text-white" />
                     </div>
-                  </div>
+                  </button>
 
                   {/* Upload / Remove buttons */}
                   <div className="flex items-center gap-2">
                     <input
+                      id="avatar-upload"
+                      name="avatar"
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
+                      aria-label="Upload avatar image"
                       className="hidden"
                       onChange={handleAvatarUpload}
                     />
                     <button
+                      type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-surface-secondary border border-border transition-colors cursor-pointer"
                     >
@@ -294,6 +313,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                     </button>
                     {avatarDataUrl && (
                       <button
+                        type="button"
                         onClick={handleRemoveAvatar}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 border border-red-200 transition-colors cursor-pointer"
                       >
@@ -310,12 +330,16 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 {/* Name */}
                 <div className="space-y-1.5">
                   <label
+                    htmlFor="profile-display-name"
                     className="text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#003527' }}
                   >
                     Display Name
                   </label>
                   <input
+                    id="profile-display-name"
+                    name="displayName"
+                    autoComplete="name"
                     className={inputClass}
                     style={inputStyle}
                     value={name}
@@ -323,7 +347,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                       setName(e.target.value);
                       setProfileError('');
                     }}
-                    placeholder="Your name"
+                    placeholder="Your name…"
                     maxLength={24}
                   />
                   <p className="text-[10px] text-text-tertiary">
@@ -334,6 +358,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 {/* Initials */}
                 <div className="space-y-1.5">
                   <label
+                    htmlFor="profile-initials"
                     className="text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#003527' }}
                   >
@@ -341,18 +366,24 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   </label>
                   <div className="flex items-center gap-3">
                     <input
+                      id="profile-initials"
+                      name="initials"
+                      autoComplete="off"
+                      spellCheck={false}
                       className={inputClass}
                       style={inputStyle}
                       value={initials}
                       onChange={(e) => setInitials(e.target.value.slice(0, 2).toUpperCase())}
                       maxLength={2}
-                      placeholder="AU"
+                      placeholder="AU…"
                     />
                     {/* Live initials preview */}
                     {avatarDataUrl ? (
                       <img
                         src={avatarDataUrl}
                         alt=""
+                        width={40}
+                        height={40}
                         className="h-10 w-10 shrink-0 rounded-full object-cover"
                       />
                     ) : (
@@ -378,9 +409,12 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                     {AVATAR_COLORS.map((c) => (
                       <button
                         key={c.value}
+                        type="button"
                         onClick={() => setAvatarBg(c.value)}
+                        aria-label={`Use ${c.label} avatar color`}
+                        aria-pressed={avatarBg === c.value}
                         className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-xl transition-all cursor-pointer',
+                          'flex h-10 w-10 items-center justify-center rounded-xl transition-[transform,box-shadow] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50',
                           'hover:scale-110 hover:shadow-md active:scale-95',
                           avatarBg === c.value && 'ring-2 ring-offset-2 ring-emerald-500',
                         )}
@@ -396,16 +430,17 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 </div>
 
                 {profileError && (
-                  <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+                  <div id="profile-error" role="alert" aria-live="polite" className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
                     {profileError}
                   </div>
                 )}
 
                 <button
+                  type="button"
                   onClick={handleSaveProfile}
                   disabled={profileSaving}
                   className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
+                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-[transform,background-color,opacity] duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
                     'hover:bg-emerald-800',
                   )}
                   style={{ background: '#003527' }}
@@ -441,12 +476,16 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
                 <div className="space-y-1.5">
                   <label
+                    htmlFor="current-password"
                     className="text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#003527' }}
                   >
                     Current Password
                   </label>
                   <input
+                    id="current-password"
+                    name="currentPassword"
+                    autoComplete="current-password"
                     className={inputClass}
                     style={inputStyle}
                     type="password"
@@ -455,12 +494,13 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                       setCurrentPw(e.target.value);
                       setPwError('');
                     }}
-                    placeholder="Enter current password"
+                    placeholder="Enter current password…"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label
+                    htmlFor="new-password"
                     className="text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#003527' }}
                   >
@@ -468,6 +508,9 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   </label>
                   <div className="relative">
                     <input
+                      id="new-password"
+                      name="newPassword"
+                      autoComplete="new-password"
                       className={inputClass + ' pr-10'}
                       style={inputStyle}
                       type={showPw ? 'text' : 'password'}
@@ -476,12 +519,13 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                         setNewPw(e.target.value);
                         setPwError('');
                       }}
-                      placeholder="Minimum 12 characters"
+                      placeholder="Minimum 12 characters…"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPw(!showPw)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer transition-colors"
+                      aria-label={showPw ? 'Hide new password' : 'Show new password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
                     >
                       {showPw ? (
                         <EyeOff className="h-4 w-4" />
@@ -494,12 +538,16 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
                 <div className="space-y-1.5">
                   <label
+                    htmlFor="confirm-password"
                     className="text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#003527' }}
                   >
                     Confirm New Password
                   </label>
                   <input
+                    id="confirm-password"
+                    name="confirmPassword"
+                    autoComplete="new-password"
                     className={inputClass}
                     style={inputStyle}
                     type="password"
@@ -508,22 +556,23 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                       setConfirmPw(e.target.value);
                       setPwError('');
                     }}
-                    placeholder="Re-enter new password"
+                    placeholder="Re-enter new password…"
                   />
                 </div>
 
                 {pwError && (
-                  <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 flex items-center gap-2">
+                  <div id="password-error" role="alert" aria-live="polite" className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 flex items-center gap-2">
                     <X className="h-4 w-4 shrink-0" />
                     {pwError}
                   </div>
                 )}
 
                 <button
+                  type="button"
                   onClick={handleSavePassword}
                   disabled={pwSaving}
                   className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
+                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-[transform,background-color,opacity] duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
                     'hover:bg-emerald-800',
                   )}
                   style={{ background: '#003527' }}

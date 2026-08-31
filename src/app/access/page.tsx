@@ -15,6 +15,7 @@ import { useAdminAuth } from '@/lib/admin-auth';
 import { PERMISSION_LABELS, ROLE_LABELS, usePermissions } from '@/lib/rbac';
 import type { StaffRole } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { formatAdminDate, formatAdminDateTime } from '@/lib/formatters';
 
 const STAFF_ROLES: StaffRole[] = ['ADMIN', 'MANAGER'];
 
@@ -37,7 +38,7 @@ const DOT_COLOR: Record<string, string> = {
 };
 
 export default function AccessPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
+  const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const { can } = usePermissions();
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -139,6 +140,7 @@ export default function AccessPage() {
             {FILTER_CATS.map(cat => (
               <button
                 key={cat}
+                type="button"
                 onClick={() => toggleFilter(cat)}
                 className={cn(
                   'text-[10px] font-bold uppercase px-2 py-1 rounded-full border cursor-pointer transition-colors',
@@ -153,22 +155,29 @@ export default function AccessPage() {
           </div>
           <div className="relative max-w-sm">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
+            <label htmlFor="audit-search" className="sr-only">Search audit events</label>
             <input
-              type="text"
-              placeholder="Search action, resource id, or role..."
+              id="audit-search"
+              name="auditSearch"
+              type="search"
+              placeholder="Search action, resource ID, or role…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 rounded-lg border bg-surface-elevated text-xs outline-none"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full h-8 pl-8 pr-3 rounded-lg border bg-surface-elevated text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
               style={{ borderColor: 'var(--border)' }}
             />
           </div>
         </div>
 
         {error ? (
-          <div className="py-10 text-center">
+          <div className="py-10 text-center" role="alert" aria-live="polite">
             <ShieldAlert className="h-8 w-8 mx-auto text-text-tertiary mb-2" />
             <p className="text-sm text-text-tertiary">{error}</p>
           </div>
+        ) : loading ? (
+          <div className="py-10 text-center text-sm text-text-tertiary" aria-busy="true">Loading audit events…</div>
         ) : filtered.length > 0 ? (
           <div className="divide-y max-h-[500px] overflow-y-auto">
             {filtered.map(a => (
@@ -179,7 +188,7 @@ export default function AccessPage() {
                   <p className="text-[11px] text-text-tertiary mt-0.5 flex items-center gap-1 flex-wrap">
                     <Users className="h-3 w-3" />{a.actorRole}
                     <span>·</span>
-                    {new Date(a.occurredAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {formatAdminDateTime(a.occurredAt)}
                     <span>·</span>
                     <span className={cn('font-semibold', a.outcome === 'success' ? 'text-emerald-600' : 'text-red-600')}>{a.outcome}</span>
                     {a.resourceId && <><span>·</span><span className="font-mono">{a.resourceId}</span></>}
@@ -198,9 +207,10 @@ export default function AccessPage() {
       </div>
 
       {!authLoading && !isAuthenticated && !error && (
-        <div className="rounded-xl border bg-surface-secondary/40 p-4 text-xs text-text-tertiary flex items-center gap-2">
-          <ShieldAlert className="h-3.5 w-3.5" />
-          Log in with a staff account (top right) to load the live audit trail.
+        <div className="rounded-xl border bg-surface-secondary/40 p-4 text-xs text-text-tertiary flex items-center gap-3">
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="flex-1">Sign in with a staff account to load the live audit trail.</span>
+          <button type="button" onClick={openLogin} className="shrink-0 rounded-md bg-brand-emerald px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
         </div>
       )}
     </div>
@@ -325,15 +335,15 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
         <p className="text-sm text-text-tertiary text-center py-10">No staff users found.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm"><caption className="sr-only">Staff directory</caption>
             <thead>
               <tr className="border-b text-left text-xs text-text-secondary">
-                <th className="h-10 px-4 font-semibold">Name</th>
-                <th className="h-10 px-4 font-semibold">Email</th>
-                <th className="h-10 px-4 font-semibold">Role</th>
-                <th className="h-10 px-4 font-semibold">Status</th>
-                <th className="h-10 px-4 font-semibold">Last login</th>
-                {canManage && <th className="h-10 px-4 font-semibold">Actions</th>}
+                <th scope="col" className="h-10 px-4 font-semibold">Name</th>
+                <th scope="col" className="h-10 px-4 font-semibold">Email</th>
+                <th scope="col" className="h-10 px-4 font-semibold">Role</th>
+                <th scope="col" className="h-10 px-4 font-semibold">Status</th>
+                <th scope="col" className="h-10 px-4 font-semibold">Last login</th>
+                {canManage && <th scope="col" className="h-10 px-4 font-semibold">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -346,7 +356,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                     <select
                       value={s.role}
                       onChange={e => changeRole(s, e.target.value)}
-                      className={cn('h-8 rounded-lg border px-2 text-xs outline-none cursor-pointer', ROLE_COLORS[s.role as StaffRole] ?? 'bg-slate-100 text-slate-700')}
+                      aria-label={`Change role for ${s.displayName}`}
+                      className={cn('h-8 rounded-lg border px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer', ROLE_COLORS[s.role as StaffRole] ?? 'bg-slate-100 text-slate-700')}
                       style={{ borderColor: 'var(--border)' }}
                     >
                       {STAFF_ROLES.map(role => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
@@ -361,7 +372,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-text-tertiary">
-                    {s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                    {formatAdminDate(s.lastLoginAt)}
                   </td>
                   {canManage && <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -419,26 +430,26 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
             {/* Body */}
             <div className="px-6 py-5 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Email</label>
+                <label htmlFor="new-staff-email" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="name@company.com" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm outline-none transition-all focus:border-strawberry focus:ring-2 focus:ring-strawberry/15" style={{ borderColor: 'var(--border)' }} />
+                  <input id="new-staff-email" name="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" autoComplete="email" spellCheck={false} placeholder="name@company.com" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Display name</label>
+                <label htmlFor="new-staff-display-name" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Display name</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} placeholder="Jane Doe" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm outline-none transition-all focus:border-strawberry focus:ring-2 focus:ring-strawberry/15" style={{ borderColor: 'var(--border)' }} />
+                  <input id="new-staff-display-name" name="displayName" value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} autoComplete="name" placeholder="Jane Doe" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Password</label>
+                <label htmlFor="new-staff-password" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} type="password" placeholder="At least 12 characters" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm outline-none transition-all focus:border-strawberry focus:ring-2 focus:ring-strawberry/15" style={{ borderColor: 'var(--border)' }} />
+                  <input id="new-staff-password" name="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} type="password" autoComplete="new-password" placeholder="At least 12 characters" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
                 </div>
               </div>
 
@@ -452,7 +463,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                       type="button"
                       onClick={() => setForm({ ...form, role })}
                       className={cn(
-                        'flex flex-col items-start text-left rounded-lg border p-3 transition-all cursor-pointer',
+                        'flex flex-col items-start text-left rounded-lg border p-3 transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/40 cursor-pointer',
                         form.role === role ? 'border-strawberry bg-strawberry/5 ring-1 ring-strawberry' : 'border-border hover:border-strawberry/40 hover:bg-surface-secondary',
                       )}
                     >
@@ -478,7 +489,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
               </div>
 
               {formError && (
-                <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">{formError}</div>
+                <div id="new-staff-error" role="alert" aria-live="polite" className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">{formError}</div>
               )}
             </div>
 

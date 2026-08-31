@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/table';
 import { listCases, listCampaigns, type CaseSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { formatAdminDate } from '@/lib/formatters';
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 const ACTIVE_CASE_STATUSES = ['submitted', 'triage', 'under_review', 'need_info'];
@@ -33,7 +34,7 @@ interface CampaignCard {
 }
 
 export default function DashboardPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
+  const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -115,6 +116,27 @@ export default function DashboardPage() {
   const rate = cases.length > 0 ? Math.round((resolved / cases.length) * 100) : 0;
   const recent = [...cases].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)).slice(0, 6);
 
+  if (authLoading) {
+    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-text-tertiary" aria-busy="true">Loading operations overview…</div>;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto flex min-h-[40vh] max-w-md flex-col items-center justify-center px-4 py-16 text-center">
+        <Shield className="mb-4 h-10 w-10 text-text-tertiary" aria-hidden="true" />
+        <h1 className="text-xl font-bold text-text-primary">Sign In Required</h1>
+        <p className="mt-2 text-sm leading-relaxed text-text-secondary">Sign in with a staff account to view live operations data, cases, and recall campaigns.</p>
+        <button type="button" onClick={openLogin} className="mt-5 rounded-lg bg-brand-emerald px-4 py-2 text-sm font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
+      </div>
+    );
+  }
+
+  const initialLoading = refreshing && cases.length === 0 && campaigns.length === 0 && !error;
+
+  if (initialLoading) {
+    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-text-tertiary" aria-busy="true">Loading operations overview…</div>;
+  }
+
   return (
     <div className="space-y-4 max-w-screen-2xl mx-auto">
       {/* Header */}
@@ -141,7 +163,7 @@ export default function DashboardPage() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
+        <div role="alert" aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
       )}
 
       {/* Stat cards */}
@@ -184,7 +206,7 @@ export default function DashboardPage() {
                 </div>
               </Link>
             ))}
-            {campaigns.length === 0 && (
+            {campaigns.length === 0 && !error && (
               <p className="text-sm text-text-tertiary text-center py-8">No campaigns found.</p>
             )}
           </div>
@@ -235,12 +257,12 @@ export default function DashboardPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Case #</TableHead>
-                <TableHead>Subtype</TableHead>
-                <TableHead>Incident</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead />
+                <TableHead scope="col">Case #</TableHead>
+                <TableHead scope="col">Subtype</TableHead>
+                <TableHead scope="col">Incident</TableHead>
+                <TableHead scope="col" className="text-center">Status</TableHead>
+                <TableHead scope="col">Submitted</TableHead>
+                <TableHead scope="col"><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -259,7 +281,7 @@ export default function DashboardPage() {
                     <StatusBadge variant={c.status as never} />
                   </TableCell>
                   <TableCell className="text-sm text-text-tertiary">
-                    {new Date(c.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {formatAdminDate(c.submittedAt)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link href={`/cases/${encodeURIComponent(c.caseReference)}`}

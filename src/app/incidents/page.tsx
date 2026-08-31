@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Shield, RefreshCw, CheckCircle2, X } from 'lucide-react';
+import Link from 'next/link';
 import { closeReportabilityReview, listIncidents, type IncidentSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { usePermissions } from '@/lib/rbac';
@@ -122,15 +123,19 @@ export default function IncidentsPage() {
       <div className="rounded-xl border bg-surface-elevated overflow-hidden">
         <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-text-primary">Incident Log</h2>
-          {error ? <span className="text-xs text-red-600">{error}</span> : null}
+          {error ? <span role="alert" aria-live="polite" className="text-xs text-red-600">{error}</span> : null}
         </div>
         {!isAuthenticated && !authLoading ? (
-          <div className="text-center py-14"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" /><p className="text-sm font-semibold text-text-primary mb-1">Sign in required</p><p className="text-xs text-text-tertiary mb-4">Sign in to review incident reportability.</p><button onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer">Sign In</button></div>
+          <div className="text-center py-14"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">Sign In Required</p><p className="text-xs text-text-tertiary mb-4">Sign in to review incident reportability.</p><button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark">Sign In</button></div>
+        ) : loading ? (
+          <div className="text-center py-14" aria-busy="true"><RefreshCw className="h-8 w-8 mx-auto text-text-tertiary mb-3 animate-spin" aria-hidden="true" /><p className="text-sm text-text-secondary">Loading incidents…</p></div>
+        ) : error ? (
+          <div className="text-center py-14" role="alert" aria-live="polite"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">Could Not Load Incidents</p><p className="text-xs text-text-tertiary max-w-sm mx-auto">{error}</p></div>
         ) : incidents.length > 0 ? (
-          <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="h-10 px-4 font-semibold text-text-secondary">Incident</th><th className="h-10 px-4 font-semibold text-text-secondary">Linked Case</th><th className="h-10 px-4 font-semibold text-text-secondary">Severity</th><th className="h-10 px-4 font-semibold text-text-secondary">Event Types</th><th className="h-10 px-4 font-semibold text-text-secondary">Reportability</th><th className="h-10 px-4 font-semibold text-text-secondary">Action</th></tr></thead><tbody>{incidents.map((incident) => (
+          <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Incident</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Linked Case</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Severity</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Event Types</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Reportability</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Action</th></tr></thead><tbody>{incidents.map((incident) => (
             <tr key={incident.id} className="border-b hover:bg-surface-secondary transition-colors">
               <td className="px-4 py-3 font-mono text-xs text-text-tertiary" title={incident.id}>{shortId(incident.id)}…</td>
-              <td className="px-4 py-3"><button className="text-sm font-medium text-text-primary hover:text-brand-emerald hover:underline cursor-pointer" onClick={() => { window.location.href = `/cases/${encodeURIComponent(incident.caseReference)}`; }}>{incident.caseReference}</button></td>
+              <td className="px-4 py-3"><Link href={`/cases/${encodeURIComponent(incident.caseReference)}`} className="text-sm font-medium text-text-primary hover:text-brand-emerald hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 rounded-sm">{incident.caseReference}</Link></td>
               <td className="px-4 py-3 text-xs text-text-secondary">{incident.injurySeverity ? <span className="capitalize">{incident.injurySeverity}</span> : <span className="text-text-tertiary">—</span>}{incident.medicalTreatment ? <span className="block text-[10px] text-text-tertiary mt-0.5">treatment: {incident.medicalTreatment}</span> : null}</td>
               <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{incident.eventTypes.map((type) => <span key={type} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">{type}</span>)}</div></td>
               <td className="px-4 py-3"><span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', REPORTABILITY_STYLES[incident.reportability?.status ?? ''] ?? 'bg-slate-50 text-slate-700')}>{reportabilityLabel(incident)}</span></td>

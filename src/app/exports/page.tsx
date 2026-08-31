@@ -1,8 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Download, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { Download, FileSpreadsheet, RefreshCw, Shield } from 'lucide-react';
 import { createRefundExport, listRefundExports, type RefundExportBatch } from '@/lib/api-client';
+import { useAdminAuth } from '@/lib/admin-auth';
+import { usePermissions } from '@/lib/rbac';
+import { formatAdminDate } from '@/lib/formatters';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -15,10 +23,15 @@ function downloadCsv(filename: string, csv: string) {
 }
 
 export default function ExportsPage() {
+  const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
+  const { can } = usePermissions();
   const [batches, setBatches] = useState<RefundExportBatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [purpose, setPurpose] = useState('Finance reconciliation');
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const fetchBatches = useCallback(async () => {
     setLoading(true);
@@ -37,24 +50,30 @@ export default function ExportsPage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     const timer = window.setTimeout(() => {
       void fetchBatches();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [fetchBatches]);
+  }, [authLoading, fetchBatches, isAuthenticated]);
 
   const handleCreate = async () => {
-    const purpose = window.prompt('Purpose for this refund export (1-500 chars):', 'Finance reconciliation');
-    if (!purpose) return;
+    const trimmedPurpose = purpose.trim();
+    if (!trimmedPurpose || trimmedPurpose.length > 500) {
+      setFormError('Enter a purpose between 1 and 500 characters.');
+      return;
+    }
 
     setSubmitting(true);
-    setError(null);
-    const result = await createRefundExport({ purpose, includeExported: false });
+    setFormError(null);
+    const result = await createRefundExport({ purpose: trimmedPurpose, includeExported: false });
     if (result.ok) {
       downloadCsv(result.data.filename ?? `refund-export-${result.data.batchId ?? 'latest'}.csv`, result.data.csv);
+      setCreateOpen(false);
+      setPurpose('Finance reconciliation');
       await fetchBatches();
     } else {
-      setError(result.error?.detail || 'Failed to create refund export.');
+      setFormError(result.error?.detail || 'Failed to create refund export.');
     }
     setSubmitting(false);
   };
@@ -71,20 +90,41 @@ export default function ExportsPage() {
             <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} />
             Refresh
           </button>
-          <button onClick={handleCreate} disabled={submitting} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer disabled:opacity-50">
-            <Download className="h-4 w-4" />
-            New Export
-          </button>
+          {can('case.export') && (
+            <button type="button" onClick={() => { setError(null); setFormError(null); setCreateOpen(true); }} disabled={submitting} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer disabled:opacity-50">
+              <Download className="h-4 w-4" />
+              New Export
+            </button>
+          )}
         </div>
       </div>
 
       <div className="rounded-xl border bg-surface-elevated overflow-hidden">
         <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-text-primary">Export History</h2>
-          {error ? <span className="text-xs text-red-600">{error}</span> : null}
+          {error ? <span role="alert" aria-live="polite" className="text-xs text-red-600">{error}</span> : null}
         </div>
-        {batches.length > 0 ? (
-          <table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="h-10 px-4 font-semibold text-text-secondary">Batch</th><th className="h-10 px-4 font-semibold text-text-secondary">Purpose</th><th className="h-10 px-4 font-semibold text-text-secondary">Rows</th><th className="h-10 px-4 font-semibold text-text-secondary">Requested By</th><th className="h-10 px-4 font-semibold text-text-secondary">SHA-256</th><th className="h-10 px-4 font-semibold text-text-secondary">Created</th></tr></thead>
+        {!isAuthenticated && !authLoading ? (
+          <div className="text-center py-14">
+            <Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" />
+            <p className="text-sm font-semibold text-text-primary mb-1">Sign In Required</p>
+            <p className="text-xs text-text-tertiary mb-4">Sign in with a staff account to view and generate refund exports.</p>
+            <button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark">Sign In</button>
+          </div>
+        ) : loading ? (
+          <div className="py-14 text-center" aria-busy="true">
+            <RefreshCw className="h-8 w-8 mx-auto text-text-tertiary mb-3 animate-spin" aria-hidden="true" />
+            <p className="text-sm text-text-secondary">Loading export history…</p>
+          </div>
+        ) : error && batches.length === 0 ? (
+          <div className="py-14 text-center">
+            <FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" />
+            <p className="text-sm font-semibold text-text-primary mb-1">Could Not Load Exports</p>
+            <p className="text-xs text-text-tertiary max-w-sm mx-auto">Check the API connection, then select Refresh to try again.</p>
+          </div>
+        ) : batches.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm"><caption className="sr-only">Refund export history</caption><thead><tr className="border-b text-left"><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Batch</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Purpose</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Rows</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Requested By</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">SHA-256</th><th scope="col" className="h-10 px-4 font-semibold text-text-secondary">Created</th></tr></thead>
             <tbody>{batches.map((batch) => (
               <tr key={batch.batchId} className="border-b hover:bg-surface-secondary transition-colors">
                 <td className="px-4 py-3 font-mono text-xs text-text-primary">{batch.batchId}</td>
@@ -92,11 +132,44 @@ export default function ExportsPage() {
                 <td className="px-4 py-3 text-sm text-text-primary">{batch.rowCount}</td>
                 <td className="px-4 py-3 text-sm text-text-secondary">{batch.createdBy}</td>
                 <td className="px-4 py-3 font-mono text-[11px] text-text-tertiary">{batch.fileSha256}</td>
-                <td className="px-4 py-3 text-xs text-text-tertiary">{new Date(batch.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                <td className="px-4 py-3 text-xs text-text-tertiary">{formatAdminDate(batch.createdAt)}</td>
               </tr>
             ))}</tbody></table>
-        ) : <div className="text-center py-14"><FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" /><p className="text-sm font-semibold text-text-primary mb-1">No exports yet</p><p className="text-xs text-text-tertiary">{loading ? 'Loading export history…' : 'Refund export batches will appear here.'}</p></div>}
+          </div>
+        ) : <div className="text-center py-14"><FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">No Exports Yet</p><p className="text-xs text-text-tertiary">Refund export batches will appear here after the first export is generated.</p></div>}
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg overscroll-contain">
+          <DialogHeader>
+            <DialogTitle>New Refund Export</DialogTitle>
+            <DialogDescription>Generate a CSV for finance reconciliation. Exported rows are excluded by default.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(event) => { event.preventDefault(); void handleCreate(); }} className="space-y-2">
+            <Label htmlFor="refund-export-purpose">Purpose</Label>
+            <Input
+              id="refund-export-purpose"
+              name="purpose"
+              value={purpose}
+              onChange={(event) => setPurpose(event.target.value)}
+              maxLength={500}
+              placeholder="Example: Finance reconciliation…"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="refund-export-purpose-help"
+            />
+            <p id="refund-export-purpose-help" className="text-xs text-text-tertiary">Required · 1–500 characters</p>
+            {formError && <p role="alert" aria-live="polite" className="text-xs text-red-600">{formError}</p>}
+          </form>
+          <DialogFooter>
+            <button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border px-3 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary">Cancel</button>
+            <button type="button" onClick={() => void handleCreate()} disabled={submitting || !purpose.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-sm font-semibold text-white hover:bg-brand-emerald-dark disabled:cursor-not-allowed disabled:opacity-50">
+              {submitting && <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {submitting ? 'Generating…' : 'Generate Export'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

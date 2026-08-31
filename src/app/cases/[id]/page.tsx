@@ -29,6 +29,7 @@ import {
   getCaseOperationsView,
   runResolutionAction,
 } from '@/lib/case-operations';
+import { formatAdminDate, formatAdminDateTime, formatAdminDateTimeWithYear } from '@/lib/formatters';
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 
@@ -62,20 +63,21 @@ function DocumentRow({
           type="button"
           onClick={() => onOpen(doc)}
           title="Click to view full size"
-          className="shrink-0 rounded-md overflow-hidden border cursor-zoom-in hover:opacity-90 transition-opacity"
+          aria-label={`View ${doc.originalFileName} full size`}
+          className="shrink-0 overflow-hidden rounded-md border cursor-zoom-in transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/40"
         >
           {/* Short-lived signed blob URL — not eligible for next/image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={access.url} alt={doc.originalFileName} className="h-14 w-14 object-cover" />
+          <img src={access.url} alt={doc.originalFileName} width={56} height={56} className="h-14 w-14 object-cover" />
         </button>
       ) : (
-        <FileText className="h-8 w-8 text-text-tertiary shrink-0" />
+        <FileText className="h-8 w-8 shrink-0 text-text-tertiary" aria-hidden="true" />
       )}
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text-primary truncate">{doc.originalFileName}</p>
         <p className="text-[10px] text-text-tertiary mt-0.5">
           {doc.declaredMimeType} · {(doc.sizeBytes / 1024).toFixed(0)} KiB
-          {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+          {doc.uploadedAt ? ` · ${formatAdminDateTime(doc.uploadedAt)}` : ''}
         </p>
       </div>
       {access && !isImage && (
@@ -591,31 +593,105 @@ function CaseDetailContent({
   return (
     <div className="space-y-5 max-w-screen-2xl mx-auto">
 
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/cases" className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors">
-            <ArrowLeft className="h-4 w-4" />Cases
-          </Link>
-          <div className="h-5 w-px bg-border" />
-          <h1 className="text-xl font-bold text-text-primary font-mono">{cse.caseReference}</h1>
-          <StatusBadge variant={cse.status as never} />
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-slate-50 text-slate-700 border-slate-200">
-            {cse.subtype.replace(/_/g, ' ')}
-          </span>
-          {cse.incidentFlag && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 inline-flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />Incident
-            </span>
-          )}
+      {/* Case hero */}
+      <section aria-labelledby="case-title" className="relative overflow-hidden rounded-2xl border border-slate-200 bg-surface-elevated shadow-sm">
+        <div className="absolute inset-y-0 left-0 w-1 bg-brand-emerald" aria-hidden="true" />
+        <div className="relative p-5 sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <Link href="/cases" className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-tertiary hover:text-text-primary transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Back to cases
+              </Link>
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                <h1 id="case-title" translate="no" className="break-all text-2xl font-bold tracking-tight text-text-primary font-mono sm:text-3xl">{cse.caseReference}</h1>
+                <StatusBadge variant={cse.status as never} />
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">
+                  {cse.subtype.replace(/_/g, ' ')}
+                </span>
+                {cse.incidentFlag && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />Safety incident
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-tertiary">
+                <span>Case review workspace</span>
+                <span aria-hidden="true">·</span>
+                <span>Submitted {formatAdminDateTimeWithYear(cse.submittedAt)}</span>
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-3 xl:flex-col xl:items-end">
+              <p className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">Live record</p>
+              <button
+                type="button"
+                onClick={refresh}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface-elevated px-3 text-xs font-semibold text-text-secondary transition-colors hover:border-brand-emerald/40 hover:bg-brand-emerald-light hover:text-brand-emerald focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Refresh record
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3">
+            <div className="rounded-xl bg-surface-secondary/70 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Current stage</p>
+              <p className="mt-1.5 capitalize text-sm font-semibold text-text-primary">{formatWorkflowLabel(cse.workflow?.currentStage ?? cse.status)}</p>
+            </div>
+            <div className="rounded-xl bg-surface-secondary/70 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Next action</p>
+              <p className="mt-1.5 line-clamp-2 text-sm font-semibold text-text-primary">{cse.workflow?.nextAction || 'Review case details'}</p>
+            </div>
+            <div className="rounded-xl bg-surface-secondary/70 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Owner</p>
+              <p className="mt-1.5 truncate text-sm font-semibold text-text-primary">{assignedStaff?.displayName || 'Unassigned'}</p>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={refresh}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer hover:bg-surface-secondary text-text-secondary"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />Refresh
-        </button>
-      </div>
+      </section>
+
+      {/* At-a-glance metrics */}
+      <section aria-labelledby="case-metrics-title" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <h2 id="case-metrics-title" className="sr-only">Case summary metrics</h2>
+        <div className="rounded-xl border border-slate-200 bg-surface-elevated p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-text-tertiary">Evidence files</p>
+            <FileText className="h-4 w-4 text-brand-emerald" aria-hidden="true" />
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-text-primary">{cse.documents?.length ?? 0}</p>
+          <p className="mt-1 text-[11px] text-text-tertiary">Uploaded to this case</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-surface-elevated p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-text-tertiary">Claimed products</p>
+            <Package className="h-4 w-4 text-brand-emerald" aria-hidden="true" />
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-text-primary">{cse.products?.length ?? 0}</p>
+          <p className="mt-1 text-[11px] text-text-tertiary">Items in the submission</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-surface-elevated p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-text-tertiary">Audit events</p>
+            <Shield className="h-4 w-4 text-brand-emerald" aria-hidden="true" />
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-text-primary">{audit.length}</p>
+          <p className="mt-1 text-[11px] text-text-tertiary">Visible events in the timeline</p>
+        </div>
+        <div className={cn(
+          'rounded-xl border p-4 shadow-sm',
+          cse.incidentFlag && cse.incident?.reportability?.status === 'pending'
+            ? 'border-amber-200 bg-amber-50/70'
+            : 'border-slate-200 bg-surface-elevated',
+        )}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-text-tertiary">Safety gate</p>
+            <AlertTriangle className={cn('h-4 w-4', cse.incidentFlag ? 'text-red-500' : 'text-text-tertiary')} aria-hidden="true" />
+          </div>
+          <p className="mt-2 text-sm font-bold capitalize text-text-primary">
+            {!cse.incidentFlag ? 'Not required' : cse.incident?.reportability?.status === 'pending' ? 'Review pending' : 'Review closed'}
+          </p>
+          <p className="mt-1 text-[11px] text-text-tertiary">{cse.incidentFlag ? 'Reportability status' : 'No incident flag'}</p>
+        </div>
+      </section>
 
       {/* Incident gate warning */}
       {cse.incidentFlag && !isTerminal && (
@@ -641,7 +717,7 @@ function CaseDetailContent({
             <>
               <p className="text-xs text-amber-900 mt-1.5 whitespace-pre-wrap leading-relaxed">{infoRequest.note}</p>
               <p className="text-[10px] text-amber-700 mt-2">
-                Requested {new Date(infoRequest.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · the consumer sees this case as “Action required” with this message.
+                Requested {formatAdminDateTime(infoRequest.at)} · the consumer sees this case as “Action required” with this message.
               </p>
             </>
           ) : (
@@ -653,18 +729,20 @@ function CaseDetailContent({
       )}
 
       {actionError && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
-          {actionError}
+        <div role="alert" aria-live="polite" className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <span>{actionError}</span>
         </div>
       )}
 
       {/* ── Campaign & claimed products (review context) ── */}
       {(cse.campaign || (cse.products && cse.products.length > 0)) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <Package className="h-4 w-4 text-text-tertiary" />Campaign &amp; Claimed Products
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <Package className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Campaign &amp; Claimed Products
             </CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Verify campaign context, product matching and purchase signals before making a decision.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {cse.campaign && (
@@ -764,12 +842,12 @@ function CaseDetailContent({
       )}
 
       {/* ── Evidence (document metadata grouped by category) ── */}
-      {cse.documents && cse.documents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <FileText className="h-4 w-4 text-text-tertiary" />Evidence ({cse.documents.length})
+      <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <FileText className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Evidence ({cse.documents?.length ?? 0})
             </CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Files submitted with the case, grouped by review purpose.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {EVIDENCE_CATEGORIES.map((category) => {
@@ -791,7 +869,7 @@ function CaseDetailContent({
                 </div>
               );
             })}
-            {cse.documents.some(d => !EVIDENCE_CATEGORIES.some(c => c.id === d.category)) && (
+            {cse.documents && cse.documents.some(d => !EVIDENCE_CATEGORIES.some(c => c.id === d.category)) && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-2">Other</p>
                 <div className="space-y-2">
@@ -806,17 +884,24 @@ function CaseDetailContent({
                 </div>
               </div>
             )}
+            {(!cse.documents || cse.documents.length === 0) && (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-surface-secondary/50 px-4 py-8 text-center">
+                <FileText className="mx-auto h-7 w-7 text-text-tertiary" aria-hidden="true" />
+                <p className="mt-2 text-sm font-semibold text-text-primary">No evidence files yet</p>
+                <p className="mt-1 text-xs text-text-tertiary">Uploaded proof and incident evidence will appear here.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
 
       {/* ── Incident detail (review context for the compliance gate) ── */}
       {cse.incident && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <Siren className="h-4 w-4 text-red-500" />Incident Report
+        <Card className="border-red-200 shadow-sm">
+          <CardHeader className="border-b border-red-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <Siren className="h-4 w-4 text-red-500" aria-hidden="true" />Incident Report
             </CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Safety context and reportability evidence for this case.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -836,7 +921,7 @@ function CaseDetailContent({
                 <p className="text-text-tertiary">Occurred</p>
                 <p className="mt-1 font-semibold text-text-primary">
                   {cse.incident.occurredAt
-                    ? new Date(cse.incident.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    ? formatAdminDate(cse.incident.occurredAt)
                     : cse.incident.occurredDateUnknown ? 'Date unknown' : '—'}
                 </p>
               </div>
@@ -890,11 +975,12 @@ function CaseDetailContent({
 
       {/* ── Closure checklist (the two gates before closed) ── */}
       {['approved', 'closure_review'].includes(cse.status) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-text-tertiary" />Closure Checklist
+        <Card className="border-violet-200 shadow-sm">
+          <CardHeader className="border-b border-violet-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-violet-600" aria-hidden="true" />Closure Checklist
             </CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Complete both gates before moving this case to a closed state.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Gate 1 — resolution externally completed */}
@@ -909,7 +995,7 @@ function CaseDetailContent({
                 <p className="text-sm font-semibold text-text-primary">Resolution externally completed</p>
                 <p className="text-xs text-text-tertiary mt-0.5">
                   {resolution?.status === 'externally_completed'
-                    ? `Recorded${resolution?.completedAt ? ` on ${new Date(resolution.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.`
+                    ? `Recorded${resolution?.completedAt ? ` on ${formatAdminDate(resolution.completedAt)}` : ''}.`
                     : 'Approve the resolution, then record its external completion (refund batch or fulfilment reference).'}
                 </p>
               </div>
@@ -960,32 +1046,45 @@ function CaseDetailContent({
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Close reportability review</p>
                 <div className="flex gap-2 flex-wrap">
+                  <label htmlFor="case-reportability-outcome" className="sr-only">Reportability outcome</label>
                   <select
+                    id="case-reportability-outcome"
+                    name="reportabilityOutcome"
                     value={repOutcome}
                     onChange={e => setRepOutcome(e.target.value as 'filed' | 'documented_non_reportable')}
-                    className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer"
+                    className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer"
                   >
                     <option value="filed">Filed with CPSC</option>
                     <option value="documented_non_reportable">Documented non-reportable</option>
                   </select>
                   {repOutcome === 'filed' && (
+                    <>
+                    <label htmlFor="case-cpsc-reference" className="sr-only">CPSC reference</label>
                     <input
+                      id="case-cpsc-reference"
+                      name="cpscReference"
                       value={repCpsc}
                       onChange={e => setRepCpsc(e.target.value)}
-                      placeholder="CPSC reference (e.g. CPSC-2026-001)"
-                      className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="CPSC reference (e.g. CPSC-2026-001)…"
+                      className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
                     />
+                    </>
                   )}
                 </div>
+                <label htmlFor="case-reportability-rationale" className="sr-only">Reportability rationale</label>
                 <textarea
+                  id="case-reportability-rationale"
+                  name="reportabilityRationale"
                   value={repRationale}
                   onChange={e => setRepRationale(e.target.value)}
                   placeholder="Rationale for the decision (minimum 10 characters)…"
-                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-elevated outline-none resize-none"
+                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
                   style={{ borderColor: 'var(--border)' }}
                   maxLength={2000}
                 />
-                {repError && <p className="text-xs text-red-600">{repError}</p>}
+                {repError && <p role="alert" aria-live="polite" className="text-xs text-red-600">{repError}</p>}
                 <button
                   onClick={submitReportabilityClose}
                   disabled={repSubmitting}
@@ -1008,13 +1107,13 @@ function CaseDetailContent({
         </Card>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-5">
+      <div className="grid items-start gap-5 lg:grid-cols-3">
 
         {/* ── Consumer ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span className="flex items-center gap-1.5"><User className="h-4 w-4 text-text-tertiary" />Consumer</span>
+        <Card className="border-slate-200 shadow-sm lg:row-span-2 lg:sticky lg:top-5">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-1.5"><User className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Consumer</span>
               <span className={cn(
                 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
                 cse.consumer.piiTier === 'raw' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
@@ -1050,7 +1149,7 @@ function CaseDetailContent({
             <div className="pt-3 border-t text-xs text-text-tertiary space-y-1">
               <p className="flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />
-                Submitted {new Date(cse.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                Submitted {formatAdminDateTimeWithYear(cse.submittedAt)}
               </p>
             </div>
             {can('case.detail.read_pii_raw') && (
@@ -1072,9 +1171,10 @@ function CaseDetailContent({
         </Card>
 
         {/* ── Assignment ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5"><Users className="h-4 w-4 text-text-tertiary" />Assignment</CardTitle>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm"><Users className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Assignment</CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Choose the staff owner responsible for the next review step.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {assignedStaff ? (
@@ -1083,7 +1183,7 @@ function CaseDetailContent({
                 <p className="text-xs text-text-tertiary">{assignedStaff.email} · {assignedStaff.role}</p>
                 {cse.assignedAt && (
                   <p className="text-[10px] text-text-tertiary mt-1">
-                    Assigned {new Date(cse.assignedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    Assigned {formatAdminDate(cse.assignedAt)}
                   </p>
                 )}
               </div>
@@ -1091,14 +1191,17 @@ function CaseDetailContent({
               <p className="text-sm text-text-tertiary">Unassigned</p>
             )}
             <div className="flex gap-2">
+              <label htmlFor="case-assignee" className="sr-only">Assign case to staff member</label>
               <select
+                id="case-assignee"
+                name="assignee"
                 value={assignTarget}
                 onChange={e => setAssignTarget(e.target.value)}
                 disabled={!can('case.assign')}
                 title={can('case.assign') ? undefined : 'Requires the case.assign permission (reviewer+)'}
-                className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer focus:border-brand-emerald disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="">Select staff member...</option>
+                <option value="">Select staff member…</option>
                 {staff.filter(s => s.status === 'active').map(s => (
                   <option key={s.id} value={s.id}>
                     {s.displayName} ({s.role})
@@ -1118,9 +1221,10 @@ function CaseDetailContent({
         </Card>
 
         {/* ── Resolution ── */}
-        <Card id="resolution-card">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-text-tertiary" />Resolution</CardTitle>
+        <Card id="resolution-card" className="border-slate-200 shadow-sm scroll-mt-5">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm"><CheckCircle2 className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Resolution</CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Track the requested remedy and complete the approved outcome.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {resolution ? (
@@ -1158,17 +1262,20 @@ function CaseDetailContent({
 
                 {resolution.completedAt && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-                    Completed externally {new Date(resolution.completedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    Completed externally {formatAdminDateTimeWithYear(resolution.completedAt)}
                   </div>
                 )}
 
                 {resolutionActions.length > 0 ? (
                   <>
+                    <label htmlFor="resolution-note" className="sr-only">Resolution note</label>
                     <textarea
+                      id="resolution-note"
+                      name="resolutionNote"
                       value={resolutionNote}
                       onChange={e => setResolutionNote(e.target.value)}
-                      placeholder="Resolution note (minimum 10 characters)..."
-                      className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary outline-none resize-none"
+                      placeholder="Resolution note (minimum 10 characters)…"
+                      className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
                       style={{ borderColor: 'var(--border)' }}
                     />
                     {canApproveResolution ? (
@@ -1177,29 +1284,44 @@ function CaseDetailContent({
                           Approval details{resolution?.requestedType ? ' (pre-filled from the consumer’s request)' : ''}
                         </p>
                         <div className="flex gap-2">
+                          <label htmlFor="resolution-type" className="sr-only">Resolution type</label>
                           <select
+                            id="resolution-type"
+                            name="resolutionType"
                             value={resolutionType}
                             onChange={e => setResolutionTypeOverride(e.target.value as 'replacement' | 'refund')}
-                            className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none cursor-pointer focus:border-brand-emerald"
+                            className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer focus:border-brand-emerald"
                           >
                             <option value="replacement">Replacement</option>
                             <option value="refund">Refund</option>
                           </select>
                           {resolutionType === 'refund' ? (
                             <>
+                              <label htmlFor="refund-currency" className="sr-only">Refund currency</label>
                               <input
+                                id="refund-currency"
+                                name="refundCurrency"
                                 value={refundCurrency}
                                 onChange={e => setRefundCurrency(e.target.value.toUpperCase())}
                                 maxLength={3}
-                                placeholder="USD"
-                                className="w-16 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                                autoComplete="off"
+                                spellCheck={false}
+                                placeholder="USD…"
+                                className="w-16 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
                               />
+                              <label htmlFor="refund-amount" className="sr-only">Refund amount in dollars</label>
                               <input
+                                id="refund-amount"
+                                name="refundAmount"
+                                type="number"
+                                min="0"
+                                step="0.01"
                                 value={refundAmount}
-                                onChange={e => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                                placeholder="$ dollars"
+                                onChange={e => setRefundAmount(e.target.value)}
+                                placeholder="Amount in USD…"
                                 inputMode="decimal"
-                                className="flex-1 min-w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                                autoComplete="off"
+                                className="flex-1 min-w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
                               />
                             </>
                           ) : null}
@@ -1207,12 +1329,19 @@ function CaseDetailContent({
                       </div>
                     ) : null}
                     {canCompleteResolution ? (
+                      <>
+                      <label htmlFor="external-reference" className="sr-only">External reference for completion</label>
                       <input
+                        id="external-reference"
+                        name="externalReference"
                         value={externalReference}
                         onChange={e => setExternalReference(e.target.value)}
-                        placeholder="External reference for completion (optional)..."
-                        className="w-full h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary outline-none"
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder="External reference for completion (optional)…"
+                        className="w-full h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
                       />
+                      </>
                     ) : null}
                     <div className="flex flex-wrap gap-2">
                       {resolutionActions.map(action => (
@@ -1244,9 +1373,10 @@ function CaseDetailContent({
         </Card>
 
         {/* ── Status Transition ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-text-tertiary" />Status Transition</CardTitle>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm"><CheckCircle2 className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Status Transition</CardTitle>
+            <p data-slot="card-description" className="text-xs text-text-tertiary">Move the case forward only after the required review evidence is complete.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-2 text-sm">
@@ -1275,11 +1405,14 @@ function CaseDetailContent({
                     ))}
                   </div>
                 ) : null}
+                <label htmlFor="transition-reason" className="sr-only">Reason for status transition</label>
                 <textarea
+                  id="transition-reason"
+                  name="transitionReason"
                   value={transitionReason}
                   onChange={e => setTransitionReason(e.target.value)}
-                  placeholder="Reason for the transition (required for rejected / duplicate / withdrawn)..."
-                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary outline-none resize-none"
+                  placeholder="Reason for the transition (required for rejected / duplicate / withdrawn)…"
+                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
                   style={{ borderColor: 'var(--border)' }}
                 />
                 <div className="flex flex-wrap gap-2">
@@ -1311,19 +1444,22 @@ function CaseDetailContent({
       </div>
 
       {/* ── Audit Trail (live, filtered to this case) ── */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader>
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-3">
+          <CardTitle className="flex items-center gap-1.5 text-sm"><Shield className="h-4 w-4 text-brand-emerald" aria-hidden="true" />Audit Trail</CardTitle>
+          <p data-slot="card-description" className="text-xs text-text-tertiary">A chronological record of case, document and compliance activity.</p>
+        </CardHeader>
         <CardContent>
-          <div className="space-y-2 max-h-[320px] overflow-y-auto">
+          <div className="relative max-h-[320px] space-y-2 overflow-y-auto pl-1">
             {audit.map(e => (
-              <div key={e.id} className="flex items-start gap-3 py-2 border-b last:border-0" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
-                <div className={cn('h-2 w-2 rounded-full mt-2 shrink-0', AUDIT_DOT[e.resourceType] ?? 'bg-slate-400')} />
+              <div key={e.id} className="relative flex items-start gap-3 border-b py-2 pl-3 last:border-0 before:absolute before:bottom-0 before:left-[0.45rem] before:top-5 before:w-px before:bg-slate-200 last:before:hidden" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
+                <div className={cn('relative z-10 mt-2 h-2 w-2 shrink-0 rounded-full ring-4 ring-card', AUDIT_DOT[e.resourceType] ?? 'bg-slate-400')} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-text-primary font-mono">{e.action}</p>
                   <p className="text-[11px] text-text-tertiary mt-0.5 flex items-center gap-1 flex-wrap">
                     <Users className="h-3 w-3" />{e.actorRole}
                     <span>·</span>
-                    {new Date(e.occurredAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {formatAdminDateTime(e.occurredAt)}
                     <span>·</span>
                     <span className={cn('font-semibold', e.outcome === 'success' ? 'text-emerald-600' : 'text-red-600')}>
                       {e.outcome}
@@ -1341,12 +1477,12 @@ function CaseDetailContent({
 
       {/* ── Request more information (need_info) dialog ── */}
       {needInfoOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="need-info-title">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="need-info-title" aria-describedby="need-info-description">
           <div className="w-full max-w-lg rounded-xl bg-surface-elevated p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h2 id="need-info-title" className="text-base font-bold text-text-primary">Request More Information</h2>
-                <p className="text-xs text-text-tertiary mt-1">
+                <p id="need-info-description" className="text-xs text-text-tertiary mt-1">
                   Case {cse.caseReference} · the consumer will see this case as “Action required” with your message.
                 </p>
               </div>
@@ -1378,11 +1514,14 @@ function CaseDetailContent({
                   </label>
                 ))}
               </div>
+              <label htmlFor="need-info-note" className="sr-only">Information request note</label>
               <textarea
+                id="need-info-note"
+                name="needInfoNote"
                 value={needInfoNote}
                 onChange={e => setNeedInfoNote(e.target.value)}
                 placeholder="Describe what the consumer should provide (minimum 10 characters)…"
-                className="w-full h-28 text-xs p-3 rounded-lg border bg-surface-secondary outline-none resize-none"
+                className="w-full h-28 text-xs p-3 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
                 style={{ borderColor: 'var(--border)' }}
                 maxLength={2000}
               />

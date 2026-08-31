@@ -26,6 +26,7 @@ import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { cn } from '@/lib/utils';
+import { formatAdminDate } from '@/lib/formatters';
 
 type QueueKind =
   | 'urgent_injury_safety'
@@ -87,7 +88,7 @@ const QUEUE_STYLES: Record<QueueKind, { accent: string; icon: string; badge: str
 };
 
 export default function QueuesPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
+  const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +180,8 @@ export default function QueuesPage() {
       <div className="max-w-screen-2xl mx-auto py-16 text-center">
         <Inbox className="h-10 w-10 mx-auto text-text-tertiary mb-3" />
         <p className="text-sm font-semibold text-text-primary mb-1">Sign in required</p>
-        <p className="text-xs text-text-tertiary">Log in with a staff account to view live queues.</p>
+        <p className="text-xs text-text-tertiary mb-4">Log in with a staff account to view live queues.</p>
+        <button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
       </div>
     );
   }
@@ -215,7 +217,7 @@ export default function QueuesPage() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
+        <div role="alert" aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
       )}
 
       {/* Queue cards */}
@@ -231,7 +233,7 @@ export default function QueuesPage() {
               onClick={() => selectQueue(q.kind)}
               aria-pressed={isSelected}
               className={cn(
-                'text-left rounded-xl border border-l-4 bg-surface-elevated p-4 card-lift cursor-pointer transition-all',
+                'text-left rounded-xl border border-l-4 bg-surface-elevated p-4 card-lift cursor-pointer transition-[box-shadow,background-color,border-color,opacity]',
                 style.accent,
                 isSelected ? cn('ring-2', style.selectedRing, 'shadow-md') : 'hover:shadow-sm',
                 !hasCases && 'opacity-75',
@@ -256,7 +258,7 @@ export default function QueuesPage() {
                   SLA: {q.sla}
                 </span>
                 {q.oldestAt && (
-                  <span>Oldest: {new Date(q.oldestAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span>Oldest: {formatAdminDate(q.oldestAt)}</span>
                 )}
               </div>
             </button>
@@ -278,8 +280,13 @@ export default function QueuesPage() {
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Search case # or status..."
-                  className="h-8 w-56 rounded-lg border bg-surface-secondary/50 pl-8 pr-7 text-xs text-text-primary outline-none focus:border-brand-emerald placeholder:text-text-tertiary"
+                  id="queue-case-search"
+                   name="queueSearch"
+                   type="search"
+                   placeholder="Search case # or status…"
+                   autoComplete="off"
+                   spellCheck={false}
+                  className="h-8 w-56 rounded-lg border bg-surface-secondary/50 pl-8 pr-7 text-xs text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald placeholder:text-text-tertiary"
                 />
                 {query && (
                   <button
@@ -327,7 +334,7 @@ export default function QueuesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs text-text-tertiary">
-                          {new Date(c.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {formatAdminDate(c.submittedAt)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">

@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Megaphone, Search, X, RefreshCw, Shield } from 'lucide-react';
 import { listCampaigns, type AdminCampaignSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { formatAdminDate } from '@/lib/formatters';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -85,24 +87,31 @@ export default function CampaignsPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
           <input
-            type="text"
-            placeholder="Search by title, code, or slug..."
+            id="campaign-search"
+            name="campaignSearch"
+            type="search"
+            placeholder="Search by title, code, or slug…"
             value={search}
+            autoComplete="off"
+            spellCheck={false}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-8 rounded-lg border bg-surface-elevated text-sm outline-none focus:ring-2 focus:ring-brand-emerald/20 focus:border-brand-emerald transition-all"
+            className="w-full h-9 pl-9 pr-8 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald transition-[border-color,box-shadow]"
             style={{ borderColor: 'var(--border)' }}
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer">
+            <button type="button" onClick={() => setSearch('')} aria-label="Clear campaign search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
         <select
+          id="campaign-status-filter"
+          name="campaignStatus"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm outline-none cursor-pointer hover:border-brand-emerald/30 focus:ring-2 focus:ring-brand-emerald/20 transition-colors"
+          aria-label="Filter campaigns by status"
+          className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer hover:border-brand-emerald/30 transition-colors"
           style={{ borderColor: 'var(--border)' }}
         >
           <option value="all">All Status</option>
@@ -114,7 +123,8 @@ export default function CampaignsPage() {
         {hasFilters && (
           <button
             onClick={() => { setSearch(''); setStatusFilter('all'); }}
-            className="text-xs font-medium text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+            type="button"
+            className="text-xs font-medium text-text-tertiary hover:text-text-primary transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
           >
             <X className="inline h-3.5 w-3.5 mr-1" />
             Clear
@@ -146,19 +156,21 @@ export default function CampaignsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Cases</TableHead>
-                <TableHead>Launch</TableHead>
-                <TableHead>Closes</TableHead>
+                <TableHead scope="col">Campaign</TableHead>
+                <TableHead scope="col">Status</TableHead>
+                <TableHead scope="col">Cases</TableHead>
+                <TableHead scope="col">Launch</TableHead>
+                <TableHead scope="col">Closes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.id} className="cursor-pointer hover:bg-surface-secondary transition-colors" onClick={() => window.location.href = `/campaigns/${c.slug}`}>
+                <TableRow key={c.id} className="hover:bg-surface-secondary transition-colors">
                   <TableCell>
                     <div className="max-w-[320px]">
-                      <p className="text-sm font-semibold text-text-primary truncate">{c.title || c.slug}</p>
+                      <Link href={`/campaigns/${encodeURIComponent(c.slug)}`} className="text-sm font-semibold text-text-primary truncate hover:text-brand-emerald focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 rounded-sm">
+                        {c.title || c.slug}
+                      </Link>
                       <p className="text-xs text-text-tertiary mt-0.5 font-mono">{c.code}</p>
                     </div>
                   </TableCell>
@@ -169,10 +181,10 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell className="text-sm font-semibold text-text-primary">{c.caseCount}</TableCell>
                   <TableCell className="text-sm text-text-tertiary">
-                    {c.launchAt ? new Date(c.launchAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    {formatAdminDate(c.launchAt)}
                   </TableCell>
                   <TableCell className="text-sm text-text-tertiary">
-                    {c.closeAt ? new Date(c.closeAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    {formatAdminDate(c.closeAt)}
                   </TableCell>
                 </TableRow>
               ))}
