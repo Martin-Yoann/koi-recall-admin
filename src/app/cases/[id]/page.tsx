@@ -418,6 +418,10 @@ function CaseDetailContent({
       return;
     }
 
+    if (!confirm(`Are you sure you want to transition this case to ${next.replace(/_/g, ' ')}?`)) {
+      return;
+    }
+
     // Negative closures are auditable decisions: require a written reason.
     if (REASON_REQUIRED.includes(next) && transitionReason.trim().length === 0) {
       setActionError(`A written reason is required before moving this case to ${next.replace(/_/g, ' ')}.`);
@@ -828,6 +832,7 @@ function CaseDetailContent({
                       <th className="px-3 py-2 font-semibold">Purchased</th>
                       <th className="px-3 py-2 font-semibold">Order #</th>
                       <th className="px-3 py-2 font-semibold">Corroboration</th>
+                      <th className="px-3 py-2 font-semibold">Reason Codes</th>
                       <th className="px-3 py-2 font-semibold">Flags</th>
                     </tr>
                   </thead>
@@ -870,6 +875,17 @@ function CaseDetailContent({
                             )}>
                               {product.purchaseCorroboration.replace(/_/g, ' ')}
                             </span>
+                          ) : (
+                            <span className="text-xs text-text-tertiary">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {product.reasonCodes && product.reasonCodes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {product.reasonCodes.map((code) => (
+                                <span key={code} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">{code.replace(/_/g, ' ')}</span>
+                              ))}
+                            </div>
                           ) : (
                             <span className="text-xs text-text-tertiary">—</span>
                           )}

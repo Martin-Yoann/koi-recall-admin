@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+
 import Link from 'next/link';
 import { Download, FolderOpen, Search, RefreshCw, Hand } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -31,6 +33,7 @@ interface Stats {
 export default function CasesPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const { can } = usePermissions();
+  const searchParams = useSearchParams();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,10 +49,14 @@ export default function CasesPage() {
     // cleanup → setup) cannot permanently poison the flag and stall the page
     // on "Unable to load case".
     mountedRef.current = true;
+    const status = searchParams.get('status');
+    if (status && CASE_STATUSES.includes(status as any)) {
+      setStatusFilter(status);
+    }
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [searchParams]);
 
   // One unfiltered fetch feeds both the stat chips and the (client-side)
   // filtered table, so counts always match the visible rows' universe.
@@ -119,10 +126,14 @@ export default function CasesPage() {
   /** Assign the case to the signed-in staff user (intake triage shortcut). */
   const handleClaim = async (caseRef: string) => {
     if (!user?.staffUserId) return;
+    if (!confirm('Are you sure you want to claim this case?')) return;
+
     setClaiming(caseRef);
     setError(null);
     const result = await assignCase(caseRef, { staffUserId: user.staffUserId });
-    if (!result.ok && mountedRef.current) {
+    if (result.ok) {
+      await fetchCases();
+    } else if (mountedRef.current) {
       setError(result.error?.detail || `Failed to claim ${caseRef}.`);
     }
     if (mountedRef.current) setClaiming(null);
