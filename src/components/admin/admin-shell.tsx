@@ -325,10 +325,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   expanded
                     ? 'gap-3 px-[10px] py-[9px] justify-start'
                     : 'gap-0 py-[9px] justify-center',
-                  /* active state */
+                  /* active vs default. The active item uses a clear brand pill so it
+                     reads as "current page", never as a stuck hover state. */
                   active
-                    ? 'text-white bg-white/[0.10]'
-                    : 'text-white/60 hover:text-white hover:bg-white/[0.05] active:scale-[0.97]',
+                    ? 'text-white bg-brand-600 shadow-[0_2px_10px_rgba(58,134,255,0.35)]'
+                    : 'text-white/60 hover:text-white hover:bg-white/[0.06] hover:text-white active:scale-[0.97]',
                 )}
                 title={!expanded ? item.label : undefined}
               >

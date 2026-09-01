@@ -3,6 +3,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { Input } from 'antd';
 import { X, Eye, EyeOff, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
@@ -340,11 +341,10 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   >
                     Display Name
                   </label>
-                  <input
+                  <Input
                     id="profile-display-name"
                     name="displayName"
                     autoComplete="name"
-                    className={inputClass}
                     style={inputStyle}
                     value={name}
                     onChange={(e) => {
@@ -369,12 +369,11 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                     Avatar Initials
                   </label>
                   <div className="flex items-center gap-3">
-                    <input
+                    <Input
                       id="profile-initials"
                       name="initials"
                       autoComplete="off"
                       spellCheck={false}
-                      className={inputClass}
                       style={inputStyle}
                       value={initials}
                       onChange={(e) => setInitials(e.target.value.slice(0, 2).toUpperCase())}

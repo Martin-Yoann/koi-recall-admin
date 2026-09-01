@@ -1,17 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Button, Input, Modal, Skeleton } from 'antd';
 import { Download, FileSpreadsheet, RefreshCw, Shield } from 'lucide-react';
 import { createRefundExport, listRefundExports, type RefundExportBatch } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { usePermissions } from '@/lib/rbac';
 import { useToast } from '@/components/ui/toast';
 import { formatAdminDate } from '@/lib/formatters';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -91,15 +87,23 @@ export default function ExportsPage() {
           <p className="text-sm text-text-secondary mt-0.5">{batches.length} batch{batches.length !== 1 ? 'es' : ''} generated</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchBatches} disabled={loading} className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors">
-            <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} />
+          <Button
+            icon={<RefreshCw className="h-4 w-4" />}
+            loading={loading}
+            onClick={fetchBatches}
+            className="border text-text-secondary hover:text-text-primary"
+          >
             Refresh
-          </button>
+          </Button>
           {can('case.export') && (
-            <button type="button" onClick={() => { setError(null); setFormError(null); setCreateOpen(true); }} disabled={submitting} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-emerald text-white text-sm font-medium hover:bg-emerald-900 btn-lift btn-press transition-colors cursor-pointer disabled:opacity-50">
-              <Download className="h-4 w-4" />
+            <Button
+              type="primary"
+              icon={<Download className="h-4 w-4" />}
+              onClick={() => { setError(null); setFormError(null); setCreateOpen(true); }}
+              disabled={submitting}
+            >
               New Export
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -114,13 +118,10 @@ export default function ExportsPage() {
             <Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" />
             <p className="text-sm font-semibold text-text-primary mb-1">Sign In Required</p>
             <p className="text-xs text-text-tertiary mb-4">Sign in with a staff account to view and generate refund exports.</p>
-            <button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark">Sign In</button>
+            <Button type="primary" onClick={openLogin}>Sign In</Button>
           </div>
         ) : loading ? (
-          <div className="py-14 text-center" aria-busy="true">
-            <RefreshCw className="h-8 w-8 mx-auto text-text-tertiary mb-3 animate-spin" aria-hidden="true" />
-            <p className="text-sm text-text-secondary">Loading export history…</p>
-          </div>
+          <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 5 }} /></div>
         ) : error && batches.length === 0 ? (
           <div className="py-14 text-center">
             <FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" />
@@ -144,37 +145,31 @@ export default function ExportsPage() {
         ) : <div className="text-center py-14"><FileSpreadsheet className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">No Exports Yet</p><p className="text-xs text-text-tertiary">Refund export batches will appear here after the first export is generated.</p></div>}
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg overscroll-contain">
-          <DialogHeader>
-            <DialogTitle>New Refund Export</DialogTitle>
-            <DialogDescription>Generate a CSV for finance reconciliation. Exported rows are excluded by default.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={(event) => { event.preventDefault(); void handleCreate(); }} className="space-y-2">
-            <Label htmlFor="refund-export-purpose">Purpose</Label>
-            <Input
-              id="refund-export-purpose"
-              name="purpose"
-              value={purpose}
-              onChange={(event) => setPurpose(event.target.value)}
-              maxLength={500}
-              placeholder="Example: Finance reconciliation…"
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby="refund-export-purpose-help"
-            />
-            <p id="refund-export-purpose-help" className="text-xs text-text-tertiary">Required · 1–500 characters</p>
-            {formError && <p role="alert" aria-live="polite" className="text-xs text-red-600">{formError}</p>}
-          </form>
-          <DialogFooter>
-            <button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border px-3 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary">Cancel</button>
-            <button type="button" onClick={() => void handleCreate()} disabled={submitting || !purpose.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-sm font-semibold text-white hover:bg-brand-emerald-dark disabled:cursor-not-allowed disabled:opacity-50">
-              {submitting && <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Generating…' : 'Generate Export'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Modal
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        title="New Refund Export"
+        okText={submitting ? 'Generating…' : 'Generate Export'}
+        cancelText="Cancel"
+        confirmLoading={submitting}
+        okButtonProps={{ disabled: submitting || !purpose.trim() }}
+        onOk={() => void handleCreate()}
+      >
+        <p className="text-xs text-text-tertiary mb-3">Generate a CSV for finance reconciliation. Exported rows are excluded by default.</p>
+        <Input
+          id="refund-export-purpose"
+          name="purpose"
+          value={purpose}
+          onChange={(event) => setPurpose(event.target.value)}
+          maxLength={500}
+          placeholder="Example: Finance reconciliation…"
+          autoComplete="off"
+          spellCheck={false}
+          aria-describedby="refund-export-purpose-help"
+        />
+        <p id="refund-export-purpose-help" className="text-xs text-text-tertiary mt-1">Required · 1–500 characters</p>
+        {formError && <p role="alert" aria-live="polite" className="text-xs text-red-600 mt-2">{formError}</p>}
+      </Modal>
     </div>
   );
 }

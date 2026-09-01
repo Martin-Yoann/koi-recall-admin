@@ -6,6 +6,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
+import { Button, Input, Select, Skeleton } from 'antd';
 import { Users, Search, RefreshCw, ShieldAlert, UserPlus, KeyRound, Trash2, X, Mail, User, Lock, Check, Sparkles } from 'lucide-react';
 import {
   queryAuditEvents, listStaff, createStaff, updateStaff, deleteStaff, revokeUserSessions,
@@ -97,14 +98,15 @@ export default function AccessPage() {
           <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Access & Audit</h1>
           <p className="text-sm text-text-secondary mt-0.5">Staff roles · access control · live audit trail from Neon</p>
         </div>
-        <button
+        <Button
+          size="small"
+          icon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
+          loading={loading}
           onClick={fetchAudit}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer hover:bg-surface-secondary text-text-secondary"
+          className="text-text-secondary hover:text-text-primary"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {/* Role matrix */}
@@ -155,19 +157,18 @@ export default function AccessPage() {
             ))}
           </div>
           <div className="relative max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
             <label htmlFor="audit-search" className="sr-only">Search audit events</label>
-            <input
+            <Input
               id="audit-search"
               name="auditSearch"
-              type="search"
+              allowClear
+              prefix={<Search className="h-3.5 w-3.5 text-text-tertiary" />}
               placeholder="Search action, resource ID, or role…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               autoComplete="off"
-              spellCheck={false}
-              className="w-full h-8 pl-8 pr-3 rounded-lg border bg-surface-elevated text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
-              style={{ borderColor: 'var(--border)' }}
+              size="small"
+              style={{ height: 32 }}
             />
           </div>
         </div>
@@ -178,7 +179,7 @@ export default function AccessPage() {
             <p className="text-sm text-text-tertiary">{error}</p>
           </div>
         ) : loading ? (
-          <div className="py-10 text-center text-sm text-text-tertiary" aria-busy="true">Loading audit events…</div>
+          <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 6 }} /></div>
         ) : filtered.length > 0 ? (
           <div className="divide-y max-h-[500px] overflow-y-auto">
             {filtered.map(a => (
@@ -211,7 +212,7 @@ export default function AccessPage() {
         <div className="rounded-xl border bg-surface-secondary/40 p-4 text-xs text-text-tertiary flex items-center gap-3">
           <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="flex-1">Sign in with a staff account to load the live audit trail.</span>
-          <button type="button" onClick={openLogin} className="shrink-0 rounded-md bg-brand-emerald px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
+          <Button type="primary" size="small" onClick={openLogin} className="shrink-0">Sign In</Button>
         </div>
       )}
     </div>
@@ -324,19 +325,21 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
           <p className="text-xs text-text-tertiary mt-0.5">{staff.length} staff users</p>
         </div>
         {canManage && (
-        <button
+        <Button
+          type="primary"
+          icon={<UserPlus className="h-3.5 w-3.5" />}
           onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold cursor-pointer hover:bg-emerald-800"
+          className="!bg-emerald-600 !hover:bg-emerald-800"
         >
-          <UserPlus className="h-3.5 w-3.5" />New staff user
-        </button>
+          New staff user
+        </Button>
         )}
       </div>
 
       {error && <div className="px-5 py-2 text-xs text-red-600 border-b">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-10 text-sm text-text-tertiary">Loading staff…</div>
+        <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 5 }} /></div>
       ) : staff.length === 0 ? (
         <p className="text-sm text-text-tertiary text-center py-10">No staff users found.</p>
       ) : (
@@ -359,15 +362,14 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                   <td className="px-4 py-3 text-xs text-text-secondary">{s.email}</td>
                   <td className="px-4 py-3">
                     {canManage ? (
-                    <select
+                    <Select
+                      size="small"
                       value={s.role}
-                      onChange={e => changeRole(s, e.target.value)}
+                      onChange={val => changeRole(s, val)}
                       aria-label={`Change role for ${s.displayName}`}
-                      className={cn('h-8 rounded-lg border px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer', ROLE_COLORS[s.role as StaffRole] ?? 'bg-slate-100 text-slate-700')}
-                      style={{ borderColor: 'var(--border)' }}
-                    >
-                      {STAFF_ROLES.map(role => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
-                    </select>
+                      style={{ width: 120 }}
+                      options={STAFF_ROLES.map(role => ({ value: role, label: ROLE_LABELS[role] }))}
+                    />
                     ) : (
                       <span className={cn('text-xs font-semibold px-2 py-1 rounded-md', ROLE_COLORS[s.role as StaffRole] ?? 'bg-slate-100 text-slate-700')}>{ROLE_LABELS[s.role as StaffRole] ?? s.role}</span>
                     )}
@@ -382,29 +384,32 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                   </td>
                   {canManage && <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button
+                        size="small"
                         onClick={() => toggleStatus(s)}
                         disabled={s.id === user?.staffUserId}
                         title={s.id === user?.staffUserId ? 'You cannot disable your own account' : undefined}
-                        className="rounded-md border px-2 py-1 text-xs font-semibold text-text-secondary cursor-pointer hover:bg-surface-secondary disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {s.status === 'active' ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<KeyRound className="h-3 w-3" />}
                         onClick={() => forceSignOut(s)}
-                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold text-text-secondary cursor-pointer hover:bg-surface-secondary"
                         title="Revoke all sessions for this user"
                       >
-                        <KeyRound className="h-3 w-3" />Sign out
-                      </button>
-                      <button
+                        Sign out
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        icon={<Trash2 className="h-3 w-3" />}
                         onClick={() => removeStaff(s)}
                         disabled={s.id === user?.staffUserId}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 cursor-pointer hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                         title={s.id === user?.staffUserId ? 'You cannot delete your own account' : 'Delete this staff account'}
                       >
-                        <Trash2 className="h-3 w-3" />Delete
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </td>}
                 </tr>
@@ -438,24 +443,47 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
               <div className="space-y-1.5">
                 <label htmlFor="new-staff-email" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input id="new-staff-email" name="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" autoComplete="email" spellCheck={false} placeholder="name@company.com" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
+                  <Input
+                    id="new-staff-email"
+                    name="email"
+                    prefix={<Mail className="h-4 w-4 text-text-tertiary" />}
+                    value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    type="email"
+                    autoComplete="email"
+                    spellCheck={false}
+                    placeholder="name@company.com"
+                  />
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="new-staff-display-name" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Display name</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input id="new-staff-display-name" name="displayName" value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} autoComplete="name" placeholder="Jane Doe" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
+                  <Input
+                    id="new-staff-display-name"
+                    name="displayName"
+                    prefix={<User className="h-4 w-4 text-text-tertiary" />}
+                    value={form.displayName}
+                    onChange={e => setForm({ ...form, displayName: e.target.value })}
+                    autoComplete="name"
+                    placeholder="Jane Doe"
+                  />
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="new-staff-password" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                  <input id="new-staff-password" name="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} type="password" autoComplete="new-password" placeholder="At least 12 characters" className="h-10 w-full rounded-lg border bg-surface-secondary pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strawberry/30" style={{ borderColor: 'var(--border)' }} />
+                  <Input.Password
+                    id="new-staff-password"
+                    name="password"
+                    prefix={<Lock className="h-4 w-4 text-text-tertiary" />}
+                    value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    autoComplete="new-password"
+                    placeholder="At least 12 characters"
+                  />
                 </div>
               </div>
 
@@ -501,10 +529,17 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
 
             {/* Footer — always visible, with the primary action in a guaranteed-blue button */}
             <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
-              <button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary cursor-pointer transition-colors">Cancel</button>
-              <button type="button" onClick={submitCreate} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <UserPlus className="h-4 w-4" />{submitting ? 'Creating…' : 'Create user'}
-              </button>
+              <Button onClick={() => setCreateOpen(false)} className="text-text-secondary hover:text-text-primary">Cancel</Button>
+              <Button
+                type="primary"
+                icon={<UserPlus className="h-4 w-4" />}
+                loading={submitting}
+                disabled={submitting}
+                onClick={submitCreate}
+                className="!bg-emerald-600 !hover:bg-emerald-800"
+              >
+                {submitting ? 'Creating…' : 'Create user'}
+              </Button>
             </div>
           </div>
         </div>

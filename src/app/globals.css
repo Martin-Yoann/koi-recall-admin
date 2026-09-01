@@ -180,10 +180,13 @@
    ============================================================ */
 @layer base {
   /* Element-UI-style form controls: white surface, soft neutral border,
-     clean blue focus halo, smooth 0.18s transitions. */
-  input:not([type='checkbox']):not([type='radio']):not([type='file']),
-  select,
-  textarea {
+     clean blue focus halo, smooth 0.18s transitions.
+     Scoped to native (non-antd) elements: `[class*='ant-']` keeps these
+     rules from leaking into antd's internal <input>/<textarea>, which
+     would otherwise break the selected value's vertical centering. */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([class*='ant-']),
+  select:not([class*='ant-']),
+  textarea:not([class*='ant-']) {
     border: 1px solid var(--border);
     border-radius: 6px;
     background-color: var(--surface-elevated);
@@ -197,20 +200,20 @@
       background-color 0.18s ease;
   }
 
-  input:not([type='checkbox']):not([type='radio']):not([type='file']),
-  select {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([class*='ant-']),
+  select:not([class*='ant-']) {
     min-height: 36px;
   }
 
-  input:not([type='checkbox']):not([type='radio']):not([type='file']):hover,
-  select:hover,
-  textarea:hover {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([class*='ant-']):hover,
+  select:not([class*='ant-']):hover,
+  textarea:not([class*='ant-']):hover {
     border-color: var(--input-hover);
   }
 
-  input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
-  select:focus,
-  textarea:focus {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([class*='ant-']):focus,
+  select:not([class*='ant-']):focus,
+  textarea:not([class*='ant-']):focus {
     border-color: var(--primary);
     outline: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
@@ -249,6 +252,46 @@
   button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+}
+
+/* antd controls: pointer cursor on interactive surfaces, and keep the
+   Select value / placeholder vertically + horizontally centered. */
+@layer components {
+  .ant-select:not(.ant-select-disabled),
+  .ant-select-selector,
+  .ant-select-item,
+  .ant-select-item-option,
+  .ant-dropdown-menu-item,
+  .ant-dropdown-menu-submenu-title,
+  .ant-pagination-item,
+  .ant-pagination-prev,
+  .ant-pagination-next,
+  .ant-pagination .ant-select,
+  .ant-modal .ant-btn {
+    cursor: pointer;
+  }
+  .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+    cursor: pointer;
+  }
+  .ant-select-single .ant-select-selector,
+  .ant-select .ant-select-selector {
+    align-items: center;
+    line-height: normal;
+  }
+  /* Center the picked value / placeholder both ways. */
+  .ant-select-single .ant-select-selection-item,
+  .ant-select-single .ant-select-selection-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
+    text-align: center;
+  }
+  /* Popup options on hover turn the cursor to a hand. */
+  .ant-select-item-option,
+  .ant-dropdown-menu-item {
+    cursor: pointer;
   }
 }
 
@@ -455,6 +498,9 @@
 
 .table-row-hover:hover {
   background-color: rgba(58, 134, 255, 0.05);
+  cursor: pointer;
+}
+
 /* Form Interaction Styles (Element/Antd style) */
 .input-interactive {
   @apply transition-all duration-200 border-slate-200 outline-none rounded-lg focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 hover:border-brand-400;
@@ -462,8 +508,6 @@
 
 .select-interactive {
   @apply transition-all duration-200 border-slate-200 rounded-lg cursor-pointer hover:border-brand-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
-}
-  cursor: pointer;
 }
 @layer base {
   button:not(:disabled),

@@ -1,20 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-
 import Link from 'next/link';
-import { Download, FolderOpen, Search, RefreshCw, Hand } from 'lucide-react';
+import { Input, Select, Button, Table, Pagination, Skeleton, Empty, Modal, type TableColumnsType } from 'antd';
+import {
+  SearchOutlined,
+  ReloadOutlined,
+  DownloadOutlined,
+  UserAddOutlined,
+  FolderOpenOutlined,
+  ExclamationCircleOutlined,
+} from '@ant-design/icons';
+
 import { StatusBadge } from '@/components/shared/status-badge';
 import { assignCase, exportCases, listCases, type CaseSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { formatAdminDate } from '@/lib/formatters';
 import { usePermissions } from '@/lib/rbac';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 /** The full case status set (mirrors the backend recall_case_status enum). */
 const CASE_STATUSES = [
   'submitted', 'triage', 'under_review', 'need_info', 'approved',
@@ -22,6 +26,12 @@ const CASE_STATUSES = [
 ] as const;
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
+
+/** Page-size options offered by the pagination control. */
+const PAGE_SIZE_OPTIONS = ['5', '10', '15', '20', '50', '100'];
+
+/** How many cases to pull in one shot; client-side pages slice this set. */
+const FETCH_LIMIT = 1000;
 
 interface Stats {
   open: number;
@@ -34,54 +44,64 @@ export default function CasesPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const { can } = usePermissions();
   const searchParams = useSearchParams();
+
   const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [queueFilter, setQueueFilter] = useState('all');
-  const [exporting, setExporting] = useState(false);
-  const [claiming, setClaiming] = useState<string | null>(null);
+
+  // Server-side status filter
+  const [status, setStatus] = useState(searchParams.get('status') || 'all');
+
+  // Client-side filtering state (UI only)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [queueFilter, setQueueFilter] = useState('all'); // 'all' | 'standard' | 'manual_review' | 'incident'
+
+  // Data-table pagination (client side)
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const mountedRef = useRef(true);
 
+  // Initial `status` is read from the query param in the useState initializer, so
+  // the only mount effect needed is resetting the mounted flag (StrictMode safe).
   useEffect(() => {
-    // Reset on every setup so React StrictMode's dev double-invoke (setup →
-    // cleanup → setup) cannot permanently poison the flag and stall the page
-    // on "Unable to load case".
     mountedRef.current = true;
-    const status = searchParams.get('status');
-    if (status && CASE_STATUSES.includes(status as any)) {
-      setStatusFilter(status);
-    }
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [searchParams]);
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  // One unfiltered fetch feeds both the stat chips and the (client-side)
-  // filtered table, so counts always match the visible rows' universe.
+  // Fetch the case list
   const fetchCases = useCallback(async () => {
     if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
-    const result = await listCases({ limit: 200 });
-    if (!mountedRef.current) return;
+
+    const result = await listCases({
+      limit: FETCH_LIMIT,
+      status: status !== 'all' ? status : undefined,
+    });
+
     if (result.ok) {
       setCases(result.data.cases);
-    } else if (result.status === 401) {
-      setError('Please sign in with a staff account to view cases.');
-    } else if (result.status === 403) {
-      setError('Your staff role does not have permission to view cases.');
-    } else if (result.status === 501) {
-      setError('Backend case service is not available yet. Starting the backend with DATABASE_URL will enable this page.');
+      setTotal(result.data.total || result.data.cases.length);
     } else {
       setError(result.error?.detail || 'Failed to load cases.');
     }
     setLoading(false);
-  }, []);
+  }, [status]);
 
+  // Initial load & reload on status change
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+    const timer = window.setTimeout(() => {
+      void fetchCases();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [authLoading, fetchCases, isAuthenticated]);
+
+  // Export CSV
   const handleExport = async () => {
-    setExporting(true);
+    setLoading(true);
     const result = await exportCases();
     if (result.ok) {
       const url = URL.createObjectURL(result.data);
@@ -93,76 +113,233 @@ export default function CasesPage() {
     } else {
       setError(result.error?.detail || 'Failed to export cases.');
     }
-    setExporting(false);
+    setLoading(false);
   };
 
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    const timer = window.setTimeout(() => {
-      void fetchCases();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [authLoading, fetchCases, isAuthenticated]);
+  // Claim a case (confirm via the global antd modal)
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const handleClaim = useCallback((caseRef: string) => {
+    if (!user?.staffUserId) return;
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return cases.filter((c) => {
-      if (statusFilter !== 'all' && c.status !== statusFilter) return false;
-      if (queueFilter === 'standard' && c.status !== 'submitted') return false;
-      if (queueFilter === 'manual_review' && !['triage', 'need_info'].includes(c.status)) return false;
-      if (queueFilter === 'incident' && !(c.incidentFlag && !TERMINAL.includes(c.status))) return false;
-      if (q && !c.caseReference.toLowerCase().includes(q) && !c.subtype.toLowerCase().includes(q)) return false;
-      return true;
+    Modal.confirm({
+      title: 'Claim this case',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <span>
+          You are about to claim <span className="font-mono font-semibold">{caseRef}</span>. The case
+          will be assigned to you{user.name ? ` (${user.name})` : ''}.
+        </span>
+      ),
+      okText: 'Claim to me',
+      cancelText: 'Cancel',
+      okButtonProps: { type: 'primary' },
+      centered: true,
+      onOk: async () => {
+        if (!user?.staffUserId) return;
+        setClaimingId(caseRef);
+        setError(null);
+        const result = await assignCase(caseRef, { staffUserId: user.staffUserId });
+        if (result.ok) {
+          await fetchCases();
+        } else if (mountedRef.current) {
+          setError(result.error?.detail || `Failed to claim ${caseRef}.`);
+        }
+        if (mountedRef.current) setClaimingId(null);
+      },
     });
-  }, [cases, search, statusFilter, queueFilter]);
+  }, [user, fetchCases]);
 
+  // Is the current user the assignee of this case?
+  const staffUserId = user?.staffUserId;
+  const isMine = useCallback((c: CaseSummary) =>
+    !!staffUserId && c.assignedToStaffUserId === staffUserId,
+    [staffUserId]
+  );
+
+  // Stats (over the fetched cases)
   const stats: Stats = useMemo(() => ({
-    open: cases.filter((c) => !TERMINAL.includes(c.status)).length,
-    pendingReview: cases.filter((c) => ['submitted', 'triage', 'under_review', 'need_info'].includes(c.status)).length,
-    incidents: cases.filter((c) => c.incidentFlag && !TERMINAL.includes(c.status)).length,
-    closed: cases.filter((c) => c.status === 'closed').length,
+    open: cases.filter(c => !TERMINAL.includes(c.status)).length,
+    pendingReview: cases.filter(c => ['submitted', 'triage', 'under_review', 'need_info'].includes(c.status)).length,
+    incidents: cases.filter(c => c.incidentFlag && !TERMINAL.includes(c.status)).length,
+    closed: cases.filter(c => c.status === 'closed').length,
   }), [cases]);
 
-  /** Assign the case to the signed-in staff user (intake triage shortcut). */
-  const handleClaim = async (caseRef: string) => {
-    if (!user?.staffUserId) return;
-    if (!confirm('Are you sure you want to claim this case?')) return;
+  // Client-side filter (search + queue; status is applied server-side)
+  const filteredCases = useMemo(() => {
+    let result = cases;
 
-    setClaiming(caseRef);
-    setError(null);
-    const result = await assignCase(caseRef, { staffUserId: user.staffUserId });
-    if (result.ok) {
-      await fetchCases();
-    } else if (mountedRef.current) {
-      setError(result.error?.detail || `Failed to claim ${caseRef}.`);
+    if (searchTerm.trim()) {
+      const term = searchTerm.trim().toLowerCase();
+      result = result.filter(c =>
+        c.caseReference.toLowerCase().includes(term) ||
+        c.subtype.toLowerCase().includes(term)
+      );
     }
-    if (mountedRef.current) setClaiming(null);
+
+    if (queueFilter !== 'all') {
+      switch (queueFilter) {
+        case 'standard':
+          result = result.filter(c => c.status === 'submitted');
+          break;
+        case 'manual_review':
+          result = result.filter(c => ['triage', 'need_info'].includes(c.status));
+          break;
+        case 'incident':
+          result = result.filter(c => c.incidentFlag);
+          break;
+        default:
+          break;
+      }
+    }
+
+    return result;
+  }, [cases, searchTerm, queueFilter]);
+
+  // Slice the filtered set for the current page
+  const paginatedCases = useMemo(
+    () => filteredCases.slice((page - 1) * pageSize, page * pageSize),
+    [filteredCases, page, pageSize],
+  );
+
+  const handlePageChange = (nextPage: number, nextPageSize: number) => {
+    // Switching the page size returns to the first page; flipping pages keeps the page.
+    if (nextPageSize !== pageSize) {
+      setPageSize(nextPageSize);
+      setPage(1);
+    } else {
+      setPage(nextPage);
+    }
   };
 
-  const isMine = (c: CaseSummary) =>
-    !!user?.staffUserId && c.assignedToStaffUserId === user.staffUserId;
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setPage(1);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchTerm(val);
+    setPage(1);
+  };
+
+  const handleQueueChange = (val: string) => {
+    setQueueFilter(val);
+    setPage(1);
+  };
+
+  const columns: TableColumnsType<CaseSummary> = [
+    {
+      title: 'Case Reference',
+      dataIndex: 'caseReference',
+      key: 'caseReference',
+      render: (value: string) => (
+        <Link
+          href={`/cases/${encodeURIComponent(value)}`}
+          className="text-sm font-semibold font-mono text-text-primary hover:text-brand-500 transition-colors"
+        >
+          {value}
+        </Link>
+      ),
+    },
+    {
+      title: 'Subtype',
+      dataIndex: 'subtype',
+      key: 'subtype',
+      render: (value: string) => <span className="text-sm text-text-secondary">{value.split('_').join(' ')}</span>,
+    },
+    {
+      title: 'Incident',
+      dataIndex: 'incidentFlag',
+      key: 'incidentFlag',
+      render: (flag: boolean) =>
+        flag ? (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+            Incident
+          </span>
+        ) : (
+          <span className="text-xs text-text-tertiary">—</span>
+        ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (value: string) => <StatusBadge variant={value as never} />,
+    },
+    {
+      title: 'Submitted',
+      dataIndex: 'submittedAt',
+      key: 'submittedAt',
+      render: (value: string) => <span className="text-sm text-text-tertiary">{formatAdminDate(value)}</span>,
+    },
+    {
+      title: 'Owner',
+      key: 'owner',
+      render: (_, c) =>
+        isMine(c) ? (
+          <span className="text-xs font-semibold text-brand-700">Me</span>
+        ) : c.assignedToStaffUserId ? (
+          <span className="text-xs text-text-tertiary">Assigned</span>
+        ) : (
+          <span className="text-xs text-text-tertiary">Unassigned</span>
+        ),
+    },
+    ...(can('case.assign')
+      ? [{
+          title: 'Claim',
+          key: 'claim',
+          render: (_: unknown, c: CaseSummary) =>
+            TERMINAL.includes(c.status) || isMine(c) ? (
+              <span className="text-xs text-text-tertiary">—</span>
+            ) : (
+              <Button
+                size="small"
+                type="default"
+                icon={<UserAddOutlined />}
+                loading={claimingId === c.caseReference}
+                disabled={claimingId === c.caseReference}
+                onClick={() => handleClaim(c.caseReference)}
+                className="border-brand-500/40 !text-brand-500 hover:!bg-brand-50 hover:!border-brand-500"
+              >
+                {claimingId === c.caseReference ? 'Claiming…' : 'Claim to me'}
+              </Button>
+            ),
+        }]
+      : []),
+  ];
 
   return (
     <div className="space-y-6 max-w-screen-2xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Cases</h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            {cases.length} case{cases.length !== 1 ? 's' : ''} · Manage and review recall cases
+            {total} case{total !== 1 ? 's' : ''} · Manage and review recall cases
           </p>
         </div>
         <div className="flex items-center gap-2">
           {can('case.export') && (
-            <button onClick={handleExport} disabled={exporting} className="flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors disabled:opacity-50">
-              <Download className="h-4 w-4" /> Export CSV
-            </button>
+            <Button
+              icon={<DownloadOutlined />}
+              loading={loading}
+              onClick={handleExport}
+              className="border text-text-secondary hover:text-text-primary"
+            >
+              Export CSV
+            </Button>
           )}
-          <button onClick={fetchCases} disabled={loading} className="flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors">
-            <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} /> Refresh
-          </button>
+          <Button
+            icon={<ReloadOutlined spin={loading} />}
+            loading={loading}
+            onClick={() => void fetchCases()}
+            className="border text-text-secondary hover:text-text-primary"
+          >
+            Refresh
+          </Button>
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Open Cases', value: stats.open },
@@ -177,142 +354,92 @@ export default function CasesPage() {
         ))}
       </div>
 
+      {/* Toolbar */}
       <div className="rounded-xl border bg-surface-elevated overflow-hidden">
         <div className="flex items-center gap-4 px-5 py-4 border-b flex-wrap">
-          <div className="relative flex-1 min-w-52 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-            <input
-              id="case-search"
-              name="caseSearch"
-              type="search"
-              placeholder="Search by case reference or subtype…"
-              autoComplete="off"
-              spellCheck={false}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald transition-[border-color,box-shadow]"
-              style={{ borderColor: 'var(--border)' }}
+          {/* Search */}
+          <Input
+            id="case-search"
+            allowClear
+            prefix={<SearchOutlined className="text-text-tertiary" />}
+            placeholder="Search by case reference or subtype"
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="flex-1 min-w-52 max-w-sm"
+          />
+
+          {/* Status Filter */}
+          <Select
+            value={status}
+            onChange={(val) => handleStatusChange(val)}
+            className="w-40"
+            options={[
+              { value: 'all', label: 'All statuses' },
+              ...CASE_STATUSES.map(s => ({ value: s, label: s.split('_').join(' ') }))
+            ]}
+          />
+
+          {/* Queue Filter */}
+          <Select
+            value={queueFilter}
+            onChange={(val) => handleQueueChange(val)}
+            className="w-40"
+            options={[
+              { value: 'all', label: 'All queues' },
+              { value: 'standard', label: 'Standard (submitted)' },
+              { value: 'manual_review', label: 'Manual review (triage · need info)' },
+              { value: 'incident', label: 'Incident' },
+            ]}
+          />
+
+          {/* Pagination info & controls */}
+          <div className="flex items-center gap-3 ml-auto text-xs text-text-tertiary">
+            <span>Total: {filteredCases.length}</span>
+            <Pagination
+              size="small"
+              current={page}
+              pageSize={pageSize}
+              total={filteredCases.length}
+              showSizeChanger
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              showQuickJumper
+              onChange={handlePageChange}
             />
           </div>
-          <Select value={statusFilter} onValueChange={(val) => val !== null && setStatusFilter(val)}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {CASE_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>{status.replace(/_/g, ' ')}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={queueFilter} onValueChange={(val) => val !== null && setQueueFilter(val)}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="All queues" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All queues</SelectItem>
-              <SelectItem value="standard">Standard (submitted)</SelectItem>
-              <SelectItem value="manual_review">Manual review (triage · need info)</SelectItem>
-              <SelectItem value="incident">Incident</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
+        {/* Table */}
         {loading ? (
-          <div className="text-center py-16">
-            <RefreshCw className="h-10 w-10 mx-auto text-text-tertiary mb-3 animate-spin" />
-            <p className="text-sm text-text-secondary">Loading cases…</p>
+          <div className="p-6" aria-busy="true">
+            <Skeleton active title={false} paragraph={{ rows: 8 }} />
           </div>
         ) : error ? (
           <div className="text-center py-16">
-            <FolderOpen className="h-10 w-10 mx-auto text-text-tertiary mb-3" />
-            <p className="text-sm font-semibold text-text-primary mb-1">Case Management</p>
+            <FolderOpenOutlined className="text-4xl text-text-tertiary mb-3" />
+            <p className="text-sm font-semibold text-text-primary mb-1">Error</p>
             <p className="text-xs text-text-tertiary max-w-sm mx-auto leading-relaxed">{error}</p>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <FolderOpen className="h-10 w-10 mx-auto text-text-tertiary mb-3" />
-            <p className="text-sm font-semibold text-text-primary mb-1">No Cases Found</p>
-            <p className="text-xs text-text-tertiary max-w-sm mx-auto leading-relaxed">
-              {search ? 'No cases match your search criteria.' : 'No recall cases have been submitted yet.'}
-            </p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">Case Reference</TableHead>
-                <TableHead scope="col">Subtype</TableHead>
-                <TableHead scope="col">Incident</TableHead>
-                <TableHead scope="col">Status</TableHead>
-                <TableHead scope="col">Submitted</TableHead>
-                <TableHead scope="col">Owner</TableHead>
-                {can('case.assign') && <TableHead scope="col">Claim</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((c) => (
-                <TableRow key={c.caseReference}>
-                  <TableCell>
-                    <Link
-                      href={`/cases/${encodeURIComponent(c.caseReference)}`}
-                      className="text-sm font-semibold font-mono text-text-primary hover:text-brand-teal transition-colors"
-                    >
-                      {c.caseReference}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-text-secondary">{c.subtype.replace(/_/g, ' ')}</span>
-                  </TableCell>
-                  <TableCell>
-                    {c.incidentFlag ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-                        Incident
-                      </span>
-                    ) : (
-                      <span className="text-xs text-text-tertiary">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge variant={c.status as never} />
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-text-tertiary">
-                      {formatAdminDate(c.submittedAt)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {isMine(c) ? (
-                      <span className="text-xs font-semibold text-emerald-700">Me</span>
-                    ) : c.assignedToStaffUserId ? (
-                      <span className="text-xs text-text-tertiary">Assigned</span>
-                    ) : (
-                      <span className="text-xs text-text-tertiary">Unassigned</span>
-                    )}
-                  </TableCell>
-                  {can('case.assign') && (
-                    <TableCell>
-                      {TERMINAL.includes(c.status) ? (
-                        <span className="text-xs text-text-tertiary">—</span>
-                      ) : isMine(c) ? (
-                        <span className="text-xs text-text-tertiary">—</span>
-                      ) : (
-                        <button
-                          onClick={() => handleClaim(c.caseReference)}
-                          disabled={claiming === c.caseReference}
-                          className="inline-flex items-center gap-1 rounded-md border border-brand-emerald/40 px-2 py-1 text-xs font-semibold text-brand-emerald cursor-pointer hover:bg-emerald-50 transition-colors disabled:opacity-50"
-                        >
-                          <Hand className="h-3 w-3" />
-                          {claiming === c.caseReference ? 'Claiming…' : 'Claim to me'}
-                        </button>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <Table<CaseSummary>
+            rowKey="caseReference"
+            columns={columns}
+            dataSource={paginatedCases}
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    searchTerm || queueFilter !== 'all'
+                      ? 'No cases match your current filters.'
+                      : 'No recall cases have been submitted yet.'
+                  }
+                />
+              ),
+            }}
+            rowClassName={() => 'table-row-hover'}
+          />
         )}
       </div>
     </div>

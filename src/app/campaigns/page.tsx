@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Input, Select, Skeleton } from 'antd';
 import Link from 'next/link';
 import { Megaphone, Search, X, RefreshCw, Shield } from 'lucide-react';
 import { listCampaigns, type AdminCampaignSummary } from '@/lib/api-client';
@@ -76,59 +77,55 @@ export default function CampaignsPage() {
           <span className="text-xs text-text-tertiary rounded-lg border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
             Read-only until the next recall
           </span>
-          <button onClick={fetchCampaigns} disabled={loading} className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors">
-            <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} /> Refresh
-          </button>
+          <Button
+            icon={<RefreshCw className="h-4 w-4" />}
+            loading={loading}
+            onClick={fetchCampaigns}
+            className="border text-text-secondary hover:text-text-primary"
+          >
+            Refresh
+          </Button>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-          <input
+          <Input
             id="campaign-search"
             name="campaignSearch"
-            type="search"
+            allowClear
+            prefix={<Search className="h-4 w-4 text-text-tertiary" />}
             placeholder="Search by title, code, or slug…"
             value={search}
             autoComplete="off"
             spellCheck={false}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-8 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald transition-[border-color,box-shadow]"
-            style={{ borderColor: 'var(--border)' }}
           />
-          {search && (
-            <button type="button" onClick={() => setSearch('')} aria-label="Clear campaign search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
 
-        <select
+        <Select
           id="campaign-status-filter"
-          name="campaignStatus"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(val) => setStatusFilter(val)}
           aria-label="Filter campaigns by status"
-          className="h-9 px-3 rounded-lg border bg-surface-elevated text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer hover:border-brand-emerald/30 transition-colors"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <option value="all">All Status</option>
-          {CAMPAIGN_STATUSES.map((status) => (
-            <option key={status} value={status}>{status}</option>
-          ))}
-        </select>
+          className="min-w-40"
+          options={[
+            { value: 'all', label: 'All Status' },
+            ...CAMPAIGN_STATUSES.map(status => ({ value: status, label: status })),
+          ]}
+        />
 
         {hasFilters && (
-          <button
+          <Button
+            type="text"
+            size="small"
+            icon={<X className="h-3.5 w-3.5" />}
             onClick={() => { setSearch(''); setStatusFilter('all'); }}
-            type="button"
-            className="text-xs font-medium text-text-tertiary hover:text-text-primary transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+            className="text-text-tertiary hover:text-text-primary"
           >
-            <X className="inline h-3.5 w-3.5 mr-1" />
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
@@ -139,13 +136,10 @@ export default function CampaignsPage() {
             <Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" />
             <p className="text-sm font-semibold text-text-primary mb-1">Sign in required</p>
             <p className="text-xs text-text-tertiary mb-4">Sign in to view recall campaigns.</p>
-            <button onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer">Sign In</button>
+            <Button type="primary" onClick={openLogin}>Sign In</Button>
           </div>
         ) : loading ? (
-          <div className="text-center py-14">
-            <RefreshCw className="h-8 w-8 mx-auto text-text-tertiary mb-3 animate-spin" />
-            <p className="text-sm text-text-secondary">Loading campaigns…</p>
-          </div>
+          <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 6 }} /></div>
         ) : error ? (
           <div className="text-center py-14">
             <Megaphone className="h-8 w-8 mx-auto text-text-tertiary mb-3" />

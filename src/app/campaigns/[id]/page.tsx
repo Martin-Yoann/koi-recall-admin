@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Button, Skeleton } from 'antd';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -115,7 +116,7 @@ export default function CampaignDetailPage() {
   if (loading) {
     return (
       <div className="container-content py-8">
-        <div className="animate-pulse text-text-tertiary text-sm">Loading campaign…</div>
+        <Skeleton active title paragraph={{ rows: 8 }} />
       </div>
     );
   }
@@ -136,9 +137,7 @@ export default function CampaignDetailPage() {
       <div className="container-content py-16 text-center">
         <p className="text-sm font-semibold text-text-primary mb-1">Could not load campaign</p>
         <p className="text-xs text-text-tertiary mb-4">{error}</p>
-        <button onClick={handleRetry} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer inline-flex items-center gap-2">
-          <RefreshCw className="h-3.5 w-3.5" /> Retry
-        </button>
+        <Button type="primary" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={handleRetry}>Retry</Button>
       </div>
     );
   }
@@ -325,9 +324,9 @@ export default function CampaignDetailPage() {
               </p>
               <Link
                 href="/cases"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800"
+                className="inline-flex"
               >
-                Browse all cases
+                <Button type="primary">Browse all cases</Button>
               </Link>
             </CardContent>
           </Card>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Input, Select, Skeleton } from 'antd';
 import { Shield, ShieldAlert, RefreshCw, CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
 import { closeReportabilityReview, listIncidents, type IncidentSummary } from '@/lib/api-client';
@@ -105,10 +106,14 @@ export default function IncidentsPage() {
           <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Incidents & Safety</h1>
           <p className="text-sm text-text-secondary mt-0.5">{incidents.length} incidents · {pending.length} pending reportability review</p>
         </div>
-        <button onClick={fetchIncidents} disabled={loading} className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm text-text-secondary hover:text-text-primary cursor-pointer transition-colors">
-          <RefreshCw className={loading ? 'animate-spin h-4 w-4' : 'h-4 w-4'} />
+        <Button
+          icon={<RefreshCw className="h-4 w-4" />}
+          loading={loading}
+          onClick={fetchIncidents}
+          className="border text-text-secondary hover:text-text-primary"
+        >
           Refresh
-        </button>
+        </Button>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -126,9 +131,9 @@ export default function IncidentsPage() {
           {error ? <span role="alert" aria-live="polite" className="text-xs text-red-600">{error}</span> : null}
         </div>
         {!isAuthenticated && !authLoading ? (
-          <div className="text-center py-14"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">Sign In Required</p><p className="text-xs text-text-tertiary mb-4">Sign in to review incident reportability.</p><button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark">Sign In</button></div>
+          <div className="text-center py-14"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">Sign In Required</p><p className="text-xs text-text-tertiary mb-4">Sign in to review incident reportability.</p><Button type="primary" onClick={openLogin}>Sign In</Button></div>
         ) : loading ? (
-          <div className="text-center py-14" aria-busy="true"><RefreshCw className="h-8 w-8 mx-auto text-text-tertiary mb-3 animate-spin" aria-hidden="true" /><p className="text-sm text-text-secondary">Loading incidents…</p></div>
+          <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 6 }} /></div>
         ) : error ? (
           <div className="text-center py-14" role="alert" aria-live="polite"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" aria-hidden="true" /><p className="text-sm font-semibold text-text-primary mb-1">Could Not Load Incidents</p><p className="text-xs text-text-tertiary max-w-sm mx-auto">{error}</p></div>
         ) : incidents.length > 0 ? (
@@ -139,7 +144,7 @@ export default function IncidentsPage() {
               <td className="px-4 py-3 text-xs text-text-secondary">{incident.injurySeverity ? <span className="capitalize">{incident.injurySeverity}</span> : <span className="text-text-tertiary">—</span>}{incident.medicalTreatment ? <span className="block text-[10px] text-text-tertiary mt-0.5">treatment: {incident.medicalTreatment}</span> : null}</td>
               <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{incident.eventTypes.map((type) => <span key={type} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">{type}</span>)}</div></td>
               <td className="px-4 py-3"><span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', REPORTABILITY_STYLES[incident.reportability?.status ?? ''] ?? 'bg-slate-50 text-slate-700')}>{reportabilityLabel(incident)}</span></td>
-              <td className="px-4 py-3">{incident.reportability?.status === 'pending' && can('review.close') ? <button onClick={() => openReview(incident)} className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" />Review</button> : incident.reportability?.status === 'pending' ? <span className="text-xs text-text-tertiary">Compliance role required</span> : <span className="text-xs text-text-tertiary">Completed</span>}</td>
+              <td className="px-4 py-3">{incident.reportability?.status === 'pending' && can('review.close') ? <Button type="primary" size="small" icon={<CheckCircle2 className="h-3.5 w-3.5" />} onClick={() => openReview(incident)}>Review</Button> : incident.reportability?.status === 'pending' ? <span className="text-xs text-text-tertiary">Compliance role required</span> : <span className="text-xs text-text-tertiary">Completed</span>}</td>
             </tr>
           ))}</tbody></table></div>
         ) : <div className="text-center py-14"><Shield className="h-8 w-8 mx-auto text-text-tertiary mb-3" /><p className="text-sm font-semibold text-text-primary mb-1">No incidents recorded</p><p className="text-xs text-text-tertiary">{loading ? 'Loading incidents…' : 'Incidents will appear here when linked to cases.'}</p></div>}
@@ -168,22 +173,28 @@ export default function IncidentsPage() {
             <div className="px-6 py-5 space-y-4 overflow-y-auto min-h-0 flex-1" style={{ scrollbarGutter: 'stable' }}>
               <div className="space-y-1.5">
                 <label htmlFor="rep-outcome" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Outcome</label>
-                <select id="rep-outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} className="h-10 w-full rounded-lg border bg-surface-secondary px-3 text-sm text-text-primary outline-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }}>
-                  <option value="filed">Filed with CPSC</option>
-                  <option value="documented_non_reportable">Documented non-reportable</option>
-                </select>
+                <Select
+                  id="rep-outcome"
+                  value={outcome}
+                  onChange={(val) => setOutcome(val as typeof outcome)}
+                  className="w-full"
+                  options={[
+                    { value: 'filed', label: 'Filed with CPSC' },
+                    { value: 'documented_non_reportable', label: 'Documented non-reportable' },
+                  ]}
+                />
               </div>
 
               {outcome === 'filed' && (
                 <div className="space-y-1.5">
                   <label htmlFor="rep-cpsc" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">CPSC reference</label>
-                  <input id="rep-cpsc" value={cpscReference} onChange={(e) => setCpscReference(e.target.value)} className="h-10 w-full rounded-lg border bg-surface-secondary px-3 text-sm text-text-primary outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }} placeholder="CPSC-2026-001" maxLength={200} />
+                  <Input id="rep-cpsc" value={cpscReference} onChange={(e) => setCpscReference(e.target.value)} placeholder="CPSC-2026-001" maxLength={200} />
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <label htmlFor="rep-rationale" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Rationale</label>
-                <textarea id="rep-rationale" value={rationale} onChange={(e) => setRationale(e.target.value)} className="min-h-24 w-full rounded-lg border bg-surface-secondary p-3 text-sm text-text-primary outline-none resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30" style={{ borderColor: 'var(--border)' }} placeholder="Explain the decision (minimum 10 characters)." maxLength={2000} />
+                <Input.TextArea id="rep-rationale" value={rationale} onChange={(e) => setRationale(e.target.value)} placeholder="Explain the decision (minimum 10 characters)." maxLength={2000} autoSize={{ minRows: 4, maxRows: 8 }} />
                 <p className="text-[10px] text-text-tertiary">Minimum 10 characters · recorded in the audit trail</p>
               </div>
 
@@ -194,10 +205,17 @@ export default function IncidentsPage() {
 
             {/* Footer — always visible */}
             <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
-              <button type="button" onClick={() => setReviewing(null)} className="rounded-lg border px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-secondary cursor-pointer transition-colors">Cancel</button>
-              <button type="button" onClick={submitReview} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {submitting ? 'Submitting…' : 'Close Review'}
-              </button>
+              <Button onClick={() => setReviewing(null)} className="text-text-secondary hover:text-text-primary">Cancel</Button>
+              <Button
+                type="primary"
+                icon={submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                loading={submitting}
+                disabled={submitting}
+                onClick={submitReview}
+                className="!bg-emerald-600 !hover:bg-emerald-800"
+              >
+                {submitting ? 'Submitting…' : 'Close Review'}
+              </Button>
             </div>
           </div>
         </div>

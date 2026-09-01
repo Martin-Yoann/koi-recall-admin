@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import { AntdRegistry } from '@ant-design/nextjs-registry';
 import { AdminProviders } from '@/components/admin/admin-providers';
+import { AntdThemeProvider } from '@/components/admin/antd-theme-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -18,7 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to main content
         </a>
-        <AdminProviders>{children}</AdminProviders>
+        <AntdRegistry>
+          <AntdThemeProvider>
+            <AdminProviders>{children}</AdminProviders>
+          </AntdThemeProvider>
+        </AntdRegistry>
       </body>
     </html>
   );

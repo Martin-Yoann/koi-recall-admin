@@ -7,6 +7,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Skeleton } from 'antd';
 import {
   Clock, CheckCircle2, FileText, ArrowRight, Shield,
   Megaphone, Flame,
@@ -118,7 +119,7 @@ export default function DashboardPage() {
   const recent = [...cases].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)).slice(0, 6);
 
   if (authLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-text-tertiary" aria-busy="true">Loading operations overview…</div>;
+    return <div className="p-8 w-full" aria-busy="true"><Skeleton active title paragraph={{ rows: 6 }} /></div>;
   }
 
   if (!isAuthenticated) {
@@ -127,7 +128,7 @@ export default function DashboardPage() {
         <Shield className="mb-4 h-10 w-10 text-text-tertiary" aria-hidden="true" />
         <h1 className="text-xl font-bold text-text-primary">Sign In Required</h1>
         <p className="mt-2 text-sm leading-relaxed text-text-secondary">Sign in with a staff account to view live operations data, cases, and recall campaigns.</p>
-        <button type="button" onClick={openLogin} className="mt-5 rounded-lg bg-brand-emerald px-4 py-2 text-sm font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
+        <Button type="primary" onClick={openLogin} className="mt-5">Sign In</Button>
       </div>
     );
   }
@@ -135,7 +136,7 @@ export default function DashboardPage() {
   const initialLoading = refreshing && cases.length === 0 && campaigns.length === 0 && !error;
 
   if (initialLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-text-tertiary" aria-busy="true">Loading operations overview…</div>;
+    return <div className="p-8 w-full" aria-busy="true"><Skeleton active title paragraph={{ rows: 6 }} /></div>;
   }
 
   return (
@@ -150,11 +151,11 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <RefreshButton onRefresh={refresh} />
-          <Link href="/cases"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 btn-lift btn-press transition-colors cursor-pointer">
-            <FileText className="h-4 w-4" />
-            All Cases
-            <ArrowRight className="h-3.5 w-3.5" />
+          <Link href="/cases" className="inline-flex">
+            <Button type="primary" icon={<FileText className="h-4 w-4" />}>
+              All Cases
+              <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
           </Link>
         </div>
       </div>

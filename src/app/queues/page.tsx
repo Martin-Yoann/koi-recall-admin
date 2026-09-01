@@ -17,10 +17,11 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
+import { Button, Input } from 'antd';
 import Link from 'next/link';
 import {
   AlertTriangle, Search, XCircle, Copy, Package, Inbox, ArrowRight,
-  Flame, ListFilter, X, RefreshCw,
+  Flame, ListFilter, RefreshCw,
 } from 'lucide-react';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -181,7 +182,7 @@ export default function QueuesPage() {
         <Inbox className="h-10 w-10 mx-auto text-text-tertiary mb-3" />
         <p className="text-sm font-semibold text-text-primary mb-1">Sign in required</p>
         <p className="text-xs text-text-tertiary mb-4">Log in with a staff account to view live queues.</p>
-        <button type="button" onClick={openLogin} className="rounded-lg bg-brand-emerald px-4 py-2 text-xs font-semibold text-white hover:bg-brand-emerald-dark">Sign In</button>
+        <Button type="primary" onClick={openLogin}>Sign In</Button>
       </div>
     );
   }
@@ -205,14 +206,15 @@ export default function QueuesPage() {
               {urgentCount} urgent
             </span>
           )}
-          <button
+          <Button
+            size="small"
+            icon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
+            loading={loading}
             onClick={fetchCases}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer hover:bg-surface-secondary text-text-secondary"
+            className="text-text-secondary hover:text-text-primary"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -276,27 +278,18 @@ export default function QueuesPage() {
             </h2>
             <div className="flex items-center gap-3">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary pointer-events-none" />
-                <input
+                <Input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   id="queue-case-search"
-                   name="queueSearch"
-                   type="search"
-                   placeholder="Search case # or status…"
-                   autoComplete="off"
-                   spellCheck={false}
-                  className="h-8 w-56 rounded-lg border bg-surface-secondary/50 pl-8 pr-7 text-xs text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 focus:border-brand-emerald placeholder:text-text-tertiary"
+                  name="queueSearch"
+                  allowClear
+                  prefix={<Search className="h-3.5 w-3.5 text-text-tertiary" />}
+                  placeholder="Search case # or status…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-56"
                 />
-                {query && (
-                  <button
-                    onClick={() => setQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer"
-                    aria-label="Clear search"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
               <span className="text-xs text-text-tertiary hidden sm:inline">SLA: {sq.sla}</span>
             </div>

@@ -8,6 +8,8 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Button, Input, Select, Skeleton } from 'antd';
+import type { TextAreaRef } from 'antd/es/input/TextArea';
 import {
   ArrowLeft, User, AlertTriangle, RefreshCw, Users, Clock,
   CheckCircle2, ArrowRight, Shield, MapPin, Mail, Phone, Globe, Package,
@@ -219,7 +221,7 @@ function CaseDetailContent({
   const lightboxDialogRef = useRef<HTMLDivElement>(null);
   const needInfoCloseRef = useRef<HTMLButtonElement>(null);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
-  const needInfoNoteRef = useRef<HTMLTextAreaElement>(null);
+  const needInfoNoteRef = useRef<TextAreaRef>(null);
   const mountedRef = useRef(true);
   const initialLoadStartedRef = useRef(false);
   /** Kept in a ref so refresh() always reloads at the tier currently on screen. */
@@ -558,7 +560,7 @@ function CaseDetailContent({
   };
 
   if (loading || authLoading) {
-    return <div className="animate-pulse p-8 text-text-tertiary">Loading case from Neon...</div>;
+    return <div className="p-8" aria-busy="true"><Skeleton active title paragraph={{ rows: 12 }} /></div>;
   }
 
   const visibleAuthError = authError ?? (!isAuthenticated ? 'signin' : null);
@@ -1119,52 +1121,51 @@ function CaseDetailContent({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Close reportability review</p>
                 <div className="flex gap-2 flex-wrap">
                   <label htmlFor="case-reportability-outcome" className="sr-only">Reportability outcome</label>
-                  <select
+                  <Select
                     id="case-reportability-outcome"
-                    name="reportabilityOutcome"
                     value={repOutcome}
-                    onChange={e => setRepOutcome(e.target.value as 'filed' | 'documented_non_reportable')}
-                    className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer"
-                  >
-                    <option value="filed">Filed with CPSC</option>
-                    <option value="documented_non_reportable">Documented non-reportable</option>
-                  </select>
+                    onChange={(val) => setRepOutcome(val as 'filed' | 'documented_non_reportable')}
+                    className="flex-1 min-w-40"
+                    options={[
+                      { value: 'filed', label: 'Filed with CPSC' },
+                      { value: 'documented_non_reportable', label: 'Documented non-reportable' },
+                    ]}
+                  />
                   {repOutcome === 'filed' && (
                     <>
                     <label htmlFor="case-cpsc-reference" className="sr-only">CPSC reference</label>
-                    <input
+                    <Input
                       id="case-cpsc-reference"
-                      name="cpscReference"
                       value={repCpsc}
                       onChange={e => setRepCpsc(e.target.value)}
                       autoComplete="off"
                       spellCheck={false}
                       placeholder="CPSC reference (e.g. CPSC-2026-001)…"
-                      className="h-9 flex-1 min-w-40 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+                      className="flex-1 min-w-40"
                     />
                     </>
                   )}
                 </div>
                 <label htmlFor="case-reportability-rationale" className="sr-only">Reportability rationale</label>
-                <textarea
+                <Input.TextArea
                   id="case-reportability-rationale"
-                  name="reportabilityRationale"
                   value={repRationale}
                   onChange={e => setRepRationale(e.target.value)}
                   placeholder="Rationale for the decision (minimum 10 characters)…"
-                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
-                  style={{ borderColor: 'var(--border)' }}
+                  className="w-full"
                   maxLength={2000}
+                  autoSize={{ minRows: 3, maxRows: 6 }}
                 />
                 {repError && <p role="alert" aria-live="polite" className="text-xs text-red-600">{repError}</p>}
-                <button
+                <Button
+                  type="primary"
                   onClick={submitReportabilityClose}
                   disabled={repSubmitting}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800 disabled:opacity-50"
+                  loading={repSubmitting}
+                  icon={repSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                 >
-                  {repSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                   {repSubmitting ? 'Closing…' : 'Close review'}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -1264,30 +1265,27 @@ function CaseDetailContent({
             )}
             <div className="flex gap-2">
               <label htmlFor="case-assignee" className="sr-only">Assign case to staff member</label>
-              <select
+              <Select
                 id="case-assignee"
-                name="assignee"
                 value={assignTarget}
-                onChange={e => setAssignTarget(e.target.value)}
+                onChange={(val) => setAssignTarget(val)}
                 disabled={!can('case.assign')}
                 title={can('case.assign') ? undefined : 'Requires the case.assign permission (reviewer+)'}
-                className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer focus:border-brand-emerald disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">Select staff member…</option>
-                {staff.filter(s => s.status === 'active').map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.displayName} ({s.role})
-                  </option>
-                ))}
-              </select>
-              <button
+                className="flex-1"
+                placeholder="Select staff member…"
+                options={staff.filter(s => s.status === 'active').map(s => ({
+                  value: s.id,
+                  label: `${s.displayName} (${s.role})`,
+                }))}
+              />
+              <Button
+                type="primary"
                 onClick={handleAssign}
                 disabled={submitting || !assignTarget || !can('case.assign')}
                 title={can('case.assign') ? undefined : 'Requires the case.assign permission (reviewer+)'}
-                className="h-9 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-900 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Assign
-              </button>
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1341,14 +1339,13 @@ function CaseDetailContent({
                 {resolutionActions.length > 0 ? (
                   <>
                     <label htmlFor="resolution-note" className="sr-only">Resolution note</label>
-                    <textarea
+                    <Input.TextArea
                       id="resolution-note"
-                      name="resolutionNote"
                       value={resolutionNote}
                       onChange={e => setResolutionNote(e.target.value)}
                       placeholder="Resolution note (minimum 10 characters)…"
-                      className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
-                      style={{ borderColor: 'var(--border)' }}
+                      className="w-full"
+                      autoSize={{ minRows: 3, maxRows: 6 }}
                     />
                     {canApproveResolution ? (
                       <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -1357,34 +1354,32 @@ function CaseDetailContent({
                         </p>
                         <div className="flex gap-2">
                           <label htmlFor="resolution-type" className="sr-only">Resolution type</label>
-                          <select
+                          <Select
                             id="resolution-type"
-                            name="resolutionType"
                             value={resolutionType}
-                            onChange={e => setResolutionTypeOverride(e.target.value as 'replacement' | 'refund')}
-                            className="flex-1 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 cursor-pointer focus:border-brand-emerald"
-                          >
-                            <option value="replacement">Replacement</option>
-                            <option value="refund">Refund</option>
-                          </select>
+                            onChange={(val) => setResolutionTypeOverride(val as 'replacement' | 'refund')}
+                            className="flex-1"
+                            options={[
+                              { value: 'replacement', label: 'Replacement' },
+                              { value: 'refund', label: 'Refund' },
+                            ]}
+                          />
                           {resolutionType === 'refund' ? (
                             <>
                               <label htmlFor="refund-currency" className="sr-only">Refund currency</label>
-                              <input
+                              <Input
                                 id="refund-currency"
-                                name="refundCurrency"
                                 value={refundCurrency}
                                 onChange={e => setRefundCurrency(e.target.value.toUpperCase())}
                                 maxLength={3}
                                 autoComplete="off"
                                 spellCheck={false}
                                 placeholder="USD…"
-                                className="w-16 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+                                className="w-16"
                               />
                               <label htmlFor="refund-amount" className="sr-only">Refund amount in dollars</label>
-                              <input
+                              <Input
                                 id="refund-amount"
-                                name="refundAmount"
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -1393,7 +1388,7 @@ function CaseDetailContent({
                                 placeholder="Amount in USD…"
                                 inputMode="decimal"
                                 autoComplete="off"
-                                className="flex-1 min-w-20 h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+                                className="flex-1 min-w-20"
                               />
                             </>
                           ) : null}
@@ -1403,15 +1398,14 @@ function CaseDetailContent({
                     {canCompleteResolution ? (
                       <>
                       <label htmlFor="external-reference" className="sr-only">External reference for completion</label>
-                      <input
+                      <Input
                         id="external-reference"
-                        name="externalReference"
                         value={externalReference}
                         onChange={e => setExternalReference(e.target.value)}
                         autoComplete="off"
                         spellCheck={false}
                         placeholder="External reference for completion (optional)…"
-                        className="w-full h-9 rounded-lg border bg-surface-elevated px-2 text-xs text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+                        className="w-full"
                       />
                       </>
                     ) : null}
@@ -1478,14 +1472,13 @@ function CaseDetailContent({
                   </div>
                 ) : null}
                 <label htmlFor="transition-reason" className="sr-only">Reason for status transition</label>
-                <textarea
+                <Input.TextArea
                   id="transition-reason"
-                  name="transitionReason"
                   value={transitionReason}
                   onChange={e => setTransitionReason(e.target.value)}
                   placeholder="Reason for the transition (required for rejected / duplicate / withdrawn)…"
-                  className="w-full h-16 text-xs p-2 rounded-lg border bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30 resize-none"
-                  style={{ borderColor: 'var(--border)' }}
+                  className="w-full"
+                  autoSize={{ minRows: 3, maxRows: 6 }}
                 />
                 <div className="flex flex-wrap gap-2">
                   {transitions.map(next => (
@@ -1599,18 +1592,18 @@ function CaseDetailContent({
                     {needInfoNoteLength}/2000 characters
                   </span>
                 </div>
-                <textarea
+                <Input.TextArea
                   ref={needInfoNoteRef}
                   id="need-info-note"
-                  name="needInfoNote"
                   value={needInfoNote}
                   onChange={event => setNeedInfoNote(event.target.value)}
                   placeholder="Describe what the consumer should provide (minimum 10 characters)…"
                   aria-invalid={needInfoNoteLength > 0 && !needInfoNoteValid}
                   aria-describedby="need-info-note-help"
-                  className="min-h-32 w-full resize-y rounded-xl border bg-surface-secondary p-3.5 text-xs leading-relaxed text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                  className="min-h-32 w-full"
                   style={{ borderColor: needInfoNoteLength > 0 && !needInfoNoteValid ? '#fdba74' : 'var(--border)' }}
                   maxLength={2000}
+                  autoSize={{ minRows: 4, maxRows: 10 }}
                 />
                 <div id="need-info-note-help" className="flex items-start justify-between gap-3 text-[10px] leading-relaxed text-text-tertiary">
                   <span>{needInfoNoteValid ? 'Ready to send. Free-form edits are welcome.' : 'Add at least 10 characters before sending.'}</span>
