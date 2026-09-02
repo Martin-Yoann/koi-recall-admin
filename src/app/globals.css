@@ -69,7 +69,7 @@
   --brand-emerald-dark: #2C6BD9;
 
   /* Status */
-  --status-positive: #16A34A;
+  --status-positive: #2C6BD9;
   --status-warning: #F59E0B;
   --status-danger: #DC2626;
   --status-info: #3A86FF;
@@ -110,7 +110,7 @@
   --input-hover: #C0C4CC;
   --ring: #3A86FF;
   --chart-1: #3A86FF;
-  --chart-2: #16A34A;
+  --chart-2: #2C6BD9;
   --chart-3: #F59E0B;
   --chart-4: #64748B;
   --chart-5: #8FB4FF;
@@ -135,7 +135,7 @@
   --card-foreground: #faf8ff;
   --popover: #0f2a20;
   --popover-foreground: #faf8ff;
-  --primary: #006c49;
+  --primary: #3A86FF;
   --primary-foreground: #ffffff;
   --secondary: #0f2a20;
   --secondary-foreground: #faf8ff;
@@ -146,7 +146,7 @@
   --destructive: #ffdad6;
   --border: rgba(255,255,255,0.1);
   --input: rgba(255,255,255,0.12);
-  --ring: #006c49;
+  --ring: #2C6BD9;
   --surface-primary: #0a1e17;
   --surface-secondary: #0f2a20;
   --surface-elevated: #0f2a20;
@@ -509,6 +509,27 @@
 .select-interactive {
   @apply transition-all duration-200 border-slate-200 rounded-lg cursor-pointer hover:border-brand-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
 }
+@layer components {
+  /* Sidebar navigation states are explicit so global link styles cannot
+     change the requested Navy/Blue palette. */
+  a[data-nav-state='active'] {
+    color: #FFFFFF !important;
+    background-color: #2F7BE8 !important;
+  }
+  a[data-nav-state='subactive'] {
+    color: #FFFFFF !important;
+    background-color: #143450 !important;
+  }
+  a[data-nav-state='idle'] {
+    color: #94A3B8 !important;
+    background-color: transparent !important;
+  }
+  a[data-nav-state='idle']:hover {
+    color: #FFFFFF !important;
+    background-color: #143450 !important;
+  }
+}
+
 @layer base {
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']):not([aria-disabled='true']),

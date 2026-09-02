@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, FolderOpen, ListOrdered, AlertTriangle,
   Download, Shield, Menu, X, Pin, PinOff, LogOut, LogIn,
-  User, Key, Bell, CircleHelp, ArrowRight,
+  User, Key, Bell, CircleHelp, ArrowRight, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -20,12 +20,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const SIDENAV = [
-  { label: 'Operations Overview', href: '/',              icon: LayoutDashboard },
-  { label: 'Cases',               href: '/cases',         icon: FolderOpen },
-  { label: 'Queues',              href: '/queues',        icon: ListOrdered },
-  { label: 'Incidents & Safety',  href: '/incidents',     icon: AlertTriangle },
-  { label: 'Exports & Jobs',      href: '/exports',       icon: Download },
-  { label: 'Access & Audit',      href: '/access',        icon: Shield },
+  { label: 'Operations Overview', href: '/',          icon: LayoutDashboard },
+  { label: 'Cases',               href: '/cases',     icon: FolderOpen },
+  { label: 'Queues',              href: '/queues',    icon: ListOrdered },
+  { label: 'Incidents & Safety',  href: '/incidents', icon: AlertTriangle },
+  { label: 'Exports & Jobs',      href: '/exports',   icon: Download },
+  {
+    label: 'Access & Audit',
+    href: '/access',
+    icon: Shield,
+    children: [
+      { label: 'Permission Overview', href: '/access/permissions' },
+      { label: 'User Management', href: '/access/staff' },
+      { label: 'Operation Logs', href: '/access/audit' },
+    ],
+  },
 ];
 
 /** Review-process steps shown in the "?" help menu. */
@@ -222,10 +231,31 @@ const TRANSITION_CHILD = 'transition-[opacity,transform,background-color,color,p
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isAuthenticated, logout, openLogin, openProfile } = useAdminAuth();
-  const [locked, setLocked] = useState(false);
+  // Keep the sidebar expanded by default, matching the reference layout.
+  // Users can still unpin it from the footer to restore hover-collapse behavior.
+  const [locked, setLocked] = useState(true);
   const [hovering, setHovering] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const accessPathActive = pathname === '/access' || pathname.startsWith('/access/');
+  const [accessOpen, setAccessOpen] = useState(accessPathActive);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setMobileOpen(false);
+      setAccessOpen(accessPathActive);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [accessPathActive, pathname]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false);
+    };
+    media.addEventListener('change', closeOnDesktop);
+    return () => media.removeEventListener('change', closeOnDesktop);
+  }, []);
 
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -275,7 +305,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           expanded ? EXPANDED_W : COLLAPSED_W,
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
-        style={{ background: '#052745', borderColor: 'rgba(255,255,255,0.08)' }}
+        style={{
+          background: 'linear-gradient(180deg, #0D1B2A 0%, #102A43 52%, #0B1726 100%)',
+          borderColor: 'rgba(143,180,255,0.16)',
+          boxShadow: '8px 0 28px rgba(4, 12, 24, 0.16)',
+        }}
       >
         {/* ── Logo ── */}
         <Link
@@ -285,10 +319,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             TRANSITION_CHILD,
             expanded ? 'px-5 gap-3' : 'justify-center',
           )}
-          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          style={{ borderColor: 'rgba(143,180,255,0.14)' }}
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600">
-            <Shield className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white/95 shadow-[0_4px_16px_rgba(58,134,255,0.28)]">
+            <Image
+              src="/KOI.png"
+              alt="KOI"
+              width={36}
+              height={36}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           {expanded && (
             <div className="leading-tight min-w-0 animate-[fadeIn_160ms_ease-out]">
@@ -304,45 +345,93 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           className={cn(
           'flex-1 overflow-y-auto overflow-x-hidden',
           TRANSITION_CHILD,
-          expanded ? 'py-4 px-[10px]' : 'py-4 px-[6px]',
+          expanded ? 'py-5 px-3' : 'py-4 px-[6px]',
         )}>
           {SIDENAV.map((item) => {
             const Icon = item.icon;
             const active = item.href === '/'
               ? pathname === '/'
               : pathname === item.href || pathname.startsWith(item.href + '/');
+            const hasChildren = Boolean(item.children);
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  /* Core layout */
-                  'flex items-center rounded-lg cursor-pointer select-none',
-                  'my-[2px]', // subtle vertical rhythm between items
-                  TRANSITION_CHILD,
-                  /* expanded vs collapsed */
-                  expanded
-                    ? 'gap-3 px-[10px] py-[9px] justify-start'
-                    : 'gap-0 py-[9px] justify-center',
-                  /* active vs default. The active item uses a clear brand pill so it
-                     reads as "current page", never as a stuck hover state. */
-                  active
-                    ? 'text-white bg-brand-600 shadow-[0_2px_10px_rgba(58,134,255,0.35)]'
-                    : 'text-white/60 hover:text-white hover:bg-white/[0.06] hover:text-white active:scale-[0.97]',
+              <div key={item.href} className="my-[2px]">
+                <div className="flex items-center gap-1">
+                  {hasChildren ? (
+                    <button
+                      type="button"
+                      onClick={() => setAccessOpen((open) => !open)}
+                      aria-expanded={accessOpen}
+                      aria-controls="access-submenu"
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center rounded-lg cursor-pointer select-none text-left',
+                        TRANSITION_CHILD,
+                        expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
+                        active
+                          ? 'text-[#FFFFFF] bg-[#2F7BE8]'
+                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[#143450] active:scale-[0.985]',
+                      )}
+                      data-nav-state={active ? 'active' : 'idle'}
+                      style={active ? { color: '#FFFFFF', backgroundColor: '#2F7BE8' } : undefined}
+                      title={!expanded ? item.label : undefined}
+                    >
+                      <Icon className="w-[20px] h-[20px] shrink-0" />
+                      {expanded && <span className="flex-1 truncate text-[13px] font-medium">{item.label}</span>}
+                      {expanded && (
+                        <ChevronDown
+                          className={cn('ml-auto h-4 w-4 shrink-0 text-white transition-transform duration-200', accessOpen && 'rotate-180')}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </button>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={() => { setMobileOpen(false); setAccessOpen(false); }}
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center rounded-lg cursor-pointer select-none',
+                        TRANSITION_CHILD,
+                        expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
+                        active
+                          ? 'text-[#FFFFFF] bg-[#2F7BE8]'
+                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[#143450] active:scale-[0.985]',
+                      )}
+                      data-nav-state={active ? 'active' : 'idle'}
+                      style={active ? { color: '#FFFFFF', backgroundColor: '#2F7BE8' } : undefined}
+                      title={!expanded ? item.label : undefined}
+                    >
+                      <Icon className="w-[20px] h-[20px] shrink-0" />
+                      {expanded && <span className="flex-1 truncate text-[13px] font-medium">{item.label}</span>}
+                      {expanded && active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.85)] shrink-0" />}
+                    </Link>
+                  )}
+                </div>
+
+                {expanded && hasChildren && accessOpen && (
+                  <div id="access-submenu" className="ml-8 mt-1 space-y-1 border-l border-white/10 pl-2">
+                    {item.children?.map((child) => {
+                      const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            'flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors duration-200 cursor-pointer',
+                            childActive
+                              ? 'bg-[#143450] text-[#FFFFFF]'
+                              : 'text-[#94A3B8] hover:bg-[#143450] hover:text-[#FFFFFF]',
+                          )}
+                          data-nav-state={childActive ? 'subactive' : 'idle'}
+                          style={childActive ? { color: '#FFFFFF', backgroundColor: '#143450' } : undefined}
+                        >
+                          <span className="truncate">{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-                title={!expanded ? item.label : undefined}
-              >
-                <Icon className="w-[20px] h-[20px] shrink-0" />
-                {expanded && (
-                  <span className="flex-1 truncate text-[13px] font-medium">
-                    {item.label}
-                  </span>
-                )}
-                {expanded && active && (
-                  <span className="ml-auto h-[6px] w-[6px] rounded-full bg-white/50 shrink-0" />
-                )}
-              </Link>
+              </div>
             );
           })}
         </nav>
@@ -395,7 +484,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-200 cursor-pointer',
                   'hover:bg-white/10 active:scale-90',
-                  locked ? 'text-emerald-400 bg-white/8' : 'text-white/35',
+                  locked ? ' text-blue-400 bg-white/8' : 'text-white/35',
                 )}
                 title={locked
                   ? 'Unpin — sidebar will auto-collapse when you move the mouse away'
@@ -414,7 +503,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           ═════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 border-b bg-surface-elevated/95 backdrop-blur flex items-center justify-between px-4 lg:px-6 shrink-0">
+        <header className="sticky top-0 z-50 h-16 border-b bg-surface-elevated/95 backdrop-blur flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3">
             <button
               className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors"
@@ -496,7 +585,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             ) : (
               <button
                 onClick={openLogin}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#2F7BE8] hover:bg-[#2455B0] text-white text-xs font-medium transition-colors cursor-pointer"
               >
                 <LogIn className="h-3.5 w-3.5" />
                 Sign In

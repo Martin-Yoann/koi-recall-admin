@@ -600,6 +600,60 @@ async function fetchApi<T>(
   };
 }
 
+/**
+ * Same transport guarantees as fetchApi, but preserves text responses and
+ * response headers (used by CSV exports). Keeping this here prevents binary or
+ * text endpoints from bypassing auth refresh, timeout, and API fallback.
+ */
+async function fetchApiText(
+  path: string,
+  options: RequestInit = {},
+  allowSessionRetry = true,
+): Promise<ApiResult<{ text: string; headers: Headers }>> {
+  const rid = requestId();
+
+  for (const base of API_BASES) {
+    try {
+      const response = await fetch(`${base}${path}`, {
+        ...options,
+        signal: options.signal ?? AbortSignal.timeout(10_000),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': rid,
+          ...options.headers,
+        },
+      });
+
+      if (response.ok) {
+        return { ok: true, data: { text: await response.text(), headers: response.headers } };
+      }
+
+      const body = await response.json().catch(() => null);
+      const error = toProblemDetails(body, response.status, response.statusText);
+      if (response.status === 401 && path.startsWith('/admin/') && allowSessionRetry) {
+        const refreshed = await refreshAdminSession();
+        if (refreshed) return fetchApiText(path, options, false);
+        clearStoredSession();
+      }
+      return { ok: false, status: response.status, error: { ...error, requestId: error.requestId ?? rid } };
+    } catch {
+      // Try the next configured base for network failures.
+    }
+  }
+
+  return {
+    ok: false,
+    status: 0,
+    error: {
+      type: 'about:blank',
+      title: 'Network Error',
+      status: 0,
+      detail: 'Could not reach the API server.',
+      requestId: rid,
+    },
+  };
+}
+
 // ── Public API methods (shared with koi-recall-web) ──
 
 /** GET /v1/recall-campaigns/{slug} */
@@ -709,32 +763,28 @@ export async function listCases(params?: {
 
 /** GET /admin/cases/export — CSV export all cases */
 export async function exportCases(): Promise<ApiResult<Blob>> {
+  return fetchBlob('/admin/cases/export', { method: 'GET' });
+}
+
+async function fetchBlob(
+  path: string,
+  options: RequestInit = {},
+): Promise<ApiResult<Blob>> {
+  const rid = requestId();
   for (const base of API_BASES) {
-    const url = `${base}/admin/cases/export`;
     try {
-      const res = await fetch(url, {
-        headers: {
-          'X-Request-Id': requestId(),
-          ...authHeaders(),
-        },
+      const res = await fetch(`${base}${path}`, {
+        ...options,
+        headers: { 'X-Request-Id': rid, ...authHeaders(), ...options.headers },
       });
-      if (res.ok) {
-        return { ok: true, data: await res.blob() };
-      }
-      return {
-        ok: false,
-        error: { type: 'about:blank', title: 'Export failed', status: res.status, detail: res.statusText },
-        status: res.status,
-      };
+      if (res.ok) return { ok: true, data: await res.blob() };
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: toProblemDetails(body, res.status, res.statusText), status: res.status };
     } catch {
-      // Network error (e.g. local backend not running) — try the next base.
+      continue;
     }
   }
-  return {
-    ok: false,
-    error: { type: 'about:blank', title: 'Network Error', status: 0, detail: 'Could not reach the API server.' },
-    status: 0,
-  };
+  return { ok: false, error: { type: 'about:blank', title: 'Network Error', status: 0, detail: 'Failed to reach API' }, status: 0 };
 }
 
 /** GET /admin/cases/{caseRef} — Get case detail */
@@ -913,43 +963,25 @@ export async function createRefundExport(body: {
   purpose: string;
   includeExported?: boolean;
 }): Promise<ApiResult<RefundExportResponse>> {
-  const headers = new Headers(authHeaders());
-  headers.set('Content-Type', 'application/json');
+  const result = await fetchApiText('/admin/refund-exports', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    cache: 'no-store',
+    headers: authHeaders(),
+  });
+  if (!result.ok) return result;
 
-  try {
-    const response = await fetch(`${API_BASES[0]}/admin/refund-exports`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      // credentials: 'include', // 移除该行，防止跨域权限冲突
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const error = toProblemDetails(body, response.status, response.statusText);
-      return { ok: false, status: response.status, error };
-    }
-
-    const csv = await response.text();
-    const disposition = response.headers.get('Content-Disposition');
-    const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
-    return {
-      ok: true,
-      data: {
-        csv,
-        batchId: response.headers.get('X-Refund-Export-Batch-Id'),
-        sha256: response.headers.get('X-Refund-Export-Sha256'),
-        filename: filenameMatch?.[1] ?? null,
-      },
-    };
-  } catch {
-    return {
-      ok: false,
-      status: 0,
-      error: { type: 'about:blank', title: 'Network error', status: 0, detail: 'Failed to reach the API.' },
-    };
-  }
+  const disposition = result.data.headers.get('Content-Disposition');
+  const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
+  return {
+    ok: true,
+    data: {
+      csv: result.data.text,
+      batchId: result.data.headers.get('X-Refund-Export-Batch-Id'),
+      sha256: result.data.headers.get('X-Refund-Export-Sha256'),
+      filename: filenameMatch?.[1] ?? null,
+    },
+  };
 }
 
 /** POST /admin/reportability-reviews/{id}/close — Close reportability review */

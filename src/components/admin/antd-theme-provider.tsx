@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
+import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
 
 /**
  * antd theme mapped onto the KOI Navy/Blue palette (#0D1B2A + #3A86FF).
@@ -63,5 +63,9 @@ const themeConfig: ThemeConfig = {
 };
 
 export function AntdThemeProvider({ children }: { children: ReactNode }) {
-  return <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>;
+  return (
+    <ConfigProvider theme={themeConfig}>
+      <AntdApp className="flex h-full w-full min-w-0 flex-1 flex-row">{children}</AntdApp>
+    </ConfigProvider>
+  );
 }

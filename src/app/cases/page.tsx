@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Input, Select, Button, Table, Pagination, Skeleton, Empty, Modal, type TableColumnsType } from 'antd';
+import { App as AntdApp, Input, Select, Button, Table, Pagination, Skeleton, Empty, type TableColumnsType } from 'antd';
 import {
   SearchOutlined,
   ReloadOutlined,
@@ -42,6 +42,7 @@ interface Stats {
 
 export default function CasesPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
+  const { modal } = AntdApp.useApp();
   const { can } = usePermissions();
   const searchParams = useSearchParams();
 
@@ -121,7 +122,7 @@ export default function CasesPage() {
   const handleClaim = useCallback((caseRef: string) => {
     if (!user?.staffUserId) return;
 
-    Modal.confirm({
+    modal.confirm({
       title: 'Claim this case',
       icon: <ExclamationCircleOutlined />,
       content: (
@@ -147,7 +148,7 @@ export default function CasesPage() {
         if (mountedRef.current) setClaimingId(null);
       },
     });
-  }, [user, fetchCases]);
+  }, [fetchCases, modal, user]);
 
   // Is the current user the assignee of this case?
   const staffUserId = user?.staffUserId;
