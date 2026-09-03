@@ -295,7 +295,7 @@ function CaseDetailContent({
       setAuthError(null);
       setActionError(null);
       setActionConflict(false);
-      const auditResult = await queryAuditEvents({ limit: 100, resource: caseRef });
+      const auditResult = await queryAuditEvents({ limit: 100, resourceId: caseRef });
       if (!mountedRef.current) return;
       if (auditResult.ok) {
         setAudit(
