@@ -6,7 +6,8 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Input, Pagination, Select, Skeleton } from 'antd';
+import { App as AntdApp, Button, Drawer, Input, Pagination, Select, Skeleton } from 'antd';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { Users, Search, RefreshCw, ShieldAlert, UserPlus, KeyRound, Trash2, X, Mail, User, Lock, Check, Sparkles } from 'lucide-react';
 import {
   queryAuditEvents, listStaff, createStaff, updateStaff, deleteStaff, revokeUserSessions,
@@ -71,20 +72,37 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const { can } = usePermissions();
   const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditNextCursor, setAuditNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [outcomeFilter, setOutcomeFilter] = useState('all');
+  const [outcomeFilter, setOutcomeFilter] = useState<string>('all');
   const [auditPage, setAuditPage] = useState(1);
   const [auditPageSize, setAuditPageSize] = useState(20);
+  const [auditCursorStack, setAuditCursorStack] = useState<string[]>([]);
+  const [selectedAudit, setSelectedAudit] = useState<AuditEvent | null>(null);
+
+  const currentAuditCursor = auditCursorStack.length > 0
+    ? auditCursorStack[auditCursorStack.length - 1]
+    : null;
 
   const fetchAudit = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await queryAuditEvents({ limit: 200 });
+    const outcome = (['success', 'denied', 'error'] as const).includes(outcomeFilter as 'success' | 'denied' | 'error')
+      ? (outcomeFilter as 'success' | 'denied' | 'error')
+      : undefined;
+    const result = await queryAuditEvents({
+      limit: auditPageSize,
+      outcome,
+      cursor: currentAuditCursor ?? undefined,
+    });
     if (result.ok) {
       setAudit(result.data.events);
+      setAuditTotal(result.data.total ?? result.data.events.length);
+      setAuditNextCursor(result.data.nextCursor ?? null);
     } else if (result.status === 401) {
       setError('Please sign in with a staff account to view the audit log.');
     } else if (result.status === 403) {
@@ -95,7 +113,7 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
       setError(result.error?.detail || 'Failed to load audit log.');
     }
     setLoading(false);
-  }, []);
+  }, [auditPageSize, outcomeFilter, currentAuditCursor]);
 
   useEffect(() => {
     if (authLoading || !isAuthenticated || (section !== 'audit' && section !== 'all')) return;
@@ -105,23 +123,50 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
     return () => window.clearTimeout(timer);
   }, [authLoading, fetchAudit, isAuthenticated, section]);
 
+  // Client-side text search (action / resourceId / actorRole) — the backend
+  // does not support full-text search over audit events.
+  const filteredAudit = search.trim()
+    ? audit.filter(a => {
+        const q = search.toLowerCase();
+        return (
+          a.action.toLowerCase().includes(q) ||
+          (a.resourceId ?? '').toLowerCase().includes(q) ||
+          a.actorRole.toLowerCase().includes(q)
+        );
+      })
+    : audit;
+
+  // Resource-type filter remains client-side (quick toggle buttons).
+  const visibleAudit = activeFilters.length > 0
+    ? filteredAudit.filter(a => activeFilters.includes(a.resourceType))
+    : filteredAudit;
+
+  const handleAuditPageChange = (nextPage: number, nextPageSize: number) => {
+    if (nextPageSize !== auditPageSize) {
+      setAuditPageSize(nextPageSize);
+      setAuditPage(1);
+      setAuditCursorStack([]);
+      return;
+    }
+    if (nextPage > auditPage) {
+      if (!auditNextCursor) return;
+      setAuditCursorStack((stack) => [...stack, auditNextCursor!]);
+      setAuditPage(nextPage);
+    } else if (nextPage < auditPage) {
+      setAuditCursorStack((stack) => stack.slice(0, Math.max(0, nextPage - 1)));
+      setAuditPage(nextPage);
+    }
+  };
+
+  const handleOutcomeFilterChange = (val: string) => {
+    setOutcomeFilter(val);
+    setAuditPage(1);
+    setAuditCursorStack([]);
+  };
+
   const toggleFilter = (cat: string) => {
     setActiveFilters(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
   };
-
-  let filtered = audit;
-  if (activeFilters.length > 0) filtered = filtered.filter(a => activeFilters.includes(a.resourceType));
-  if (outcomeFilter !== 'all') filtered = filtered.filter(a => a.outcome === outcomeFilter);
-  if (search) {
-    const q = search.toLowerCase();
-    filtered = filtered.filter(a =>
-      a.action.toLowerCase().includes(q) ||
-      (a.resourceId ?? '').toLowerCase().includes(q) ||
-      a.actorRole.toLowerCase().includes(q),
-    );
-  }
-  // Newest first
-  filtered = [...filtered].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 
   return (
     <div className="space-y-5 max-w-screen-2xl mx-auto">
@@ -214,9 +259,9 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
       {section === 'audit' && (
         <div className="grid gap-3 sm:grid-cols-4">
           {[
-            { label: 'Total events', value: audit.length },
+            { label: 'Total events', value: auditTotal },
             { label: 'Successful', value: audit.filter((event) => event.outcome === 'success').length },
-            { label: 'Failed', value: audit.filter((event) => event.outcome !== 'success').length },
+            { label: 'Denied / error', value: audit.filter((event) => event.outcome !== 'success').length },
             { label: 'Staff actions', value: audit.filter((event) => event.resourceType === 'staff').length },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border bg-surface-elevated p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{stat.label}</p><p className="mt-2 text-2xl font-bold text-text-primary">{stat.value}</p></div>
@@ -227,7 +272,7 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
         <div className="px-5 py-4 border-b space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-sm font-bold text-text-primary">Audit Log</h2>
-            <span className="text-xs text-text-tertiary">{filtered.length} of {audit.length} events</span>
+            <span className="text-xs text-text-tertiary">{visibleAudit.length} of {auditTotal} events</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {FILTER_CATS.map(cat => (
@@ -264,13 +309,14 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
               <Select
                 size="small"
                 value={outcomeFilter}
-                onChange={(value) => { setOutcomeFilter(value); setAuditPage(1); }}
+                onChange={handleOutcomeFilterChange}
                 aria-label="Filter audit events by outcome"
-                style={{ width: 140 }}
+                style={{ width: 150 }}
                 options={[
                   { value: 'all', label: 'All outcomes' },
                   { value: 'success', label: 'Success' },
-                  { value: 'failure', label: 'Failure' },
+                  { value: 'denied', label: 'Denied' },
+                  { value: 'error', label: 'Error' },
                 ]}
               />
         </div>
@@ -282,11 +328,11 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
           </div>
         ) : loading ? (
           <div className="p-6" aria-busy="true"><Skeleton active title={false} paragraph={{ rows: 6 }} /></div>
-        ) : filtered.length > 0 ? (
+        ) : visibleAudit.length > 0 ? (
           <>
           <div className="divide-y max-h-[500px] overflow-y-auto">
-            {filtered.slice((auditPage - 1) * auditPageSize, auditPage * auditPageSize).map(a => (
-              <div key={a.id} className="flex items-start gap-3 px-5 py-3">
+            {visibleAudit.map(a => (
+              <div key={a.id} className="flex items-start gap-3 px-5 py-3 hover:bg-surface-secondary cursor-pointer transition-colors" onClick={() => setSelectedAudit(a)}>
                 <div className={cn('h-2 w-2 rounded-full mt-2 shrink-0', DOT_COLOR[a.resourceType] ?? 'bg-slate-400')} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-text-primary font-mono">{a.action}</p>
@@ -304,15 +350,40 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
               </div>
             ))}
           </div>
+          <Drawer
+            title="Audit Event Details"
+            placement="right"
+            open={!!selectedAudit}
+            onClose={() => setSelectedAudit(null)}
+            size={400}
+          >
+            {selectedAudit && (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-surface-secondary p-4 space-y-2 text-xs">
+                  <p><span className="text-text-tertiary">Event:</span> {selectedAudit.action}</p>
+                  <p><span className="text-text-tertiary">Resource:</span> {selectedAudit.resourceType} ({selectedAudit.resourceId || '—'})</p>
+                  <p><span className="text-text-tertiary">Outcome:</span> {selectedAudit.outcome}</p>
+                  <p><span className="text-text-tertiary">Time:</span> {formatAdminDateTime(selectedAudit.occurredAt)}</p>
+                </div>
+                {Object.keys(selectedAudit.metadata ?? {}).length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold mb-2">Metadata</h4>
+                    <pre className="p-3 bg-slate-100 rounded-md text-[10px] overflow-x-auto">{JSON.stringify(selectedAudit.metadata, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </Drawer>
           <div className="flex justify-end border-t px-5 py-3">
             <Pagination
               size="small"
               current={auditPage}
               pageSize={auditPageSize}
-              total={filtered.length}
+              total={auditTotal}
               showSizeChanger
               pageSizeOptions={['10', '20', '50', '100']}
-              onChange={(page, pageSize) => { setAuditPage(pageSize !== auditPageSize ? 1 : page); setAuditPageSize(pageSize); }}
+              showQuickJumper={false}
+              onChange={handleAuditPageChange}
               showTotal={(total) => `Total: ${total}`}
             />
           </div>
@@ -350,6 +421,7 @@ function roleHasDisplayPermission(role: StaffRole, permission: string): boolean 
 
 function StaffManagement({ canManage }: { canManage: boolean }) {
   const { user } = useAdminAuth();
+  const { modal } = AntdApp.useApp();
   const toast = useToast();
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -361,14 +433,50 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
   const [form, setForm] = useState({ email: '', displayName: '', password: '', role: 'MANAGER' as StaffRole });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  /** Per-row mutation guard — one in-flight action per user at a time. */
+  const [pendingAction, setPendingAction] = useState<{ userId: string; action: 'role' | 'status' | 'signout' | 'delete' } | null>(null);
 
-  const removeStaff = async (target: StaffUser) => {
-    if (target.id === user?.staffUserId) return;
-    if (!window.confirm(`Delete ${target.displayName}'s account? This cannot be undone.`)) return;
+  const isRowBusy = (userId: string, action: 'role' | 'status' | 'signout' | 'delete') =>
+    pendingAction?.userId === userId && pendingAction.action === action;
+
+  const runRowAction = async (
+    target: StaffUser,
+    action: 'role' | 'status' | 'signout' | 'delete',
+    fn: () => Promise<boolean>,
+  ) => {
+    if (pendingAction) return; // one mutation at a time
+    setPendingAction({ userId: target.id, action });
     setError(null);
-    const result = await deleteStaff(target.id);
-    if (!result.ok) toast.error(result.error?.detail || 'Failed to delete the staff user.');
-    else { toast.success(`${target.displayName} deleted`); await fetchStaff(); }
+    try {
+      const ok = await fn();
+      if (ok) await fetchStaff();
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const removeStaff = (target: StaffUser) => {
+    if (target.id === user?.staffUserId) return;
+    modal.confirm({
+      title: 'Delete staff account',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <span>
+          Delete <span className="font-semibold">{target.displayName}</span> ({target.email})? This is
+          irreversible — audit history stays, but the account can no longer sign in.
+        </span>
+      ),
+      okText: 'Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      centered: true,
+      onOk: () => runRowAction(target, 'delete', async () => {
+        const result = await deleteStaff(target.id);
+        if (!result.ok) toast.error(result.error?.detail || 'Failed to delete the staff user.');
+        else toast.success(`${target.displayName} deleted`);
+        return result.ok;
+      }),
+    });
   };
 
   const fetchStaff = useCallback(async () => {
@@ -418,25 +526,68 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
   };
 
   const changeRole = async (target: StaffUser, role: string) => {
-    setError(null);
-    const result = await updateStaff(target.id, { role });
-    if (!result.ok) toast.error(result.error?.detail || 'Failed to change the role.');
-    else { toast.success(`${target.displayName} → ${ROLE_LABELS[role as StaffRole] ?? role}`); await fetchStaff(); }
+    if (target.role === role) return;
+    await runRowAction(target, 'role', async () => {
+      const result = await updateStaff(target.id, { role });
+      if (!result.ok) toast.error(result.error?.detail || 'Failed to change the role.');
+      else toast.success(`${target.displayName} → ${ROLE_LABELS[role as StaffRole] ?? role}`);
+      return result.ok;
+    });
   };
 
-  const toggleStatus = async (target: StaffUser) => {
-    setError(null);
+  const toggleStatus = (target: StaffUser) => {
     const nextStatus = target.status === 'active' ? 'disabled' : 'active';
-    const result = await updateStaff(target.id, { status: nextStatus });
-    if (!result.ok) toast.error(result.error?.detail || 'Failed to update the status.');
-    else { toast.success(`${target.displayName} ${nextStatus === 'active' ? 'enabled' : 'disabled'}`); await fetchStaff(); }
+    if (nextStatus === 'disabled') {
+      modal.confirm({
+        title: 'Disable staff account',
+        icon: <ExclamationCircleOutlined />,
+        content: (
+          <span>
+            Disable <span className="font-semibold">{target.displayName}</span>? They will be signed out and
+            can no longer access the back-office until re-enabled.
+          </span>
+        ),
+        okText: 'Disable',
+        okButtonProps: { danger: true },
+        cancelText: 'Cancel',
+        centered: true,
+        onOk: () => runRowAction(target, 'status', async () => {
+          const result = await updateStaff(target.id, { status: 'disabled' });
+          if (!result.ok) toast.error(result.error?.detail || 'Failed to update the status.');
+          else toast.success(`${target.displayName} disabled`);
+          return result.ok;
+        }),
+      });
+      return;
+    }
+    void runRowAction(target, 'status', async () => {
+      const result = await updateStaff(target.id, { status: 'active' });
+      if (!result.ok) toast.error(result.error?.detail || 'Failed to update the status.');
+      else toast.success(`${target.displayName} enabled`);
+      return result.ok;
+    });
   };
 
-  const forceSignOut = async (target: StaffUser) => {
-    setError(null);
-    const result = await revokeUserSessions(target.id);
-    if (!result.ok) toast.error(result.error?.detail || 'Failed to revoke sessions.');
-    else toast.success(`${target.displayName}'s sessions revoked`);
+  const forceSignOut = (target: StaffUser) => {
+    modal.confirm({
+      title: 'Force sign out',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <span>
+          Revoke all active sessions for <span className="font-semibold">{target.displayName}</span>? They
+          will be signed out of every device.
+        </span>
+      ),
+      okText: 'Sign out',
+      cancelText: 'Cancel',
+      centered: true,
+      onOk: () => runRowAction(target, 'signout', async () => {
+        const result = await revokeUserSessions(target.id);
+        if (!result.ok) toast.error(result.error?.detail || 'Failed to revoke sessions.');
+        else toast.success(`${target.displayName}'s sessions revoked`);
+        return result.ok;
+      }),
+    });
   };
 
   const filteredStaff = staff.filter((member) => {
@@ -496,9 +647,10 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                     <Select
                       size="small"
                       value={s.role}
-                      onChange={val => changeRole(s, val)}
+                      onChange={val => void changeRole(s, val)}
                       aria-label={`Change role for ${s.displayName}`}
                       style={{ width: 120 }}
+                      disabled={isRowBusy(s.id, 'role')}
                       options={STAFF_ROLES.map(role => ({ value: role, label: ROLE_LABELS[role] }))}
                     />
                     ) : (
@@ -518,7 +670,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                       <Button
                         size="small"
                         onClick={() => toggleStatus(s)}
-                        disabled={s.id === user?.staffUserId}
+                        loading={isRowBusy(s.id, 'status')}
+                        disabled={s.id === user?.staffUserId || pendingAction !== null}
                         title={s.id === user?.staffUserId ? 'You cannot disable your own account' : undefined}
                       >
                         {s.status === 'active' ? 'Disable' : 'Enable'}
@@ -527,6 +680,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                         size="small"
                         icon={<KeyRound className="h-3 w-3" />}
                         onClick={() => forceSignOut(s)}
+                        loading={isRowBusy(s.id, 'signout')}
+                        disabled={pendingAction !== null}
                         title="Revoke all sessions for this user"
                       >
                         Sign out
@@ -536,7 +691,8 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                         danger
                         icon={<Trash2 className="h-3 w-3" />}
                         onClick={() => removeStaff(s)}
-                        disabled={s.id === user?.staffUserId}
+                        loading={isRowBusy(s.id, 'delete')}
+                        disabled={s.id === user?.staffUserId || pendingAction !== null}
                         title={s.id === user?.staffUserId ? 'You cannot delete your own account' : 'Delete this staff account'}
                       >
                         Delete

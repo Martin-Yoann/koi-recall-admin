@@ -38,6 +38,7 @@ interface CampaignCard {
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [casesTotal, setCasesTotal] = useState(0);
   const [campaigns, setCampaigns] = useState<CampaignCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function DashboardPage() {
     if (!mountedRef.current) return;
     if (casesResult.ok) {
       setCases(casesResult.data.cases);
+      setCasesTotal(casesResult.data.total ?? casesResult.data.cases.length);
     } else if (casesResult.status === 401) {
       setError('Please sign in with a staff account to view live operations data.');
       setCases([]);
@@ -167,7 +169,7 @@ export default function DashboardPage() {
       {/* Stat cards */}
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard label="Open Cases" value={openCases.length}
-          subtitle={`${cases.length} total`} icon={FileText} />
+          subtitle={`${casesTotal} total`} icon={FileText} />
         <StatCard label="Pending Review" value={pending.length}
           subtitle="submitted / triage / review" icon={Clock}
           trend={{ value: pending.length > 0 ? 12 : 0, direction: 'up', label: 'needs attention' }} />

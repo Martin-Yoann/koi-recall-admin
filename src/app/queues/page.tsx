@@ -1,19 +1,16 @@
 'use client';
 
 // ============================================================
-// KOI Recall Admin — Routing Queues v3.1 (live Neon data)
-// Queue cards + in-queue search, backed by GET /admin/cases
-//
-// Queue derivation (backend case list exposes status / subtype /
-// incidentFlag only, so queues are derived client-side). Aligned with the
-// backend QUEUE_STATUS map (drizzle-admin-service.ts):
-//   urgent_injury_safety  ← incidentFlag && case still active (= backend incident queue)
-//   standard              ← submitted (= backend standard queue)
-//   manual_review         ← triage / under_review (backend manual_review, with
-//                            need_info split into its own queue below)
-//   unable_to_confirm     ← need_info (awaiting consumer information)
+// KOI Recall Admin — Routing Queues
+// Queue cards backed by GET /admin/cases. Queue membership mirrors the
+// backend QUEUE_STATUS map (single source of truth):
+//   urgent_injury_safety  ← incidentFlag && non-terminal
+//   standard              ← submitted
+//   manual_review         ← triage / under_review
+//   unable_to_confirm     ← need_info (awaiting consumer info)
+//   decision              ← under_review / approved (a decision is due)
+//   closure               ← closure_review
 //   possible_duplicate    ← duplicate
-//   remedy_exception      ← approved / closure_review
 // ============================================================
 
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
@@ -34,8 +31,9 @@ type QueueKind =
   | 'standard'
   | 'manual_review'
   | 'unable_to_confirm'
-  | 'possible_duplicate'
-  | 'remedy_exception';
+  | 'decision'
+  | 'closure'
+  | 'possible_duplicate';
 
 type QIcons = Record<string, React.ComponentType<{ className?: string }>>;
 const ICONS: QIcons = { AlertTriangle, Search, XCircle, Copy, Package, Inbox };
@@ -51,10 +49,11 @@ interface QueueDef {
 const QUEUE_DEFS: QueueDef[] = [
   { kind: 'urgent_injury_safety', label: 'Urgent Injury / Safety', description: 'Cases with reported injuries or safety hazards', sla: '4h', icon: 'AlertTriangle' },
   { kind: 'standard', label: 'Standard Intake', description: 'New submissions awaiting first review', sla: '24h', icon: 'Inbox' },
-  { kind: 'manual_review', label: 'Manual Review', description: 'Cases in triage or active review', sla: '24h', icon: 'Search' },
+  { kind: 'manual_review', label: 'Manual Review', description: 'Cases in triage or under active review', sla: '24h', icon: 'Search' },
   { kind: 'unable_to_confirm', label: 'Need Info', description: 'Cases waiting on additional consumer information', sla: '48h', icon: 'XCircle' },
+  { kind: 'decision', label: 'Decision', description: 'Approval / rejection decision due on the case', sla: '24h', icon: 'Package' },
+  { kind: 'closure', label: 'Closure Review', description: 'Resolution done — verify and close the case', sla: '8h', icon: 'Copy' },
   { kind: 'possible_duplicate', label: 'Possible Duplicate', description: 'Potential duplicate submissions', sla: '24h', icon: 'Copy' },
-  { kind: 'remedy_exception', label: 'Remedy Exception', description: 'Approved cases pending remedy or closure review', sla: '8h', icon: 'Package' },
 ];
 
 const TERMINAL = ['closed', 'withdrawn', 'rejected', 'duplicate'];
@@ -69,10 +68,12 @@ function queueCases(kind: QueueKind, cases: CaseSummary[]): CaseSummary[] {
       return cases.filter(c => ['triage', 'under_review'].includes(c.status));
     case 'unable_to_confirm':
       return cases.filter(c => c.status === 'need_info');
+    case 'decision':
+      return cases.filter(c => ['under_review', 'approved'].includes(c.status));
+    case 'closure':
+      return cases.filter(c => c.status === 'closure_review');
     case 'possible_duplicate':
       return cases.filter(c => c.status === 'duplicate');
-    case 'remedy_exception':
-      return cases.filter(c => ['approved', 'closure_review'].includes(c.status));
     default:
       return [];
   }
@@ -84,13 +85,15 @@ const QUEUE_STYLES: Record<QueueKind, { accent: string; icon: string; badge: str
   standard: { accent: 'border-l-sky-500', icon: 'text-sky-600', badge: 'bg-sky-100 text-sky-700', selectedRing: 'ring-sky-400' },
   manual_review: { accent: 'border-l-amber-500', icon: 'text-amber-600', badge: 'bg-amber-100 text-amber-700', selectedRing: 'ring-amber-400' },
   unable_to_confirm: { accent: 'border-l-orange-500', icon: 'text-orange-600', badge: 'bg-orange-100 text-orange-700', selectedRing: 'ring-orange-400' },
+  decision: { accent: 'border-l-violet-500', icon: 'text-violet-600', badge: 'bg-violet-100 text-violet-700', selectedRing: 'ring-violet-400' },
+  closure: { accent: 'border-l-emerald-500', icon: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700', selectedRing: 'ring-emerald-400' },
   possible_duplicate: { accent: 'border-l-blue-500', icon: 'text-blue-600', badge: 'bg-blue-100 text-blue-700', selectedRing: 'ring-blue-400' },
-  remedy_exception: { accent: 'border-l-rose-500', icon: 'text-rose-600', badge: 'bg-rose-100 text-rose-700', selectedRing: 'ring-rose-400' },
 };
 
 export default function QueuesPage() {
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
   const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [serverTotal, setServerTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<QueueKind | null>(null);
@@ -112,10 +115,13 @@ export default function QueuesPage() {
     if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
-    const result = await listCases({ limit: 200 });
+    // Queue overviews span every status, so pull a generous batch and rely on
+    // the server `total` for the header count (never a client-side guess).
+    const result = await listCases({ limit: 1000 });
     if (!mountedRef.current) return;
     if (result.ok) {
       setCases(result.data.cases);
+      setServerTotal(result.data.total ?? result.data.cases.length);
     } else if (result.status === 401) {
       setError('Please sign in with a staff account to view queues.');
     } else if (result.status === 403) {
@@ -168,7 +174,7 @@ export default function QueuesPage() {
     );
   }, [selected, cases, query]);
 
-  const totalOpen = cases.filter(c => !['closed', 'rejected', 'withdrawn'].includes(c.status)).length;
+  const totalOpen = cases.filter(c => !TERMINAL.includes(c.status)).length;
   const urgentCount = queues.find(q => q.kind === 'urgent_injury_safety')?.count ?? 0;
 
   const selectQueue = (kind: QueueKind) => {
@@ -193,7 +199,7 @@ export default function QueuesPage() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Queues</h1>
-          <p className="text-sm text-text-secondary mt-0.5">6 routing queues · Live data from Neon · Click a queue to see its cases</p>
+          <p className="text-sm text-text-secondary mt-0.5">7 routing queues · {serverTotal} total cases</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border bg-surface-elevated px-3 py-1 text-xs font-medium text-text-secondary">

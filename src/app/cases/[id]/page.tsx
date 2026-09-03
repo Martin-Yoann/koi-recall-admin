@@ -197,6 +197,7 @@ function CaseDetailContent({
   const [authError, setAuthError] = useState<'signin' | 'forbidden' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionConflict, setActionConflict] = useState(false);
   const [transitionReason, setTransitionReason] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [assignTarget, setAssignTarget] = useState('');
@@ -293,6 +294,7 @@ function CaseDetailContent({
       setNotFound(false);
       setAuthError(null);
       setActionError(null);
+      setActionConflict(false);
       const auditResult = await queryAuditEvents({ limit: 100, resource: caseRef });
       if (!mountedRef.current) return;
       if (auditResult.ok) {
@@ -408,6 +410,25 @@ function CaseDetailContent({
     };
   }, [caseRef, record]);
 
+  /**
+   * Formats a mutation failure into a banner message. A 409 (or any response
+   * whose type ends with `conflict`) means another staff member changed the
+   * case while this screen was open — the stale snapshot must not be replayed,
+   * so we surface a dedicated conflict message and disable further actions
+   * until the operator refreshes.
+   */
+  const isConflictResult = (result: { status: number; error?: { type?: string } }) =>
+    result.status === 409 || result.error?.type === 'conflict' || result.error?.type?.endsWith('conflict') === true;
+
+  const applyActionError = (result: { ok: false; status: number; error?: { detail?: string; type?: string } }, fallback: string) => {
+    setActionConflict(isConflictResult(result));
+    setActionError(
+      isConflictResult(result)
+        ? 'This case was updated by another staff member. Refresh the case before trying again.'
+        : result.error?.detail || fallback,
+    );
+  };
+
   const handleTransition = async (next: string) => {
     if (!record) return;
 
@@ -440,7 +461,7 @@ function CaseDetailContent({
       setTransitionReason('');
       await refresh();
     } else {
-      setActionError(result.error?.detail || `Transition to ${next} failed (${result.status})`);
+      applyActionError(result, `Transition to ${next} failed (${result.status})`);
     }
     setSubmitting(false);
   };
@@ -461,7 +482,7 @@ function CaseDetailContent({
       setNeedInfoNote('');
       await refresh();
     } else {
-      setActionError(result.error?.detail || `Request for information failed (${result.status})`);
+      applyActionError(result, `Request for information failed (${result.status})`);
     }
     setSubmitting(false);
   };
@@ -503,7 +524,7 @@ function CaseDetailContent({
     if (result.ok) {
       await refresh();
     } else {
-      setActionError(result.error?.detail || `Assignment failed (${result.status})`);
+      applyActionError(result, `Assignment failed (${result.status})`);
     }
     setSubmitting(false);
   };
@@ -554,7 +575,7 @@ function CaseDetailContent({
       }
       await refresh();
     } else {
-      setActionError(result.error?.detail || `${formatWorkflowLabel(action)} failed (${result.status})`);
+      applyActionError(result, `${formatWorkflowLabel(action)} failed (${result.status})`);
     }
     setSubmitting(false);
   };
@@ -644,6 +665,30 @@ function CaseDetailContent({
         typeof data.note === 'string'
       ) {
         return { note: data.note, at: event.occurredAt };
+      }
+    }
+    return null;
+  })();
+
+  /**
+   * True when the consumer's requested information has come back: the latest
+   * transition moved the case OUT of need_info (previousStatus = need_info),
+   * and the case is no longer awaiting information. Lets the reviewer see the
+   * loop has turned and a re-review decision is expected again.
+   */
+  const infoReturned = (() => {
+    if (cse.status === 'need_info') return null;
+    const events = cse.events ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i]!;
+      const data = event.data as Record<string, unknown> | null;
+      if (
+        event.eventType === 'case.status.transitioned' &&
+        data?.previousStatus === 'need_info' &&
+        data?.nextStatus &&
+        data.nextStatus !== 'need_info'
+      ) {
+        return { nextStatus: data.nextStatus as string, at: event.occurredAt };
       }
     }
     return null;
@@ -790,10 +835,37 @@ function CaseDetailContent({
         </div>
       )}
 
+      {/* Consumer information has come back — the case is ready for re-review. */}
+      {infoReturned && !infoRequest && cse.status !== 'need_info' && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-800">Consumer Information Received</p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              The requested details were provided and this case moved back to{' '}
+              <span className="font-semibold capitalize">{infoReturned.nextStatus.replace(/_/g, ' ')}</span>{' '}
+              on {formatAdminDateTime(infoReturned.at)} — review the new information and continue the decision.
+            </p>
+          </div>
+        </div>
+      )}
+
       {actionError && (
-        <div role="alert" aria-live="polite" className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
-          <span>{actionError}</span>
+        <div role="alert" aria-live="polite" className={cn(
+          'flex items-start gap-2.5 rounded-xl border p-3.5 text-sm',
+          actionConflict ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-800',
+        )}>
+          <AlertTriangle className={cn('mt-0.5 h-4 w-4 shrink-0', actionConflict ? 'text-red-600' : 'text-amber-600')} aria-hidden="true" />
+          <span className="flex-1 min-w-0">{actionError}</span>
+          {actionConflict && (
+            <button
+              type="button"
+              onClick={retryLoad}
+              className="shrink-0 inline-flex items-center gap-1 rounded-md bg-[#2F7BE8] px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-[#2455B0] cursor-pointer"
+            >
+              <RefreshCw className="h-3 w-3" />Refresh case
+            </button>
+          )}
         </div>
       )}
 

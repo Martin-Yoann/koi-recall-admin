@@ -79,8 +79,10 @@ export interface CaseSummary {
 
 export interface CaseListResponse {
   cases: CaseSummary[];
+  /** Total rows matching the filters (server-computed, page-independent). */
   total?: number;
-  cursor?: string;
+  /** Cursor for the next server-side page; null/absent when exhausted. */
+  nextCursor?: string | null;
 }
 
 export interface CaseConsumer {
@@ -305,7 +307,8 @@ export interface AuditEvent {
   action: string;
   resourceType: string;
   resourceId?: string | null;
-  outcome: 'success' | 'failure' | 'forbidden' | 'denied';
+  /** Mirrors the backend audit outcome enum (`success | denied | error`). */
+  outcome: 'success' | 'denied' | 'error';
   reasonCode?: string | null;
   metadata?: Record<string, unknown>;
   occurredAt: string;
@@ -313,8 +316,10 @@ export interface AuditEvent {
 
 export interface AuditQueryResponse {
   events: AuditEvent[];
+  /** Total rows matching the filters (server-computed, page-independent). */
   total?: number;
-  cursor?: string;
+  /** Cursor for the next server-side page; null/absent when exhausted. */
+  nextCursor?: string | null;
 }
 
 export interface ReportabilityReview {
@@ -742,16 +747,18 @@ export async function updatePassword(body: {
 
 // -- Case Management --
 
-/** GET /admin/cases — List/sort cases */
+/** GET /admin/cases — List/sort cases (server-side cursor pagination) */
 export async function listCases(params?: {
   status?: string;
   queue?: string;
+  search?: string;
   limit?: number;
   cursor?: string;
 }): Promise<ApiResult<CaseListResponse>> {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
   if (params?.queue) searchParams.set('queue', params.queue);
+  if (params?.search) searchParams.set('search', params.search);
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.cursor) searchParams.set('cursor', params.cursor);
   const qs = searchParams.toString();
@@ -997,11 +1004,13 @@ export async function closeReportabilityReview(
 
 // -- Audit --
 
-/** GET /admin/audit-events — Query audit log */
+/** GET /admin/audit-events — Query audit log (server-side cursor pagination) */
 export async function queryAuditEvents(params?: {
   actor?: string;
   action?: string;
   resource?: string;
+  resourceId?: string;
+  outcome?: 'success' | 'denied' | 'error';
   from?: string;
   to?: string;
   limit?: number;
@@ -1009,10 +1018,12 @@ export async function queryAuditEvents(params?: {
 }): Promise<ApiResult<AuditQueryResponse>> {
   const searchParams = new URLSearchParams();
   // Keep these names aligned with the backend contract:
-  // actorUserId, resourceType, since, and until.
+  // actorUserId, resourceType, resourceId, outcome, since, and until.
   if (params?.actor) searchParams.set('actorUserId', params.actor);
   if (params?.action) searchParams.set('action', params.action);
   if (params?.resource) searchParams.set('resourceType', params.resource);
+  if (params?.resourceId) searchParams.set('resourceId', params.resourceId);
+  if (params?.outcome) searchParams.set('outcome', params.outcome);
   if (params?.from) searchParams.set('since', params.from);
   if (params?.to) searchParams.set('until', params.to);
   if (params?.limit) searchParams.set('limit', String(params.limit));

@@ -22,7 +22,16 @@ import {
 const SIDENAV = [
   { label: 'Operations Overview', href: '/',          icon: LayoutDashboard },
   { label: 'Cases',               href: '/cases',     icon: FolderOpen },
-  { label: 'Queues',              href: '/queues',    icon: ListOrdered },
+  {
+    label: 'Queues',
+    href: '/queues',
+    icon: ListOrdered,
+    children: [
+      { label: 'All Queues', href: '/queues' },
+      { label: 'Decision Queue', href: '/queues/decision' },
+      { label: 'Closure Queue', href: '/queues/closure' },
+    ],
+  },
   { label: 'Incidents & Safety',  href: '/incidents', icon: AlertTriangle },
   { label: 'Exports & Jobs',      href: '/exports',   icon: Download },
   {
@@ -238,15 +247,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const accessPathActive = pathname === '/access' || pathname.startsWith('/access/');
-  const [accessOpen, setAccessOpen] = useState(accessPathActive);
+  const queuesPathActive = pathname === '/queues' || pathname.startsWith('/queues/');
+  // The one nav group currently expanded (Queues or Access & Audit). Defaults
+  // to whichever group contains the active route; toggling a group while
+  // another is open collapses the previous one.
+  const [openGroup, setOpenGroup] = useState<string | null>(
+    queuesPathActive ? '/queues' : accessPathActive ? '/access' : null,
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setMobileOpen(false);
-      setAccessOpen(accessPathActive);
+      setOpenGroup(queuesPathActive ? '/queues' : accessPathActive ? '/access' : null);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [accessPathActive, pathname]);
+  }, [accessPathActive, queuesPathActive, pathname]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
@@ -353,6 +368,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               ? pathname === '/'
               : pathname === item.href || pathname.startsWith(item.href + '/');
             const hasChildren = Boolean(item.children);
+            const groupOpen = openGroup === item.href;
+            const groupId = `${item.href.slice(1).replaceAll('/', '-') || 'root'}-submenu`;
 
             return (
               <div key={item.href} className="my-[2px]">
@@ -360,9 +377,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   {hasChildren ? (
                     <button
                       type="button"
-                      onClick={() => setAccessOpen((open) => !open)}
-                      aria-expanded={accessOpen}
-                      aria-controls="access-submenu"
+                      onClick={() => setOpenGroup((current) => (current === item.href ? null : item.href))}
+                      aria-expanded={groupOpen}
+                      aria-controls={groupId}
                       className={cn(
                         'flex min-w-0 flex-1 items-center rounded-lg cursor-pointer select-none text-left',
                         TRANSITION_CHILD,
@@ -379,7 +396,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       {expanded && <span className="flex-1 truncate text-[13px] font-medium">{item.label}</span>}
                       {expanded && (
                         <ChevronDown
-                          className={cn('ml-auto h-4 w-4 shrink-0 text-white transition-transform duration-200', accessOpen && 'rotate-180')}
+                          className={cn('ml-auto h-4 w-4 shrink-0 text-white transition-transform duration-200', groupOpen && 'rotate-180')}
                           aria-hidden="true"
                         />
                       )}
@@ -387,7 +404,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   ) : (
                     <Link
                       href={item.href}
-                      onClick={() => { setMobileOpen(false); setAccessOpen(false); }}
+                      onClick={() => { setMobileOpen(false); setOpenGroup(null); }}
                       className={cn(
                         'flex min-w-0 flex-1 items-center rounded-lg cursor-pointer select-none',
                         TRANSITION_CHILD,
@@ -407,8 +424,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
 
-                {expanded && hasChildren && accessOpen && (
-                  <div id="access-submenu" className="ml-8 mt-1 space-y-1 border-l border-white/10 pl-2">
+                {expanded && hasChildren && groupOpen && (
+                  <div id={groupId} className="ml-8 mt-1 space-y-1 border-l border-white/10 pl-2">
                     {item.children?.map((child) => {
                       const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
                       return (

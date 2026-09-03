@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { App as AntdApp, Input, Select, Button, Table, Pagination, Skeleton, Empty, type TableColumnsType } from 'antd';
+import { App as AntdApp, Input, Select, Button, Table, Skeleton, Empty, type TableColumnsType } from 'antd';
 import {
   SearchOutlined,
   ReloadOutlined,
@@ -27,18 +27,11 @@ const CASE_STATUSES = [
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 
-/** Page-size options offered by the pagination control. */
+/** Page-size options offered by the client-side pagination control. */
 const PAGE_SIZE_OPTIONS = ['5', '10', '15', '20', '50', '100'];
 
-/** How many cases to pull in one shot; client-side pages slice this set. */
+/** How many cases to pull in one request; client-side pages slice this set. */
 const FETCH_LIMIT = 1000;
-
-interface Stats {
-  open: number;
-  pendingReview: number;
-  incidents: number;
-  closed: number;
-}
 
 export default function CasesPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
@@ -47,31 +40,29 @@ export default function CasesPage() {
   const searchParams = useSearchParams();
 
   const [cases, setCases] = useState<CaseSummary[]>([]);
-  const [total, setTotal] = useState(0);
+  const [serverTotal, setServerTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Server-side status filter
   const [status, setStatus] = useState(searchParams.get('status') || 'all');
 
-  // Client-side filtering state (UI only)
+  // Client-side filtering + pagination state
   const [searchTerm, setSearchTerm] = useState('');
-  const [queueFilter, setQueueFilter] = useState('all'); // 'all' | 'standard' | 'manual_review' | 'incident'
-
-  // Data-table pagination (client side)
+  const [queueFilter, setQueueFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const mountedRef = useRef(true);
 
-  // Initial `status` is read from the query param in the useState initializer, so
-  // the only mount effect needed is resetting the mounted flag (StrictMode safe).
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Fetch the case list
+  // Fetch a large set once; the Table slices it client-side. Total is always
+  // at least the returned rows so the pagination bar stays usable even when
+  // the backend does not provide a separate total.
   const fetchCases = useCallback(async () => {
     if (!mountedRef.current) return;
     setLoading(true);
@@ -80,29 +71,31 @@ export default function CasesPage() {
     const result = await listCases({
       limit: FETCH_LIMIT,
       status: status !== 'all' ? status : undefined,
+      search: searchTerm.trim() || undefined,
     });
 
     if (result.ok) {
       setCases(result.data.cases);
-      setTotal(result.data.total || result.data.cases.length);
+      setServerTotal(result.data.total ?? result.data.cases.length);
     } else {
       setError(result.error?.detail || 'Failed to load cases.');
     }
     setLoading(false);
-  }, [status]);
+  }, [status, searchTerm, queueFilter]);
 
-  // Initial load & reload on status change
+  // Initial load & reload whenever the query changes (status / search / queue)
   useEffect(() => {
     if (authLoading || !isAuthenticated) return;
     const timer = window.setTimeout(() => {
       void fetchCases();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [authLoading, fetchCases, isAuthenticated]);
+  }, [authLoading, fetchCases, isAuthenticated, status, searchTerm, queueFilter]);
 
   // Export CSV
+  const [exporting, setExporting] = useState(false);
   const handleExport = async () => {
-    setLoading(true);
+    setExporting(true);
     const result = await exportCases();
     if (result.ok) {
       const url = URL.createObjectURL(result.data);
@@ -114,7 +107,7 @@ export default function CasesPage() {
     } else {
       setError(result.error?.detail || 'Failed to export cases.');
     }
-    setLoading(false);
+    setExporting(false);
   };
 
   // Claim a case (confirm via the global antd modal)
@@ -157,26 +150,16 @@ export default function CasesPage() {
     [staffUserId]
   );
 
-  // Stats (over the fetched cases)
-  const stats: Stats = useMemo(() => ({
-    open: cases.filter(c => !TERMINAL.includes(c.status)).length,
-    pendingReview: cases.filter(c => ['submitted', 'triage', 'under_review', 'need_info'].includes(c.status)).length,
-    incidents: cases.filter(c => c.incidentFlag && !TERMINAL.includes(c.status)).length,
-    closed: cases.filter(c => c.status === 'closed').length,
-  }), [cases]);
-
-  // Client-side filter (search + queue; status is applied server-side)
-  const filteredCases = useMemo(() => {
+  // Client-side filtering (search + queue; status is applied server-side)
+  const filteredCases = (() => {
     let result = cases;
-
     if (searchTerm.trim()) {
-      const term = searchTerm.trim().toLowerCase();
+      const q = searchTerm.trim().toLowerCase();
       result = result.filter(c =>
-        c.caseReference.toLowerCase().includes(term) ||
-        c.subtype.toLowerCase().includes(term)
+        c.caseReference.toLowerCase().includes(q) ||
+        c.subtype.toLowerCase().includes(q)
       );
     }
-
     if (queueFilter !== 'all') {
       switch (queueFilter) {
         case 'standard':
@@ -192,18 +175,11 @@ export default function CasesPage() {
           break;
       }
     }
-
     return result;
-  }, [cases, searchTerm, queueFilter]);
+  })();
 
-  // Slice the filtered set for the current page
-  const paginatedCases = useMemo(
-    () => filteredCases.slice((page - 1) * pageSize, page * pageSize),
-    [filteredCases, page, pageSize],
-  );
-
-  const handlePageChange = (nextPage: number, nextPageSize: number) => {
-    // Switching the page size returns to the first page; flipping pages keeps the page.
+  // Table pagination state (client side)
+  const handleTableChange = (nextPage: number, nextPageSize: number) => {
     if (nextPageSize !== pageSize) {
       setPageSize(nextPageSize);
       setPage(1);
@@ -212,13 +188,14 @@ export default function CasesPage() {
     }
   };
 
-  const handleStatusChange = (val: string) => {
-    setStatus(val);
+  const handleSearchChange = (val: string) => {
+    setSearchTerm(val);
     setPage(1);
   };
 
-  const handleSearchChange = (val: string) => {
-    setSearchTerm(val);
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setQueueFilter('all');
     setPage(1);
   };
 
@@ -315,14 +292,14 @@ export default function CasesPage() {
         <div>
           <h1 className="text-[22px] font-bold tracking-[-0.02em] text-text-primary">Cases</h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            {total} case{total !== 1 ? 's' : ''} · Manage and review recall cases
+            {serverTotal} case{serverTotal !== 1 ? 's' : ''} · Manage and review recall cases
           </p>
         </div>
         <div className="flex items-center gap-2">
           {can('case.export') && (
             <Button
               icon={<DownloadOutlined />}
-              loading={loading}
+              loading={exporting}
               onClick={handleExport}
               className="border text-text-secondary hover:text-text-primary"
             >
@@ -338,21 +315,6 @@ export default function CasesPage() {
             Refresh
           </Button>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Open Cases', value: stats.open },
-          { label: 'Pending Review', value: stats.pendingReview },
-          { label: 'With Incidents', value: stats.incidents },
-          { label: 'Closed', value: stats.closed },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border bg-surface-elevated p-4 card-lift cursor-default">
-            <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">{stat.label}</p>
-            <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
-          </div>
-        ))}
       </div>
 
       {/* Toolbar */}
@@ -392,24 +354,9 @@ export default function CasesPage() {
               { value: 'incident', label: 'Incident' },
             ]}
           />
-
-          {/* Pagination info & controls */}
-          <div className="flex items-center gap-3 ml-auto text-xs text-text-tertiary">
-            <span>Total: {filteredCases.length}</span>
-            <Pagination
-              size="small"
-              current={page}
-              pageSize={pageSize}
-              total={filteredCases.length}
-              showSizeChanger
-              pageSizeOptions={PAGE_SIZE_OPTIONS}
-              showQuickJumper
-              onChange={handlePageChange}
-            />
-          </div>
         </div>
 
-        {/* Table */}
+        {/* Table (client-side pagination) */}
         {loading ? (
           <div className="p-6" aria-busy="true">
             <Skeleton active title={false} paragraph={{ rows: 8 }} />
@@ -424,9 +371,19 @@ export default function CasesPage() {
           <Table<CaseSummary>
             rowKey="caseReference"
             columns={columns}
-            dataSource={paginatedCases}
-            pagination={false}
+            dataSource={filteredCases}
+            loading={false}
             scroll={{ x: 'max-content' }}
+            pagination={{
+              current: page,
+              pageSize,
+              total: filteredCases.length,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
+              showQuickJumper: false,
+              showTotal: (total) => `Total: ${total}`,
+              onChange: handleTableChange,
+            }}
             locale={{
               emptyText: (
                 <Empty
