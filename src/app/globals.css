@@ -511,14 +511,15 @@
 }
 @layer components {
   /* Sidebar navigation states are explicit so global link styles cannot
-     change the requested Navy/Blue palette. */
+     change the requested palette. Colors follow the user-selected admin
+     theme via CSS variables (--brand-emerald / --menu-hover). */
   a[data-nav-state='active'] {
     color: #FFFFFF !important;
-    background-color: #2F7BE8 !important;
+    background-color: var(--brand-emerald) !important;
   }
   a[data-nav-state='subactive'] {
     color: #FFFFFF !important;
-    background-color: #143450 !important;
+    background-color: var(--menu-hover) !important;
   }
   a[data-nav-state='idle'] {
     color: #94A3B8 !important;
@@ -526,7 +527,15 @@
   }
   a[data-nav-state='idle']:hover {
     color: #FFFFFF !important;
-    background-color: #143450 !important;
+    background-color: var(--menu-hover) !important;
+  }
+
+  /* Toast theme accents — success/info follow the user-selected admin theme. */
+  .toast-accent-primary {
+    border-left-color: var(--brand-emerald) !important;
+  }
+  .toast-icon-primary {
+    color: #ffffff;
   }
 }
 

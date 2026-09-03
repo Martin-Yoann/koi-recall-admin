@@ -385,11 +385,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         TRANSITION_CHILD,
                         expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
                         active
-                          ? 'text-[#FFFFFF] bg-[#2F7BE8]'
-                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[#143450] active:scale-[0.985]',
+                          ? 'text-[#FFFFFF] bg-[var(--brand-emerald)]'
+                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
                       )}
                       data-nav-state={active ? 'active' : 'idle'}
-                      style={active ? { color: '#FFFFFF', backgroundColor: '#2F7BE8' } : undefined}
+                      style={active ? { color: '#FFFFFF', backgroundColor: 'var(--brand-emerald)' } : undefined}
                       title={!expanded ? item.label : undefined}
                     >
                       <Icon className="w-[20px] h-[20px] shrink-0" />
@@ -410,11 +410,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         TRANSITION_CHILD,
                         expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
                         active
-                          ? 'text-[#FFFFFF] bg-[#2F7BE8]'
-                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[#143450] active:scale-[0.985]',
+                          ? 'text-[#FFFFFF] bg-[var(--brand-emerald)]'
+                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
                       )}
                       data-nav-state={active ? 'active' : 'idle'}
-                      style={active ? { color: '#FFFFFF', backgroundColor: '#2F7BE8' } : undefined}
+                      style={active ? { color: '#FFFFFF', backgroundColor: 'var(--brand-emerald)' } : undefined}
                       title={!expanded ? item.label : undefined}
                     >
                       <Icon className="w-[20px] h-[20px] shrink-0" />
@@ -436,11 +436,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                           className={cn(
                             'flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors duration-200 cursor-pointer',
                             childActive
-                              ? 'bg-[#143450] text-[#FFFFFF]'
-                              : 'text-[#94A3B8] hover:bg-[#143450] hover:text-[#FFFFFF]',
+                              ? 'bg-[var(--menu-hover)] text-[#FFFFFF]'
+                              : 'text-[#94A3B8] hover:bg-[var(--menu-hover)] hover:text-[#FFFFFF]',
                           )}
                           data-nav-state={childActive ? 'subactive' : 'idle'}
-                          style={childActive ? { color: '#FFFFFF', backgroundColor: '#143450' } : undefined}
+                          style={childActive ? { color: '#FFFFFF', backgroundColor: 'var(--menu-hover)' } : undefined}
                         >
                           <span className="truncate">{child.label}</span>
                         </Link>
@@ -602,7 +602,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             ) : (
               <button
                 onClick={openLogin}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#2F7BE8] hover:bg-[#2455B0] text-white text-xs font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--brand-emerald)] hover:bg-[var(--menu-hover)] text-white text-xs font-medium transition-colors cursor-pointer"
               >
                 <LogIn className="h-3.5 w-3.5" />
                 Sign In

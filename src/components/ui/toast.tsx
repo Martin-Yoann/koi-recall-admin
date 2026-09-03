@@ -32,11 +32,44 @@ interface ToastApi {
 
 const ToastCtx = createContext<ToastApi | undefined>(undefined);
 
-const TYPE_META: Record<ToastType, { icon: typeof Info; accent: string; iconColor: string; defaultTitle: string }> = {
-  success: { icon: CheckCircle2, accent: 'border-l-emerald-600', iconColor: 'text-emerald-600', defaultTitle: 'Success' },
-  error: { icon: XCircle, accent: 'border-l-red-500', iconColor: 'text-red-600', defaultTitle: 'Error' },
-  info: { icon: Info, accent: 'border-l-primary', iconColor: 'text-primary', defaultTitle: 'Info' },
-  warning: { icon: AlertTriangle, accent: 'border-l-amber-500', iconColor: 'text-amber-600', defaultTitle: 'Warning' },
+/**
+ * success / info follow the admin theme primary (--brand-emerald mirrors the
+ * user-selected theme color), while error stays red and warning stays amber —
+ * semantic colors must remain recognizable regardless of theme.
+ */
+const TYPE_META: Record<ToastType, { icon: typeof Info; accent: string; iconBg: string; iconBgClass: string; iconColor: string; defaultTitle: string }> = {
+  success: {
+    icon: CheckCircle2,
+    accent: 'toast-accent-primary',
+    iconBgClass: 'toast-icon-primary',
+    iconBg: 'var(--brand-emerald)',
+    iconColor: 'text-white',
+    defaultTitle: 'Success',
+  },
+  error: {
+    icon: XCircle,
+    accent: 'border-l-red-500',
+    iconBgClass: 'bg-red-50',
+    iconBg: 'var(--status-danger)',
+    iconColor: 'text-red-600',
+    defaultTitle: 'Error',
+  },
+  info: {
+    icon: Info,
+    accent: 'toast-accent-primary',
+    iconBgClass: 'toast-icon-primary',
+    iconBg: 'var(--brand-emerald)',
+    iconColor: 'text-white',
+    defaultTitle: 'Info',
+  },
+  warning: {
+    icon: AlertTriangle,
+    accent: 'border-l-amber-500',
+    iconBgClass: 'bg-amber-50',
+    iconBg: 'var(--status-warning)',
+    iconColor: 'text-amber-600',
+    defaultTitle: 'Warning',
+  },
 };
 
 const AUTO_DISMISS_MS = 4200;
@@ -100,8 +133,16 @@ function Toaster({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: n
                 meta.accent,
               )}
             >
-              <Icon className={cn('h-5 w-5 shrink-0 mt-0.5', meta.iconColor)} />
-              <div className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-sm',
+                  meta.iconBgClass,
+                )}
+                style={{ background: meta.iconBg }}
+              >
+                <Icon className={cn('h-5 w-5', meta.iconColor)} />
+              </span>
+              <div className="min-w-0 flex-1 pt-0.5">
                 <p className="text-sm font-semibold text-text-primary">{toast.title ?? meta.defaultTitle}</p>
                 <p className="text-xs text-text-secondary mt-0.5 leading-relaxed break-words">{toast.message}</p>
               </div>

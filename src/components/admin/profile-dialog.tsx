@@ -3,20 +3,21 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Input } from 'antd';
-import { X, Eye, EyeOff, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
+import { Button, Input } from 'antd';
+import { X, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { useToast } from '@/components/ui/toast';
 
-const AVATAR_COLORS = [
-  { label: 'Teal', value: '#0D9488' },
-  { label: 'Indigo', value: '#6366F1' },
-  { label: 'Amber', value: '#D97706' },
-  { label: 'Rose', value: '#E11D48' },
-  { label: 'Emerald', value: '#059669' },
+/** Admin theme presets. Persisted and broadcast via `koi_admin_theme`. */
+const THEMES = [
+  { label: 'Navy Blue', value: '#3A86FF' },
+  { label: 'Midnight', value: '#052745' },
+  { label: 'Emerald', value: '#006C49' },
   { label: 'Violet', value: '#7C3AED' },
-  { label: 'Navy', value: '#1E3A5F' },
+  { label: 'Rose', value: '#E11D48' },
+  { label: 'Amber', value: '#D97706' },
+  { label: 'Cyan', value: '#0E7490' },
   { label: 'Slate', value: '#475569' },
 ];
 
@@ -30,7 +31,6 @@ interface Props {
 function validateName(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return 'Name is required';
-  // Count: CJK characters count as 2, ASCII letters count as 1
   let weight = 0;
   for (const ch of trimmed) {
     weight += /[一-鿿㐀-䶿豈-﫿]/.test(ch) ? 2 : 1;
@@ -40,6 +40,17 @@ function validateName(value: string): string | null {
 }
 
 const MAX_AVATAR_BYTES = 512 * 1024; // 512 KiB
+
+/** First letters of the display name — computed, never editable. */
+function computeInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) {
   const { user, updateProfile, changePassword } = useAdminAuth();
@@ -71,20 +82,34 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const [tab, setTab] = useState<'profile' | 'password'>(initialTab);
 
   const [name, setName] = useState(user.name || '');
-  const [initials, setInitials] = useState(user.initials || '');
-  const [avatarBg, setAvatarBg] = useState(user.avatarBg || '#0D9488');
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
+  // Default avatar background is the brand blue.
+  const [avatarBg, setAvatarBg] = useState<string | null>(user.avatarBg || '#3A86FF');
   const [profileError, setProfileError] = useState('');
+
+  const [currentTheme, setCurrentTheme] = useState(
+    typeof window !== 'undefined' ? localStorage.getItem('koi_admin_theme') || '#3A86FF' : '#3A86FF',
+  );
 
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /** Broadcast the chosen theme to the global ConfigProvider + persist it. */
+  const handleThemeChange = (newTheme: string) => {
+    setCurrentTheme(newTheme);
+    try {
+      localStorage.setItem('koi_admin_theme', newTheme);
+    } catch {
+      // Storage unavailable (private mode) — the in-memory choice still works.
+    }
+    window.dispatchEvent(new CustomEvent('koi_theme_changed', { detail: newTheme }));
+  };
 
   const handleSaveProfile = async () => {
     setProfileError('');
@@ -94,16 +119,9 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
       return;
     }
     const n = name.trim();
-    const init =
-      initials.trim().slice(0, 2).toUpperCase() ||
-      n
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
+    const init = computeInitials(n);
     setProfileSaving(true);
-    const result = await updateProfile({ name: n, initials: init, avatarBg, avatarDataUrl });
+    const result = await updateProfile({ name: n, initials: init, avatarBg: currentTheme, avatarDataUrl });
     setProfileSaving(false);
     if (result.ok) {
       toast.success('Profile updated');
@@ -135,8 +153,6 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
       setProfileError('Failed to read image file');
     };
     reader.readAsDataURL(file);
-
-    // Reset input so re-selecting the same file works
     e.target.value = '';
   };
 
@@ -169,22 +185,13 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
     }
   };
 
-  const inputClass =
-    'w-full h-10 px-3.5 rounded-lg text-sm outline-none border transition-[border-color,box-shadow,background-color] duration-200 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 placeholder:text-text-tertiary';
   const inputStyle = {
     background: '#F3F6F7',
     borderColor: 'rgba(0,53,39,0.08)',
     color: '#131b2e',
   };
 
-  const displayInitials =
-    initials ||
-    user.name
-      .split(/\s+/)
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
+  const displayInitials = computeInitials(name || user.name);
 
   return (
     <>
@@ -202,7 +209,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
           role="dialog"
           aria-modal="true"
           aria-labelledby="account-settings-title"
-          className="w-full max-w-[440px] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none"
+          className="w-full max-w-[440px] max-h-[calc(100vh-2rem)] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none"
           style={{ background: '#FFFFFF' }}
         >
           {/* Header */}
@@ -210,26 +217,21 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
             className="flex items-center justify-between px-6 py-4 border-b"
             style={{ borderColor: 'rgba(0,53,39,0.08)' }}
           >
-            <h3 id="account-settings-title" className="text-base font-bold" style={{ color: '#131b2e' }}>
+            <h3 id="account-settings-title" className="text-base font-bold text-[#131b2e]">
               Account Settings
             </h3>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close account settings"
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
             >
               <X className="h-4 w-4 text-text-tertiary" />
             </button>
           </div>
 
           {/* Tabs */}
-          <div
-            role="tablist"
-            aria-label="Account settings sections"
-            className="flex gap-1 px-4 py-3 border-b"
-            style={{ borderColor: 'rgba(0,53,39,0.08)' }}
-          >
+          <div role="tablist" aria-label="Account settings sections" className="flex gap-1 px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.08)' }}>
             {(
               [
                 { key: 'profile' as const, label: 'Edit Profile', icon: User },
@@ -244,12 +246,10 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 aria-selected={tab === t.key}
                 tabIndex={tab === t.key ? 0 : -1}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-[background-color,color,box-shadow] duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
-                  tab === t.key
-                    ? 'text-white shadow-sm'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
+                  'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                  tab === t.key ? 'text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
                 )}
-                style={tab === t.key ? { background: '#003527' } : undefined}
+                style={tab === t.key ? { background: currentTheme } : undefined}
               >
                 <t.icon className="h-4 w-4" />
                 {t.label}
@@ -257,46 +257,39 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
             ))}
           </div>
 
-          {/* Content */}
-          <div className="p-6 space-y-5 max-h-[55vh] overflow-y-auto">
+          {/* Content — shrinks to fit; no inner scrollbar */}
+          <div className="p-5 space-y-4">
             {tab === 'profile' && (
               <>
-                {/* Avatar preview section — clickable for upload */}
-                <div
-                  className="flex flex-col items-center gap-3 pb-4 border-b"
-                  style={{ borderColor: 'rgba(0,53,39,0.06)' }}
-                >
+                {/* Avatar preview */}
+                <div className="flex flex-col items-center gap-2.5 pb-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
                   <button
                     type="button"
                     aria-label={avatarDataUrl ? 'Change avatar photo' : 'Upload avatar photo'}
                     onClick={() => fileInputRef.current?.click()}
-                    className="group relative rounded-full p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2"
+                    className="group relative rounded-full p-0 focus-visible:outline-none"
                   >
                     {avatarDataUrl ? (
-                      /* Uploaded image avatar */
                       <img
                         src={avatarDataUrl}
                         alt="Current avatar"
-                        width={80}
-                        height={80}
-                        className="h-20 w-20 rounded-full object-cover ring-4 ring-surface-secondary"
+                        width={64}
+                        height={64}
+                        className="h-16 w-16 rounded-full object-cover ring-4 ring-surface-secondary"
                       />
                     ) : (
-                      /* Initials + color avatar */
                       <div
-                        className="flex h-20 w-20 items-center justify-center rounded-full text-white text-2xl font-bold ring-4 ring-surface-secondary"
-                        style={{ background: avatarBg }}
+                        className="flex h-16 w-16 items-center justify-center rounded-full text-white text-xl font-bold ring-4 ring-surface-secondary"
+                        style={{ background: avatarBg ?? '#3A86FF' }}
                       >
                         {displayInitials}
                       </div>
                     )}
-                    {/* Hover overlay */}
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
                       <Camera className="h-5 w-5 text-white" />
                     </div>
                   </button>
 
-                  {/* Upload / Remove buttons */}
                   <div className="flex items-center gap-2">
                     <input
                       id="avatar-upload"
@@ -330,15 +323,12 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
                   <p className="text-sm font-semibold text-text-primary">{name || user.name}</p>
                   <p className="text-xs text-text-tertiary">{user.email}</p>
+                  <p className="text-[10px] text-text-tertiary">Initials are generated automatically</p>
                 </div>
 
-                {/* Name */}
+                {/* Display Name */}
                 <div className="space-y-1.5">
-                  <label
-                    htmlFor="profile-display-name"
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
+                  <label htmlFor="profile-display-name" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
                     Display Name
                   </label>
                   <Input
@@ -354,82 +344,36 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                     placeholder="Your name…"
                     maxLength={24}
                   />
-                  <p className="text-[10px] text-text-tertiary">
-                    6 Chinese characters or 12 English letters max
-                  </p>
+                  <p className="text-[10px] text-text-tertiary">6 Chinese characters or 12 English letters max</p>
                 </div>
 
-                {/* Initials */}
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="profile-initials"
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
-                    Avatar Initials
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="profile-initials"
-                      name="initials"
-                      autoComplete="off"
-                      spellCheck={false}
-                      style={inputStyle}
-                      value={initials}
-                      onChange={(e) => setInitials(e.target.value.slice(0, 2).toUpperCase())}
-                      maxLength={2}
-                      placeholder="AU…"
-                    />
-                    {/* Live initials preview */}
-                    {avatarDataUrl ? (
-                      <img
-                        src={avatarDataUrl}
-                        alt=""
-                        width={40}
-                        height={40}
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold"
-                        style={{ background: avatarBg }}
-                      >
-                        {initials || '?'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Color picker */}
+                {/* Admin Theme Picker */}
                 <div className="space-y-2">
-                  <label
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
-                    Avatar Color
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                    Admin Theme
                   </label>
-                  <div className="flex flex-wrap gap-2.5">
-                    {AVATAR_COLORS.map((c) => (
+                  <div className="flex flex-wrap gap-3">
+                    {THEMES.map((t) => (
                       <button
-                        key={c.value}
+                        key={t.value}
                         type="button"
-                        onClick={() => setAvatarBg(c.value)}
-                        aria-label={`Use ${c.label} avatar color`}
-                        aria-pressed={avatarBg === c.value}
+                        onClick={() => handleThemeChange(t.value)}
+                        aria-label={`Switch to ${t.label} theme`}
+                        title={t.label}
                         className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-xl transition-[transform,box-shadow] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50',
+                          'flex h-9 w-9 items-center justify-center rounded-full transition-[transform,box-shadow] cursor-pointer focus-visible:outline-none',
                           'hover:scale-110 hover:shadow-md active:scale-95',
-                          avatarBg === c.value && 'ring-2 ring-offset-2 ring-emerald-500',
+                          currentTheme === t.value && 'ring-2 ring-offset-2 ring-brand-500',
                         )}
-                        style={{ background: c.value }}
-                        title={c.label}
+                        style={{ background: t.value }}
                       >
-                        {avatarBg === c.value && (
-                          <Check className="h-5 w-5 text-white drop-shadow-sm" />
-                        )}
+                        {currentTheme === t.value && <Check className="h-4 w-4 text-white drop-shadow-sm" />}
                       </button>
                     ))}
                   </div>
+                  <p className="text-[10px] text-text-tertiary">
+                    Applies to the whole admin interface — buttons, menus and highlights.
+                  </p>
                 </div>
 
                 {profileError && (
@@ -438,60 +382,39 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   </div>
                 )}
 
-                <button
-                  type="button"
+                <Button
+                  type="primary"
                   onClick={handleSaveProfile}
                   disabled={profileSaving}
-                  className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-[transform,background-color,opacity] duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
-                    'hover:bg-emerald-800',
-                  )}
-                  style={{ background: '#003527' }}
+                  loading={profileSaving}
+                  className="w-full"
                 >
-                  {profileSaving ? (
-                    <>
-                      <Check className="h-4 w-4" />
-                      Saving…
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
+                  Save Changes
+                </Button>
               </>
             )}
 
             {tab === 'password' && (
               <>
-                <div
-                  className="flex items-center gap-3 p-4 rounded-xl mb-2"
-                  style={{ background: 'rgba(0,53,39,0.03)' }}
-                >
+                <div className="flex items-center gap-3 p-4 rounded-xl mb-2" style={{ background: 'rgba(0,53,39,0.03)' }}>
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50">
                     <Lock className="h-5 w-5 text-emerald-700" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-text-primary">Update Password</p>
-                    <p className="text-xs text-text-tertiary">
-                      Choose a strong password you don&apos;t use elsewhere
-                    </p>
+                    <p className="text-xs text-text-tertiary">Choose a strong password you don&apos;t use elsewhere</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label
-                    htmlFor="current-password"
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
+                  <label htmlFor="current-password" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
                     Current Password
                   </label>
-                  <input
+                  <Input.Password
                     id="current-password"
                     name="currentPassword"
                     autoComplete="current-password"
-                    className={inputClass}
                     style={inputStyle}
-                    type="password"
                     value={currentPw}
                     onChange={(e) => {
                       setCurrentPw(e.target.value);
@@ -502,58 +425,32 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 </div>
 
                 <div className="space-y-1.5">
-                  <label
-                    htmlFor="new-password"
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
+                  <label htmlFor="new-password" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
                     New Password
                   </label>
-                  <div className="relative">
-                    <input
-                      id="new-password"
-                      name="newPassword"
-                      autoComplete="new-password"
-                      className={inputClass + ' pr-10'}
-                      style={inputStyle}
-                      type={showPw ? 'text' : 'password'}
-                      value={newPw}
-                      onChange={(e) => {
-                        setNewPw(e.target.value);
-                        setPwError('');
-                      }}
-                      placeholder="Minimum 12 characters…"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPw(!showPw)}
-                      aria-label={showPw ? 'Hide new password' : 'Show new password'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-                    >
-                      {showPw ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
+                  <Input.Password
+                    id="new-password"
+                    name="newPassword"
+                    autoComplete="new-password"
+                    style={inputStyle}
+                    value={newPw}
+                    onChange={(e) => {
+                      setNewPw(e.target.value);
+                      setPwError('');
+                    }}
+                    placeholder="Minimum 12 characters…"
+                  />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label
-                    htmlFor="confirm-password"
-                    className="text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#003527' }}
-                  >
+                  <label htmlFor="confirm-password" className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
                     Confirm New Password
                   </label>
-                  <input
+                  <Input.Password
                     id="confirm-password"
                     name="confirmPassword"
                     autoComplete="new-password"
-                    className={inputClass}
                     style={inputStyle}
-                    type="password"
                     value={confirmPw}
                     onChange={(e) => {
                       setConfirmPw(e.target.value);
@@ -570,25 +467,9 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleSavePassword}
-                  disabled={pwSaving}
-                  className={cn(
-                    'w-full h-10 rounded-lg text-sm font-semibold text-white transition-[transform,background-color,opacity] duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
-                    'hover:bg-emerald-800',
-                  )}
-                  style={{ background: '#003527' }}
-                >
-                  {pwSaving ? (
-                    <>
-                      <Check className="h-4 w-4" />
-                      Saving…
-                    </>
-                  ) : (
-                    'Update Password'
-                  )}
-                </button>
+                <Button type="primary" onClick={handleSavePassword} disabled={pwSaving} loading={pwSaving} className="w-full">
+                  Update Password
+                </Button>
               </>
             )}
           </div>

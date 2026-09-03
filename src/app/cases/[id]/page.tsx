@@ -126,8 +126,8 @@ const SCAN_STATUS_STYLES: Record<string, string> = {
 };
 
 const TRANSITION_STYLES: Record<string, string> = {
-  approved: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-  closed: 'bg-emerald-700 hover:bg-emerald-800 text-white',
+  approved: 'bg-brand-emerald hover:bg-brand-emerald-dark text-white',
+  closed: 'bg-brand-emerald hover:bg-brand-emerald-dark text-white',
   rejected: 'bg-red-600 hover:bg-red-700 text-white',
   duplicate: 'bg-blue-600 hover:bg-blue-700 text-white',
   withdrawn: 'bg-slate-600 hover:bg-slate-700 text-white',
@@ -146,7 +146,7 @@ const AUDIT_DOT: Record<string, string> = {
 };
 
 const RESOLUTION_ACTION_STYLES: Record<string, string> = {
-  'resolution:approve': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+  'resolution:approve': 'bg-brand-emerald hover:bg-brand-emerald-dark text-white',
   'resolution:complete': 'bg-blue-600 hover:bg-blue-700 text-white',
   'resolution:cancel': 'bg-red-600 hover:bg-red-700 text-white',
 };
@@ -602,7 +602,7 @@ function CaseDetailContent({
           {visibleAuthError === 'signin' && (
             <button
               onClick={openLogin}
-              className="inline-flex items-center h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-800 cursor-pointer"
+              className="inline-flex items-center h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-brand-emerald-dark cursor-pointer"
             >
               Sign in
             </button>
@@ -631,7 +631,7 @@ function CaseDetailContent({
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={retryLoad}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-emerald-800 cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-emerald text-white text-xs font-semibold hover:bg-brand-emerald-dark cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" />Retry
           </button>
@@ -837,7 +837,7 @@ function CaseDetailContent({
 
       {/* Consumer information has come back — the case is ready for re-review. */}
       {infoReturned && !infoRequest && cse.status !== 'need_info' && (
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 flex items-start gap-3">
+        <div className="rounded-xl border border-brand-emerald/40 bg-brand-emerald-light p-4 flex items-start gap-3">
           <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-bold text-emerald-800">Consumer Information Received</p>
@@ -1097,7 +1097,7 @@ function CaseDetailContent({
               {cse.incident.reportability?.status === 'pending' && (
                 <Link
                   href="/incidents"
-                  className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-emerald-800"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark"
                 >
                   Open incidents queue <ArrowRight className="h-3 w-3" />
                 </Link>
@@ -1133,7 +1133,7 @@ function CaseDetailContent({
             <div className="flex items-start gap-3 rounded-lg border p-3">
               <span className={cn(
                 'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
-                resolution?.status === 'externally_completed' ? 'bg-emerald-600' : 'bg-slate-300',
+                resolution?.status === 'externally_completed' ? 'bg-brand-emerald' : 'bg-slate-300',
               )}>
                 {resolution?.status === 'externally_completed' ? '✓' : '✗'}
               </span>
@@ -1160,7 +1160,7 @@ function CaseDetailContent({
               <div className="flex items-start gap-3 rounded-lg border p-3">
                 <span className={cn(
                   'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
-                  cse.incident?.reportability && cse.incident.reportability.status !== 'pending' ? 'bg-emerald-600' : 'bg-slate-300',
+                  cse.incident?.reportability && cse.incident.reportability.status !== 'pending' ? 'bg-brand-emerald' : 'bg-slate-300',
                 )}>
                   {cse.incident?.reportability && cse.incident.reportability.status !== 'pending' ? '✓' : '✗'}
                 </span>
@@ -1304,7 +1304,7 @@ function CaseDetailContent({
                 className={cn(
                   'w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50',
                   viewingRawPii
-                    ? 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    ? 'border border-brand-emerald/40 bg-brand-emerald-light text-brand-emerald-dark hover:bg-brand-emerald/10'
                     : 'border border-slate-300 text-text-secondary hover:bg-surface-secondary',
                 )}
               >
@@ -1755,7 +1755,7 @@ function CaseDetailContent({
                 {docAccess[lightbox.id] && (
                   <>
                     <a href={docAccess[lightbox.id]!.downloadUrl} download className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:flex-none"><Download className="h-3.5 w-3.5" aria-hidden="true" />Download</a>
-                    <a href={docAccess[lightbox.id]!.url} target="_blank" rel="noopener noreferrer" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 sm:flex-none"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Open original</a>
+                    <a href={docAccess[lightbox.id]!.url} target="_blank" rel="noopener noreferrer" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-emerald px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-emerald-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/60 sm:flex-none"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Open original</a>
                   </>
                 )}
               </div>

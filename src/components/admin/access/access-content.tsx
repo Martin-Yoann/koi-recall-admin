@@ -433,6 +433,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
   const [form, setForm] = useState({ email: '', displayName: '', password: '', role: 'MANAGER' as StaffRole });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  
   /** Per-row mutation guard — one in-flight action per user at a time. */
   const [pendingAction, setPendingAction] = useState<{ userId: string; action: 'role' | 'status' | 'signout' | 'delete' } | null>(null);
 
@@ -444,7 +445,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
     action: 'role' | 'status' | 'signout' | 'delete',
     fn: () => Promise<boolean>,
   ) => {
-    if (pendingAction) return; // one mutation at a time
+    if (pendingAction) return;
     setPendingAction({ userId: target.id, action });
     setError(null);
     try {
