@@ -7,6 +7,9 @@
 
 import type { NavItem } from '@/types';
 
+export const DEFAULT_ADMIN_THEME = '#3A86FF';
+export const ADMIN_THEME_STORAGE_KEY = 'koi_admin_theme';
+
 // === Top Navigation ===
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/' },

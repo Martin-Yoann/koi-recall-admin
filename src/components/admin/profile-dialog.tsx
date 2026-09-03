@@ -8,10 +8,11 @@ import { X, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { useToast } from '@/components/ui/toast';
+import { ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 
 /** Admin theme presets. Persisted and broadcast via `koi_admin_theme`. */
 const THEMES = [
-  { label: 'Navy Blue', value: '#3A86FF' },
+  { label: 'Navy Blue', value: DEFAULT_ADMIN_THEME },
   { label: 'Midnight', value: '#052745' },
   { label: 'Emerald', value: '#006C49' },
   { label: 'Violet', value: '#7C3AED' },
@@ -84,11 +85,11 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const [name, setName] = useState(user.name || '');
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
   // Default avatar background is the brand blue.
-  const [avatarBg, setAvatarBg] = useState<string | null>(user.avatarBg || '#3A86FF');
+  const [avatarBg] = useState<string | null>(user.avatarBg || DEFAULT_ADMIN_THEME);
   const [profileError, setProfileError] = useState('');
 
   const [currentTheme, setCurrentTheme] = useState(
-    typeof window !== 'undefined' ? localStorage.getItem('koi_admin_theme') || '#3A86FF' : '#3A86FF',
+    typeof window !== 'undefined' ? localStorage.getItem(ADMIN_THEME_STORAGE_KEY) || DEFAULT_ADMIN_THEME : DEFAULT_ADMIN_THEME,
   );
 
   const [currentPw, setCurrentPw] = useState('');
@@ -104,7 +105,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const handleThemeChange = (newTheme: string) => {
     setCurrentTheme(newTheme);
     try {
-      localStorage.setItem('koi_admin_theme', newTheme);
+      localStorage.setItem(ADMIN_THEME_STORAGE_KEY, newTheme);
     } catch {
       // Storage unavailable (private mode) — the in-memory choice still works.
     }

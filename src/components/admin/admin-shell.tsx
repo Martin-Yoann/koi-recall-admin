@@ -14,6 +14,7 @@ import { useAdminAuth } from '@/lib/admin-auth';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatAdminDateTime } from '@/lib/formatters';
+import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
@@ -548,7 +549,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   ) : (
                     <div
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold ring-2 ring-transparent group-hover:ring-brand-emerald/20 transition-[box-shadow]"
-                      style={{ background: user.avatarBg || '#0D9488' }}
+                      style={{ background: user.avatarBg || DEFAULT_ADMIN_THEME }}
                     >
                       {(user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)).toUpperCase()}
                     </div>
@@ -563,7 +564,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       ) : (
                         <div
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold"
-                          style={{ background: user.avatarBg || '#0D9488' }}
+                          style={{ background: user.avatarBg || DEFAULT_ADMIN_THEME }}
                         >
                           {(user.initials || user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)).toUpperCase()}
                         </div>

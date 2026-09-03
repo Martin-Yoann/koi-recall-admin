@@ -18,6 +18,7 @@ import { assignCase, exportCases, listCases, type CaseSummary } from '@/lib/api-
 import { useAdminAuth } from '@/lib/admin-auth';
 import { formatAdminDate } from '@/lib/formatters';
 import { usePermissions } from '@/lib/rbac';
+import { useToast } from '@/components/ui/toast';
 
 /** The full case status set (mirrors the backend recall_case_status enum). */
 const CASE_STATUSES = [
@@ -37,6 +38,7 @@ export default function CasesPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const { modal } = AntdApp.useApp();
   const { can } = usePermissions();
+  const toast = useToast();
   const searchParams = useSearchParams();
 
   const [cases, setCases] = useState<CaseSummary[]>([]);
@@ -81,7 +83,7 @@ export default function CasesPage() {
       setError(result.error?.detail || 'Failed to load cases.');
     }
     setLoading(false);
-  }, [status, searchTerm, queueFilter]);
+  }, [status, searchTerm]);
 
   // Initial load & reload whenever the query changes (status / search / queue)
   useEffect(() => {
@@ -132,16 +134,30 @@ export default function CasesPage() {
         if (!user?.staffUserId) return;
         setClaimingId(caseRef);
         setError(null);
-        const result = await assignCase(caseRef, { staffUserId: user.staffUserId });
-        if (result.ok) {
-          await fetchCases();
-        } else if (mountedRef.current) {
-          setError(result.error?.detail || `Failed to claim ${caseRef}.`);
+        try {
+          const result = await assignCase(caseRef, { staffUserId: user.staffUserId });
+          if (result.ok) {
+            toast.success(`Case ${caseRef} is now assigned to you.`, 'Case claimed');
+            await fetchCases();
+          } else {
+            const message = result.error?.detail || `Failed to claim ${caseRef}.`;
+            if (mountedRef.current) {
+              setError(message);
+              toast.error(message, 'Claim failed');
+            }
+          }
+        } catch (claimError) {
+          const message = claimError instanceof Error ? claimError.message : `Failed to claim ${caseRef}.`;
+          if (mountedRef.current) {
+            setError(message);
+            toast.error(message, 'Claim failed');
+          }
+        } finally {
+          if (mountedRef.current) setClaimingId(null);
         }
-        if (mountedRef.current) setClaimingId(null);
       },
     });
-  }, [fetchCases, modal, user]);
+  }, [fetchCases, modal, toast, user]);
 
   // Is the current user the assignee of this case?
   const staffUserId = user?.staffUserId;

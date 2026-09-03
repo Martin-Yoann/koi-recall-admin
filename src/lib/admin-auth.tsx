@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 import {
   staffLogin,
   staffLogout,
@@ -203,7 +204,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         email,
         name: displayName,
         initials: getInitials(displayName),
-        avatarBg: '#0D9488',
+        avatarBg: DEFAULT_ADMIN_THEME,
         token: result.data.token,
         expiresAt: result.data.expiresAt,
         ...(result.data.avatarDataUrl ? { avatarDataUrl: result.data.avatarDataUrl } : {}),

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
+import { ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 
 /**
  * antd theme mapped onto the KOI Navy/Blue palette (#0D1B2A + #3A86FF).
@@ -16,9 +17,9 @@ import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } 
 const themeConfig: ThemeConfig = {
   algorithm: antdTheme.defaultAlgorithm,
   token: {
-    colorPrimary: '#3A86FF',
-    colorInfo: '#3A86FF',
-    colorLink: '#3A86FF',
+    colorPrimary: DEFAULT_ADMIN_THEME,
+    colorInfo: DEFAULT_ADMIN_THEME,
+    colorLink: DEFAULT_ADMIN_THEME,
     colorSuccess: '#16A34A',
     colorWarning: '#F59E0B',
     colorError: '#DC2626',
@@ -112,31 +113,16 @@ function applyGlobalTheme(primary: string) {
 }
 
 export function AntdThemeProvider({ children }: { children: ReactNode }) {
-  // Initialize from the persisted theme so antd controls keep the user's
-  // selection across refreshes and re-logins (storage is app-level, not
-  // session-level, so sign-out does not clear it).
-  const [theme, setTheme] = useState<ThemeConfig>(() => {
-    const stored = readStoredTheme();
-    if (!stored) return themeConfig;
-    return themeConfigForKey(stored);
-  });
+  const primary = useSyncExternalStore(
+    subscribeToTheme,
+    readStoredThemeSnapshot,
+    getServerThemeSnapshot,
+  );
+  const theme = themeConfigForKey(primary);
 
   useEffect(() => {
-    // Apply any persisted theme to the global CSS variables on mount.
-    const stored = readStoredTheme();
-    if (stored) {
-      applyGlobalTheme(stored);
-    }
-
-    const handleThemeChange = (e: Event) => {
-      const color = (e as CustomEvent).detail;
-      setTheme(themeConfigForKey(color));
-      applyGlobalTheme(color);
-    };
-
-    window.addEventListener('koi_theme_changed', handleThemeChange);
-    return () => window.removeEventListener('koi_theme_changed', handleThemeChange);
-  }, []);
+    applyGlobalTheme(primary);
+  }, [primary]);
 
   return (
     <ConfigProvider theme={theme}>
@@ -145,19 +131,30 @@ export function AntdThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const THEME_STORAGE_KEY = 'koi_admin_theme';
-
-/** Read and validate the persisted theme; returns null when absent/invalid. */
-function readStoredTheme(): string | null {
-  if (typeof window === 'undefined') return null;
+/** Read and validate the persisted theme; returns the default when absent/invalid. */
+function readStoredTheme(): string {
+  if (typeof window === 'undefined') return DEFAULT_ADMIN_THEME;
   try {
-    const value = localStorage.getItem(THEME_STORAGE_KEY);
-    if (!value) return null;
-    if (!/^#[0-9a-fA-F]{6}$/.test(value)) return null;
-    return value;
+    const value = localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
+    if (value && /^#[0-9a-fA-F]{6}$/.test(value)) return value;
   } catch {
-    return null;
+    // Storage can be unavailable in private browsing modes.
   }
+  return DEFAULT_ADMIN_THEME;
+}
+
+function readStoredThemeSnapshot(): string {
+  return readStoredTheme();
+}
+
+function getServerThemeSnapshot(): string {
+  return DEFAULT_ADMIN_THEME;
+}
+
+function subscribeToTheme(onStoreChange: () => void): () => void {
+  const handleThemeChange = () => onStoreChange();
+  window.addEventListener('koi_theme_changed', handleThemeChange);
+  return () => window.removeEventListener('koi_theme_changed', handleThemeChange);
 }
 
 /** Build a theme config with the given primary color (tokens + control outline). */
