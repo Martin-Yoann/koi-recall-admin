@@ -153,7 +153,7 @@
 | TC-101 | P0 批准 refund | requestedType=refund | 输入金额（美元）+币种，note ≥10，批准 | 客户端换算为 minor units 提交；成功后显示退款金额；version+1 |
 | TC-102 | P1 refund 金额校验 | 同上 | 金额空/0/负数时提交 | 前端禁用；API 直调缺 `refundAmountMinor` 或非正整数 → 422 |
 | TC-103 | P2 币种格式 | API 直调 | currency 传小写/非 3 位 | 422（要求 `^[A-Z]{3}$`；UI 会自动转大写，属 API 级用例） |
-| TC-104 | P0 乐观锁冲突 | 同一案例开两个标签页 | Tab A 批准后，Tab B 用旧 expectedVersion 再提交 | 409 ``Resolution version conflict: expected N, found M.``；页面错误横幅展示 |
+| TC-104 | P0 乐观锁冲突 | 同一案例开两个标签页 | Tab A 批准后，Tab B 用旧 expectedVersion 再提交 | 服务端 409 ``Resolution version conflict: expected 1, found 2.``；**UI 实测(2026-09-04)展示为通用并发提示** ``This case was updated by another staff member. Refresh the case before trying again.`` + Refresh 按钮——冲突可感知、给出可操作动作，但未逐字展示 expected/found 版本号(文档预期为展示具体消息，属 UI 文案偏差,记录) |
 | TC-105 | P0 完成外部处理 | resolution=approved | 填 note ≥10（外部单号可选），点 Complete | 状态 externally_completed；完成横幅出现；Gate 1 变绿；version+1 |
 | TC-106 | P0 未批准先完成 | resolution=requested | API 直调 complete | 422 |
 | TC-107 | P0 取消 requested | resolution=requested，MANAGER | note ≥10，Cancel | 成功 → cancelled；事件/审计 `resolution.cancel` |
@@ -276,7 +276,7 @@
 | RBAC | TC-020/021/022 | ✅ | 建 MANAGER 201；MANAGER staff.manage→403+`insufficient_role`；audit.read/case.queue.read 可用 |
 | 消费者 lookup | TC-093/150/152 | ✅(部分) | need_info→`action_required`、under_review→`in_review`、closed+completed→`completed`；防枚举 404 文案一致 |
 
-**未覆盖（非 P0）**：TC-104 UI 409 横幅（需 resolution 为 requested 的案例，服务端 409 契约已实测）；§13 部分内部状态映射逐项（如 submitted→received、approved→resolution_approved）；§4 列表深链筛选/分页（已知取舍）。
+**未覆盖（非 P0）**：§13 部分内部状态映射逐项（如 submitted→received、approved→resolution_approved）；§4 列表深链筛选/分页（已知取舍）。
 
 ### 16.3 发现的缺陷与处置
 
