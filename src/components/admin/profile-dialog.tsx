@@ -187,9 +187,9 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   };
 
   const inputStyle = {
-    background: '#F3F6F7',
-    borderColor: 'rgba(0,53,39,0.08)',
-    color: '#131b2e',
+    background: 'var(--surface-primary)',
+    borderColor: 'var(--border)',
+    color: 'var(--text-primary)',
   };
 
   const displayInitials = computeInitials(name || user.name);
@@ -210,15 +210,14 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
           role="dialog"
           aria-modal="true"
           aria-labelledby="account-settings-title"
-          className="w-full max-w-[440px] max-h-[calc(100vh-2rem)] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none"
-          style={{ background: '#FFFFFF' }}
+          className="w-full max-w-[440px] max-h-[calc(100vh-2rem)] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none bg-[var(--surface-elevated)] backdrop-blur-md"
         >
           {/* Header */}
           <div
             className="flex items-center justify-between px-6 py-4 border-b"
-            style={{ borderColor: 'rgba(0,53,39,0.08)' }}
+            style={{ borderColor: 'var(--border)' }}
           >
-            <h3 id="account-settings-title" className="text-base font-bold text-[#131b2e]">
+            <h3 id="account-settings-title" className="text-base font-bold text-[var(--text-primary)]">
               Account Settings
             </h3>
             <button

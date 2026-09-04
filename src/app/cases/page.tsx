@@ -317,7 +317,7 @@ export default function CasesPage() {
               icon={<DownloadOutlined />}
               loading={exporting}
               onClick={handleExport}
-              className="border text-text-secondary hover:text-text-primary"
+              className="admin-btn"
             >
               Export CSV
             </Button>
@@ -326,7 +326,7 @@ export default function CasesPage() {
             icon={<ReloadOutlined spin={loading} />}
             loading={loading}
             onClick={() => void fetchCases()}
-            className="border text-text-secondary hover:text-text-primary"
+            className="admin-btn"
           >
             Refresh
           </Button>

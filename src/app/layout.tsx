@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
+import Script from 'next/script';
 import { AdminProviders } from '@/components/admin/admin-providers';
 import { AntdThemeProvider } from '@/components/admin/antd-theme-provider';
 import './globals.css';
@@ -13,6 +14,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`const saved = localStorage.getItem('koi_admin_mode') || 'light';
+            if (saved === 'dark') document.documentElement.classList.add('dark');`}
+        </Script>
+      </head>
       <body className="h-screen flex bg-surface-secondary overflow-hidden">
         <a
           href="#main-content"

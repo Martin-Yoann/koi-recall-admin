@@ -732,7 +732,7 @@ function CaseDetailContent({
               <button
                 type="button"
                 onClick={refresh}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface-elevated px-3 text-xs font-semibold text-text-secondary transition-colors hover:border-brand-emerald/40 hover:bg-brand-emerald-light hover:text-brand-emerald focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
+                className="admin-btn inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald/30"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Refresh record
               </button>
@@ -861,7 +861,7 @@ function CaseDetailContent({
             <button
               type="button"
               onClick={retryLoad}
-              className="shrink-0 inline-flex items-center gap-1 rounded-md bg-[#2F7BE8] px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-[#2455B0] cursor-pointer"
+              className="admin-btn shrink-0 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold cursor-pointer"
             >
               <RefreshCw className="h-3 w-3" />Refresh case
             </button>

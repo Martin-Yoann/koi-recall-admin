@@ -129,7 +129,7 @@ function Toaster({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: n
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
               role="status"
               className={cn(
-                'pointer-events-auto flex items-start gap-3 rounded-xl border border-border bg-white shadow-xl shadow-black/[0.06] p-3.5 border-l-4',
+                'pointer-events-auto flex items-start gap-3 rounded-xl border border-border bg-[var(--surface-elevated)] shadow-xl shadow-black/20 backdrop-blur-md p-3.5 border-l-4',
                 meta.accent,
               )}
             >

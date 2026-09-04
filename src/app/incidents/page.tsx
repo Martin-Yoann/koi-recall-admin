@@ -110,7 +110,7 @@ export default function IncidentsPage() {
           icon={<RefreshCw className="h-4 w-4" />}
           loading={loading}
           onClick={fetchIncidents}
-          className="border text-text-secondary hover:text-text-primary"
+          className="admin-btn"
         >
           Refresh
         </Button>
@@ -152,7 +152,7 @@ export default function IncidentsPage() {
 
       {reviewing ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="review-title">
-          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" style={{ background: '#FFFFFF' }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden bg-[var(--surface-elevated)] backdrop-blur-md">
             {/* Header */}
             <div className="flex items-start justify-between gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
               <div className="flex items-center gap-3">
@@ -204,7 +204,7 @@ export default function IncidentsPage() {
             </div>
 
             {/* Footer — always visible */}
-            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
+            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-[var(--surface-elevated)]" style={{ borderColor: 'var(--border)' }}>
               <Button onClick={() => setReviewing(null)} className="text-text-secondary hover:text-text-primary">Cancel</Button>
               <Button
                 type="primary"

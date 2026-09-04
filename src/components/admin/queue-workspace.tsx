@@ -126,7 +126,7 @@ export function QueueWorkspace({ queue, title, description, emptyHint }: QueueWo
             icon={<ReloadOutlined spin={loading} />}
             loading={loading}
             onClick={() => void fetchPage()}
-            className="border text-text-secondary hover:text-text-primary"
+            className="admin-btn !h-8"
           >
             Refresh
           </Button>

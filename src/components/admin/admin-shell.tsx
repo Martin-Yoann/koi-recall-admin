@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { ThemeToggle } from '@/components/admin/theme-toggle';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatAdminDateTime } from '@/lib/formatters';
@@ -137,10 +138,10 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
         className="fixed inset-0 z-[60] cursor-default bg-black/30 animate-[fadeIn_200ms] motion-reduce:animate-none"
         onClick={onClose}
       />
-      <aside
-        className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] overflow-y-auto overscroll-contain shadow-2xl animate-[slideInRight_300ms_cubic-bezier(0.25,0,0.15,1)] motion-reduce:animate-none flex flex-col"
-        style={{ background: '#FFFFFF' }}
-        aria-label="New submissions"
+        <aside
+          className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] overflow-y-auto overscroll-contain shadow-2xl animate-[slideInRight_300ms_cubic-bezier(0.25,0,0.15,1)] motion-reduce:animate-none flex flex-col bg-[var(--surface-elevated)]"
+          aria-label="New submissions"
+
         aria-modal="true"
         role="dialog"
       >
@@ -322,9 +323,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
         style={{
-          background: 'linear-gradient(180deg, #0D1B2A 0%, #102A43 52%, #0B1726 100%)',
-          borderColor: 'rgba(143,180,255,0.16)',
-          boxShadow: '8px 0 28px rgba(4, 12, 24, 0.16)',
+          background: 'var(--sidebar)',
+          borderColor: 'var(--sidebar-border)',
+          boxShadow: 'var(--sidebar-ring)',
         }}
       >
         {/* ── Logo ── */}
@@ -534,6 +535,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             <HelpMenu />
+            <ThemeToggle />
             <NewSubmissionsBell onOpen={() => setNotifOpen(true)} />
             <div className="h-5 w-px bg-border" />
             <span className="text-xs font-medium text-text-tertiary select-none hidden lg:inline">KOI Recall Admin</span>

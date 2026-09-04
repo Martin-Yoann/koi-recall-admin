@@ -137,7 +137,7 @@ export default function CampaignDetailPage() {
       <div className="container-content py-16 text-center">
         <p className="text-sm font-semibold text-text-primary mb-1">Could not load campaign</p>
         <p className="text-xs text-text-tertiary mb-4">{error}</p>
-        <Button type="primary" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={handleRetry}>Retry</Button>
+        <Button className="admin-btn" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={handleRetry}>Retry</Button>
       </div>
     );
   }
