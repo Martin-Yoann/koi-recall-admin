@@ -217,7 +217,7 @@ export default function QueuesPage() {
             icon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
             loading={loading}
             onClick={fetchCases}
-            className="text-text-secondary hover:text-text-primary"
+            className="admin-btn !h-8"
           >
             Refresh
           </Button>

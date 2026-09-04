@@ -25,7 +25,7 @@ export function RefreshButton({ onRefresh, className }: RefreshButtonProps) {
       loading={loading}
       icon={<RotateCw className="h-4 w-4" />}
       className={cn(
-        "border-slate-200 text-text-secondary hover:border-brand-500 hover:text-brand-500 hover:bg-brand-50",
+        "admin-btn refresh-button",
         className
       )}
     >

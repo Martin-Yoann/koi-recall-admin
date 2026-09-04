@@ -182,7 +182,7 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
             icon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
             loading={loading}
             onClick={fetchAudit}
-            className="text-text-secondary hover:text-text-primary"
+            className="admin-btn !h-8"
           >
             Refresh logs
           </Button>
@@ -607,7 +607,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
           <p className="text-xs text-text-tertiary mt-0.5">{filteredStaff.length} of {staff.length} staff users</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="small" icon={<RefreshCw className={loading ? 'animate-spin' : ''} />} loading={loading} onClick={fetchStaff}>Refresh</Button>
+          <Button size="small" className="admin-btn !h-8" icon={<RefreshCw className={loading ? 'animate-spin' : ''} />} loading={loading} onClick={fetchStaff}>Refresh</Button>
           {canManage && (
             <Button type="primary" icon={<UserPlus className="h-3.5 w-3.5" />} onClick={() => setCreateOpen(true)}>New staff user</Button>
           )}
@@ -709,9 +709,9 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
 
       {canManage && createOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="create-staff-title">
-          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" style={{ background: '#FFFFFF' }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden bg-[var(--surface-elevated)] backdrop-blur-md">
             {/* Header */}
-            <div className="flex items-start justify-between gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-start justify-between gap-3 px-6 py-5 border-b border-[var(--border)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-emerald/10">
                   <UserPlus className="h-5 w-5 text-brand-emerald" />
@@ -816,7 +816,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
             </div>
 
             {/* Footer — always visible, with the primary action in a guaranteed-blue button */}
-            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--border)' }}>
+            <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t bg-[var(--surface-elevated)]" style={{ borderColor: 'var(--border)' }}>
               <Button onClick={() => setCreateOpen(false)} className="text-text-secondary hover:text-text-primary">Cancel</Button>
               <Button
                 type="primary"

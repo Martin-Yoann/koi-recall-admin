@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
-import { ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { ADMIN_MODE_STORAGE_KEY, ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 
 /**
  * antd theme mapped onto the KOI Navy/Blue palette (#0D1B2A + #3A86FF).
@@ -87,11 +87,18 @@ function tint(hex: string): string {
 }
 
 /** Write the chosen primary color into the CSS variables that Tailwind/antd read. */
-function applyGlobalTheme(primary: string) {
+function applyGlobalTheme(primary: string, mode: 'light' | 'dark') {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const dark = darken(primary);
   const light = tint(primary);
+
+  root.style.setProperty('--sidebar', mode === 'dark' ? '#2B2B2B' : '#0D1B2A');
+  root.style.setProperty('--sidebar-foreground', mode === 'dark' ? '#F8FAFC' : '#F6F8FA');
+  root.style.setProperty('--sidebar-primary', primary);
+  root.style.setProperty('--sidebar-accent', mode === 'dark' ? '#404040' : 'rgba(255,255,255,0.08)');
+  root.style.setProperty('--sidebar-border', mode === 'dark' ? '#404040' : 'rgba(255,255,255,0.10)');
+
   // shadcn/theme tokens consumed by Tailwind classes (btn, inputs, focus rings).
   root.style.setProperty('--primary', primary);
   root.style.setProperty('--primary-foreground', '#ffffff');
@@ -113,16 +120,13 @@ function applyGlobalTheme(primary: string) {
 }
 
 export function AntdThemeProvider({ children }: { children: ReactNode }) {
-  const primary = useSyncExternalStore(
-    subscribeToTheme,
-    readStoredThemeSnapshot,
-    getServerThemeSnapshot,
-  );
-  const theme = themeConfigForKey(primary);
+  const primary = useSyncExternalStore(subscribeToTheme, readStoredThemeSnapshot, getServerThemeSnapshot);
+  const mode = useSyncExternalStore(subscribeToMode, readStoredModeSnapshot, getServerModeSnapshot);
+  const theme = themeConfigForKey(primary, mode as 'light' | 'dark');
 
   useEffect(() => {
-    applyGlobalTheme(primary);
-  }, [primary]);
+    applyGlobalTheme(primary, mode as 'light' | 'dark');
+  }, [primary, mode]);
 
   return (
     <ConfigProvider theme={theme}>
@@ -158,15 +162,86 @@ function subscribeToTheme(onStoreChange: () => void): () => void {
 }
 
 /** Build a theme config with the given primary color (tokens + control outline). */
-function themeConfigForKey(primary: string): ThemeConfig {
+function themeConfigForKey(primary: string, mode: 'light' | 'dark'): ThemeConfig {
+  const dark = mode === 'dark';
+  const surface = dark ? '#2B2B2B' : '#FFFFFF';
+  const canvas = dark ? '#161616' : '#F4F6F9';
+  const foreground = dark ? '#F8FAFC' : '#0D1B2A';
+  const secondary = dark ? '#CBD5E1' : '#3A4A5E';
+  const border = dark ? '#A3A3A3' : '#E4E7ED';
+
   return {
     ...themeConfig,
+    algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
       ...themeConfig.token,
       colorPrimary: primary,
       colorInfo: primary,
       colorLink: primary,
       controlOutline: `${primary}29`, // ~16% alpha
+      colorBgLayout: canvas,
+      colorBgContainer: surface,
+      colorBgElevated: surface,
+      colorTextBase: foreground,
+      colorText: foreground,
+      colorTextSecondary: secondary,
+      colorTextTertiary: dark ? '#94A3B8' : '#64748B',
+      colorBorder: border,
+      colorBorderSecondary: border,
+      boxShadowSecondary: dark
+        ? '0 12px 32px rgba(0, 0, 0, 0.45)'
+        : '0 4px 24px rgba(13, 27, 42, 0.10), 0 1px 3px rgba(13, 27, 42, 0.06)',
+    },
+    components: {
+      ...themeConfig.components,
+      Button: {
+        ...themeConfig.components?.Button,
+        defaultBorderColor: border,
+        defaultColor: foreground,
+      },
+      Table: {
+        ...themeConfig.components?.Table,
+        headerBg: dark ? '#202020' : '#F4F6F9',
+        headerColor: foreground,
+        borderColor: border,
+        rowHoverBg: dark ? '#333333' : 'rgba(58, 134, 255, 0.05)',
+      },
+      Modal: {
+        ...themeConfig.components?.Modal,
+        contentBg: surface,
+        headerBg: surface,
+        titleColor: foreground,
+        colorText: foreground,
+      },
+      Drawer: { ...themeConfig.components?.Drawer, colorBgElevated: surface },
+      Dropdown: { ...themeConfig.components?.Dropdown, colorBgElevated: surface },
+      Popover: { ...themeConfig.components?.Popover, colorBgElevated: surface },
+      Select: { ...themeConfig.components?.Select, optionSelectedBg: dark ? '#404040' : undefined },
+      Tooltip: { ...themeConfig.components?.Tooltip, colorBgSpotlight: dark ? '#404040' : '#0D1B2A' },
     },
   };
+}
+
+function readStoredMode(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const value = localStorage.getItem(ADMIN_MODE_STORAGE_KEY);
+    return value === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function readStoredModeSnapshot(): 'light' | 'dark' {
+  return readStoredMode();
+}
+
+function getServerModeSnapshot(): 'light' | 'dark' {
+  return 'light';
+}
+
+function subscribeToMode(onStoreChange: () => void): () => void {
+  const handleModeChange = () => onStoreChange();
+  window.addEventListener('koi_mode_changed', handleModeChange);
+  return () => window.removeEventListener('koi_mode_changed', handleModeChange);
 }
