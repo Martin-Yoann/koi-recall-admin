@@ -43,7 +43,7 @@
 |---|---|---|---|---|
 | TC-001 | P0 标准案例全生命周期 E2E | 真实（非 test_data）campaign 可用；ADMIN 账号已登录 | ① 消费者在 front `/recalls/{slug}` 完整提交 claim（无事故、产品 potential_match）② admin `/cases` 列表出现新案例，状态 submitted ③ 依次执行：Claim→triage→under_review→approved ④ Resolution approve（按 requestedType）→ complete ⑤ 流转 closure_review ⑥ 流转 closed ⑦ 每个阶段用案例 reference+邮箱在 front `/lookup` 查询 | 每步状态徽章即时更新；lookup 的 publicStatus 依次为 received→in_review→resolution_approved→resolution_in_progress→completed（映射见 §13）；审计页可见每步 `case.status.transition` 记录 |
 | TC-002 | P1 初始状态规则 | 可通过公开接口提交 claim | ① 全部产品 potential_match 且 incidentAnswer=no 提交 ② incidentAnswer=unsure 或任一产品 checkResult=manual_review/not_matched 再提交 | ① 初始状态 `submitted` ② 初始状态 `triage`（并落入 manual_review 队列） |
-| TC-003 | P1 事故案例初始态 | 提交含 incident（answer=yes，含 narrative 10–4000 字）的 claim | 打开该案例详情 | 初始状态 `triage`；incidentFlag=true；subtype=injury_hazard；顶部 Safety incident 徽章与事故门禁警示条出现；Closure Checklist 中 Gate 2 = reportability pending |
+| TC-003 | P1 事故案例初始态 | 提交含 incident（answer=yes，含 narrative 10–4000 字）的 claim | 打开该案例详情 | 初始状态 `submitted`（**2026-09-04 校正**：初始规则为 `incidentAnswer==='unsure' 或存在非 potential_match 产品 → triage`，`yes`+全部 potential_match → `submitted`，见 `drizzle-case-service.ts`）；incidentFlag=true；subtype=injury_hazard；顶部 Safety incident 徽章与事故门禁警示条出现；事故卡 reportability=pending；Closure Checklist 中 Gate 2 = reportability pending |
 
 ## 2. 登录与会话
 
@@ -242,3 +242,4 @@
 9. **审计轨迹截断**：详情页仅展示最近 20 条（接口取 100 条内筛选）。
 10. **DEMO_MODE 回退**：`NEXT_PUBLIC_DEMO_MODE=true` 时 front 对未知 slug 回退 mock 数据，验证 404 行为前确认该变量未开启。
 11. **公开 campaign 不排除 isTestData（2026-09-04 决策）**：公开 campaign 接口与 case lookup 均按"campaign 公开可见即可查询/提交"对齐，不再隔离测试数据——网站未上线、全部为测试数据的前提下保持消费者链路自洽；**上线前需决策**是否收紧（两处一起改：`drizzle-campaign-service.ts` 公开查询 + `drizzle-case-status-lookup-service.ts`）。
+12. **多标签页会话互踢（2026-09-04 发现，已修复）**：同账号开两个标签页会因 refresh 轮换 token 且不跨页传播而互相踢下线；已在 admin `136ffd2` 修复（storage 事件同步 + 401 前采纳新 token + refresh 持久化）。**TC-104 的双标签 UI 路径需在修复后、且 resolution 为 requested 的案例上重补**；服务端 409 契约已实测。
