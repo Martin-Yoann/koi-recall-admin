@@ -426,7 +426,11 @@ function CaseDetailContent({
     setActionConflict(isConflictResult(result));
     setActionError(
       isConflictResult(result)
-        ? 'This case was updated by another staff member. Refresh the case before trying again.'
+        ? // Surface the server's specific conflict (e.g. the resolution
+          // version conflict) when present; fall back to a generic "refresh"
+          // prompt so a conflict without a detail never looks like a silent no-op.
+          (result.error?.detail ??
+            'This case was updated by another staff member. Refresh the case before trying again.')
         : result.error?.detail || fallback,
     );
   };
