@@ -301,7 +301,9 @@ function CaseDetailContent({
         setAudit(
           auditResult.data.events
             .filter(e => e.resourceId === caseRef)
-            .slice(-20)
+            // API returns newest-first; keep the latest 20 and render them
+            // chronologically.
+            .slice(0, 20)
             .reverse(),
         );
       }
