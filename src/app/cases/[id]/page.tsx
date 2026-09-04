@@ -510,6 +510,7 @@ function CaseDetailContent({
       setRepRationale('');
       setRepCpsc('');
       await refresh();
+      window.dispatchEvent(new CustomEvent('koi_cases_updated'));
     } else {
       setRepError(result.error?.detail || 'Failed to close the reportability review.');
     }
@@ -523,6 +524,7 @@ function CaseDetailContent({
     const result = await assignCase(caseRef, { staffUserId: assignTarget });
     if (result.ok) {
       await refresh();
+      window.dispatchEvent(new CustomEvent('koi_cases_updated'));
     } else {
       applyActionError(result, `Assignment failed (${result.status})`);
     }

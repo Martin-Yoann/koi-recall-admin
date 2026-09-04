@@ -74,9 +74,12 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
     const interval = window.setInterval(() => void refresh(), 60_000);
+    const handleUpdate = () => void refresh();
+    window.addEventListener('koi_cases_updated', handleUpdate);
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
+      window.removeEventListener('koi_cases_updated', handleUpdate);
     };
   }, [refresh]);
 
@@ -115,9 +118,12 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
     if (!open) return;
     const timer = window.setTimeout(() => void refresh(), 0);
     const interval = window.setInterval(() => void refresh(), 30_000);
+    const handleUpdate = () => void refresh();
+    window.addEventListener('koi_cases_updated', handleUpdate);
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
+      window.removeEventListener('koi_cases_updated', handleUpdate);
     };
   }, [open, refresh]);
 
