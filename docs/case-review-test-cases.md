@@ -238,8 +238,61 @@
 5. **文档与代码不一致**：`docs/case-review-workflow.md` 写流转 body 键为 `reason`，代码实际为 `note`（以代码为准）；文档描述 4 个角色，实际仅 ADMIN/MANAGER，"只读角色"提示文案在当前角色模型下不可触达。
 6. **reasonCodes 不渲染**：产品识别的 reasonCodes 后端有、admin 产品表与 front 均不展示（历史遗留）。
 7. **front 适配层丢字段**：campaign 图片恒为空（首页显示 Package 占位图）、UPC 不展示、riskLevel 永不出现、lastUpdated 恒 "—"——验证时区分"适配层已知取舍"与真缺陷。
-8. **无流转确认弹窗**：除 need_info 抽屉与 raw PII confirm 外，所有状态流转一键生效，注意误触防护缺失。
+8. **流转确认弹窗(2026-09-04 更新)**：状态流转现在有 `confirm()` 弹窗（点击即需确认,非"一键生效"）——仅需填原因的目标(如 rejected/duplicate/withdrawn)仍是"先 confirm 后校验原因"，顺序上略怪；need_info 走抽屉、raw PII 有 confirm，其余流转已加确认，误触风险较原描述显著降低。
 9. **审计轨迹截断**：详情页仅展示最近 20 条（接口取 100 条内筛选）。
 10. **DEMO_MODE 回退**：`NEXT_PUBLIC_DEMO_MODE=true` 时 front 对未知 slug 回退 mock 数据，验证 404 行为前确认该变量未开启。
 11. **公开 campaign 不排除 isTestData（2026-09-04 决策）**：公开 campaign 接口与 case lookup 均按"campaign 公开可见即可查询/提交"对齐，不再隔离测试数据——网站未上线、全部为测试数据的前提下保持消费者链路自洽；**上线前需决策**是否收紧（两处一起改：`drizzle-campaign-service.ts` 公开查询 + `drizzle-case-status-lookup-service.ts`）。
 12. **多标签页会话互踢（2026-09-04 发现，已修复）**：同账号开两个标签页会因 refresh 轮换 token 且不跨页传播而互相踢下线；已在 admin `136ffd2` 修复（storage 事件同步 + 401 前采纳新 token + refresh 持久化）。**TC-104 的双标签 UI 路径需在修复后、且 resolution 为 requested 的案例上重补**；服务端 409 契约已实测。
+
+---
+
+## 16. 验收执行记录
+
+> 记录 2026-09-03 / 09-04 两轮实测结果。环境：测试环境（koi-recall-admin/web/backend，未上线，全部测试数据）。涉及代码修复均已在各仓库 main 合并并部署验证（见 §16.3）。
+
+### 16.1 测试数据与账号
+
+- **admin 测试案例**：
+  - `KOI-NYL8-AUJ3VK7Y`（closed，resolution externally_completed v3，REPL-2026-0903-001）
+  - `KOI-DNRA-AF6MNFU6`（under_review，resolution **cancelled** v3——曾走 need_info 链路、乐观锁与取消测试）
+  - `KOI-R2YS-VHA3NUV4`（closed，**事故案例**，reportability filed with CPSC-2026-001，resolution externally_completed v3）
+- **账号**：ADMIN `alex.yuan@rjfresh.com`（手动登录）；测试自建 MANAGER `manager.accept@example.com / ManagerAcc!1234`。
+- **front 造数**：真实走前台提交向导（Music Lollipop ML-DEMO-2026 公开 campaign），无事故→`submitted`、含事故(incidentAnswer=yes)→`submitted`（见 §16.2 TC-003 校注）。
+
+### 16.2 覆盖用例与结果
+
+| 分组 | 覆盖用例 | 结果 | 备注 |
+|---|---|---|---|
+| 主链路 | TC-001(admin 侧) | ✅ | submitted→triage→under_review→approved→(resolution approve→complete)→closure_review→closed |
+| 状态机 | TC-066 终态封死；按钮组与 `allowedActions` 一致性(submitted 无 approved、under_review 无 duplicate、approved 门禁未过无 closure_review) | ✅ | 每步徽章/Stage/NextAction 即时刷新 |
+| 门禁 | TC-081 / TC-082③：Gate1(Gate2)未满足时不渲染按钮+blockingReasons；满足后按钮出现、可关闭 | ✅ | 事故案例双闸门齐备后 closed |
+| 流转校验 | TC-080 空原因拦截；confirm 取消不流转 | ✅ | 见已知问题 #8 |
+| need_info | TC-090/091/092/063 | ✅ | 抽屉 4 建议/Select all/0-2000 计数/<10 禁用/Esc 关闭；提交后横幅+审计；回环 under_review |
+| Resolution | TC-100/105/108/109 + 乐观锁 | ✅ | version 1→2→3 递增；approve replacement、complete(外部单号)、cancelled 终态、ext_completed 取消 422 |
+| Reportability | TC-003(校注)/TC-044/TC-120/121/122/082③ | ✅ | 事故卡字段全、reportability pending→filed(CPSC-2026-001)、队列统计变化、Gate2 通过 |
+| PII | TC-134/135 | ✅ | 初始 MASKED；View raw→confirm→RAW+审计+1；Hide→MASKED 审计不变 |
+| 审计 | §12 成对性、排序、resourceId 命中 | ✅ | 详情页轨迹显示最近 20 条时间正序；新案例 resolution 审计命中 |
+| ADMIN 强制/复活 | TC-077/078/079 | ✅ | 非法目标 204 + `forced:true` 审计；终态复活+恢复；need_info 免 note |
+| RBAC | TC-020/021/022 | ✅ | 建 MANAGER 201；MANAGER staff.manage→403+`insufficient_role`；audit.read/case.queue.read 可用 |
+| 消费者 lookup | TC-093/150/152 | ✅(部分) | need_info→`action_required`、under_review→`in_review`、closed+completed→`completed`；防枚举 404 文案一致 |
+
+**未覆盖（非 P0）**：TC-104 UI 409 横幅（需 resolution 为 requested 的案例，服务端 409 契约已实测）；§13 部分内部状态映射逐项（如 submitted→received、approved→resolution_approved）；§4 列表深链筛选/分页（已知取舍）。
+
+### 16.3 发现的缺陷与处置
+
+| # | 缺陷 | 仓库/提交 | 处置 |
+|---|---|---|---|
+| 1 | 详情页审计查询把 case reference 传给 `resourceType`（API 该字段恒为 `case`），审计区恒空 | admin `2db87da` | 改传 `resourceId`，已部署验证 |
+| 2 | 审计接口按 `occurredAt` 降序，UI `slice(-20)` 取到最旧 20 条 | admin `1841ec2` | 改 `slice(0,20).reverse()` 展示最新 20 条正序 |
+| 3 | PII 分层形同虚设：`?pii=` 参数 API 不读、缺省恒 raw | api `8526afe` | 契约变更：缺省 masked、显式 `pii=raw`+权限才解密并写 `pii.view_raw`，非法值 422 |
+| 4 | resolution 审计 `resourceId` 用 UUID，无法按案例聚合 | api `8526afe` | 统一 `resourceType='case'`/`resourceId=caseRef`，resolutionId 进 metadata |
+| 5 | 公开 campaign 与 case lookup 的 isTestData 策略不一致 | api `93f7c0c` | 未上线+全测试数据决策：lookup 不再排除，公开可见即可查（见已知问题 #11） |
+| 6 | 多标签页会话互踢 | admin `136ffd2` | storage 事件同步+刷新前采纳新 token+refresh 持久化，复现场景验证存活 |
+| 7 | 文档偏差：TC-003 初始态、已知问题 #8(确认弹窗) | 本文档 | 已校正（见 §1 TC-003 校注 / 已知问题 #8） |
+
+### 16.4 观察项（不作为失败判据）
+
+- ADMIN 的**合法**流转也在审计中带 `forced:true`（文档描述"强制流转才标记"，此处 ADMIN 所有流转均标记——记录）。
+- hero 的 CURRENT STAGE 是 status+resolution 推导的展示概念，可能短暂领先真实 status（complete 后显示 Closure Review 但 status 仍 approved）。
+- 终态流转(如 rejected)空原因时先弹 confirm 再报"需填原因"，顺序略怪。
+- lookup `lastUpdatedAt` 不随流转更新（已知问题 #4）。
