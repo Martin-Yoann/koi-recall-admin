@@ -449,6 +449,42 @@ function clearStoredSession() {
   window.dispatchEvent(new CustomEvent('koi_admin_session_expired'));
 }
 
+// ── Cross-tab session sync ──
+// The `storage` event fires only in *other* tabs, which is exactly the channel
+// we need: when any tab rotates the session it writes SESSION_STORAGE_KEY, and
+// the server invalidates the previous token on rotation. Every other tab holds
+// its own module-level `adminSessionToken` that would otherwise go stale and
+// 401 on the next request — a 401 then runs clearStoredSession and logs the
+// whole account out. Mirror the rotated token into this tab so all tabs stay
+// on the live one.
+function startSessionTabSync() {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('storage', (e) => {
+    if (e.key !== SESSION_STORAGE_KEY) return;
+    if (!e.newValue) {
+      // Signed out in another tab — mirror the signed-out state here too so a
+      // stale tab cannot keep using a token the session no longer holds.
+      if (adminSessionToken || readStoredSession()) {
+        adminSessionToken = null;
+        window.dispatchEvent(new CustomEvent('koi_admin_session_expired'));
+      }
+      return;
+    }
+    try {
+      const parsed = JSON.parse(e.newValue) as StoredAdminSession;
+      // A different token means another tab rotated it; adopt it (and let the
+      // auth context resync its user) instead of sending the stale one.
+      if (parsed.token && parsed.token !== adminSessionToken) {
+        adminSessionToken = parsed.token;
+        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+      }
+    } catch {
+      // Malformed write from another tab — keep the current token.
+    }
+  });
+}
+startSessionTabSync();
+
 /**
  * Reads the current bearer token. Falls back to the persisted session
  * SYNCHRONOUSLY so a page effect that fires before the auth provider's
@@ -483,7 +519,18 @@ let refreshInFlight: Promise<boolean> | null = null;
 async function refreshAdminSession(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const token = resolveSessionToken();
+      // Another tab may have just rotated the session. If storage already
+      // holds a token newer than our in-memory copy, adopt it instead of
+      // issuing a second rotation — the server invalidated the old token on
+      // the first one, so a second refresh with it can only 401.
+      const inMem = adminSessionToken;
+      const cached = readStoredSession();
+      if (inMem && cached?.token && cached.token !== inMem) {
+        adminSessionToken = cached.token;
+        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+        return true;
+      }
+      const token = inMem ?? cached?.token;
       if (!token) return false;
       try {
         const res = await fetch(`${API_BASES[0]}/admin/sessions/refresh`, {
@@ -718,6 +765,15 @@ export async function refreshSession(): Promise<ApiResult<StaffLoginResponse>> {
   });
   if (result.ok) {
     setAdminSessionToken(result.data.token);
+    // Persist so sibling tabs adopt the rotated token via the storage event
+    // (the server invalidated the previous one on rotation).
+    writeStoredSession({
+      token: result.data.token,
+      expiresAt: result.data.expiresAt,
+      ...(result.data.role ? { role: result.data.role } : {}),
+      ...(result.data.staffUserId ? { staffUserId: result.data.staffUserId } : {}),
+      ...(result.data.displayName ? { displayName: result.data.displayName } : {}),
+    });
   }
   return result;
 }
