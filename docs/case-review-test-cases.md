@@ -32,7 +32,7 @@
 
 - 本地起 API 必须带 `FIELD_ENCRYPTION_KEY` / `HASH_PEPPER`，否则 admin/staff 服务不装配。
 - `pnpm staff:bootstrap` 创建首个 ADMIN；`pnpm db:seed`（`ALLOW_SYNTHETIC_SEED=true`）产出 MANAGER `reviewer.demo@example.com` / `Password123!@#` 及 3 个 demo 案例；`scripts/seed-test-data.ts` 产出覆盖全部状态约 18 个案例（含事故与 reportability 数据），推荐用它造数。
-- 种子数据挂在 `is_test_data` campaign 下，**公开查询接口查不到**——admin 内部流程用种子没问题，消费者侧 lookup 验证需用真实 campaign 提交的案例。
+- 种子数据挂在 `is_test_data` campaign 下。**2026-09-04 起 lookup 可见性与公开 campaign 可见性对齐**：公开接口（`/v1/recall-campaigns*`）只按 `status='active'` 过滤、不排除 isTestData，lookup 同样不再排除——消费者在公开可见 campaign 提交的案例一定可查询；未上线阶段全部为测试数据，消费者链路保持可用。
 - 测试账号至少：ADMIN ×1、MANAGER ×1。
 
 ---
@@ -216,7 +216,7 @@
 | TC-151 | P0 approvedResolution 披露规则 | refund 已批准的案例 | 批准前/后分别查询 | 仅当 approvedType 非空且 publicStatus ∈ {resolution_approved, resolution_in_progress, completed} 时返回并显示退款/换货名称；其余为空 |
 | TC-152 | P0 查询防枚举 | — | ① 不存在的 reference ② 正确 reference + 错误邮箱 | 两者返回**完全一致**的 404 文案（页面与接口均无差别） |
 | TC-153 | P1 lookup 限流 | — | 1 分钟内查询 >10 次 | 429；front 有专属限流文案 |
-| TC-154 | P1 测试数据隔离 | 种子（is_test_data）案例 | 查询其 reference | 404（合成数据不对外） |
+| TC-154 | P1 测试数据可见性 | 种子（is_test_data）案例 | 查询其 reference | **200 可查询**（2026-09-04 起 lookup 与公开 campaign 可见性一致，不再按 isTestData 排除）；上线时如需隐藏测试 campaign，公开 campaign 接口与 lookup 须同时收紧 |
 | TC-155 | P2 front 主页面不受案例状态影响 | 任意 | 打开 front 首页与 `/recalls/{slug}` 详情 | 案例状态不影响 campaign 页展示；unknown slug → 404 页 |
 | TC-156 | P1 lastUpdatedAt 关注点 | 任意案例多次流转 | 流转后立刻查询 lookup | 注意：`recall_cases.updated_at` 不会随流转更新，`lastUpdatedAt` 可能不变——当前已知行为，如需求要求实时需提缺陷 |
 
@@ -241,3 +241,4 @@
 8. **无流转确认弹窗**：除 need_info 抽屉与 raw PII confirm 外，所有状态流转一键生效，注意误触防护缺失。
 9. **审计轨迹截断**：详情页仅展示最近 20 条（接口取 100 条内筛选）。
 10. **DEMO_MODE 回退**：`NEXT_PUBLIC_DEMO_MODE=true` 时 front 对未知 slug 回退 mock 数据，验证 404 行为前确认该变量未开启。
+11. **公开 campaign 不排除 isTestData（2026-09-04 决策）**：公开 campaign 接口与 case lookup 均按"campaign 公开可见即可查询/提交"对齐，不再隔离测试数据——网站未上线、全部为测试数据的前提下保持消费者链路自洽；**上线前需决策**是否收紧（两处一起改：`drizzle-campaign-service.ts` 公开查询 + `drizzle-case-status-lookup-service.ts`）。
