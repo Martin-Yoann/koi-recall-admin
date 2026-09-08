@@ -15,7 +15,7 @@ import { ThemeToggle } from '@/components/admin/theme-toggle';
 import { listCases, type CaseSummary } from '@/lib/api-client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatAdminDateTime } from '@/lib/formatters';
-import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { CASES_UPDATED_EVENT, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
@@ -75,11 +75,11 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
     const timer = window.setTimeout(() => void refresh(), 0);
     const interval = window.setInterval(() => void refresh(), 60_000);
     const handleUpdate = () => void refresh();
-    window.addEventListener('koi_cases_updated', handleUpdate);
+    window.addEventListener(CASES_UPDATED_EVENT, handleUpdate);
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
-      window.removeEventListener('koi_cases_updated', handleUpdate);
+      window.removeEventListener(CASES_UPDATED_EVENT, handleUpdate);
     };
   }, [refresh]);
 
@@ -119,11 +119,11 @@ function NotificationDrawer({ open, onClose }: { open: boolean; onClose: () => v
     const timer = window.setTimeout(() => void refresh(), 0);
     const interval = window.setInterval(() => void refresh(), 30_000);
     const handleUpdate = () => void refresh();
-    window.addEventListener('koi_cases_updated', handleUpdate);
+    window.addEventListener(CASES_UPDATED_EVENT, handleUpdate);
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
-      window.removeEventListener('koi_cases_updated', handleUpdate);
+      window.removeEventListener(CASES_UPDATED_EVENT, handleUpdate);
     };
   }, [open, refresh]);
 

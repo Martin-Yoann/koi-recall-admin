@@ -24,6 +24,7 @@ import {
   type CaseDetail, type StaffUser, type AuditEvent, type CaseDocument,
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { CASES_UPDATED_EVENT } from '@/lib/admin-constants';
 import { usePermissions } from '@/lib/rbac';
 import {
   formatBlockingReason,
@@ -466,6 +467,7 @@ function CaseDetailContent({
     if (result.ok) {
       setTransitionReason('');
       await refresh();
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       applyActionError(result, `Transition to ${next} failed (${result.status})`);
     }
@@ -487,6 +489,7 @@ function CaseDetailContent({
       setNeedInfoOpen(false);
       setNeedInfoNote('');
       await refresh();
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       applyActionError(result, `Request for information failed (${result.status})`);
     }
@@ -516,7 +519,7 @@ function CaseDetailContent({
       setRepRationale('');
       setRepCpsc('');
       await refresh();
-      window.dispatchEvent(new CustomEvent('koi_cases_updated'));
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       setRepError(result.error?.detail || 'Failed to close the reportability review.');
     }
@@ -530,7 +533,7 @@ function CaseDetailContent({
     const result = await assignCase(caseRef, { staffUserId: assignTarget });
     if (result.ok) {
       await refresh();
-      window.dispatchEvent(new CustomEvent('koi_cases_updated'));
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       applyActionError(result, `Assignment failed (${result.status})`);
     }
@@ -582,6 +585,7 @@ function CaseDetailContent({
         setRefundCurrency('USD');
       }
       await refresh();
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       applyActionError(result, `${formatWorkflowLabel(action)} failed (${result.status})`);
     }

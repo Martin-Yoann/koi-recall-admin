@@ -10,6 +10,9 @@ out/
 build/
 dist/
 .vercel/
+# next dev / next build 各自重写此文件（dev 与 build 的 types 路径不同），
+# 交给本地生成，避免提交后互相翻转。
+next-env.d.ts
 
 # ============= 开发缓存 =============
 .cache/

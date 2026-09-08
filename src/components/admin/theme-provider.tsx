@@ -19,11 +19,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [primary, setPrimaryState] = useState(DEFAULT_ADMIN_THEME);
 
   useEffect(() => {
-    const savedMode = (localStorage.getItem(ADMIN_MODE_STORAGE_KEY) as ThemeMode) || 'light';
-    const savedPrimary = localStorage.getItem(ADMIN_THEME_STORAGE_KEY) || DEFAULT_ADMIN_THEME;
-    setModeState(savedMode);
-    setPrimaryState(savedPrimary);
-    document.documentElement.classList.toggle('dark', savedMode === 'dark');
+    // Initial load runs one frame after mount (effects already fire
+    // post-paint), keeping the setState out of the effect body without
+    // risking an SSR hydration mismatch.
+    const raf = requestAnimationFrame(() => {
+      const savedMode = (localStorage.getItem(ADMIN_MODE_STORAGE_KEY) as ThemeMode) || 'light';
+      const savedPrimary = localStorage.getItem(ADMIN_THEME_STORAGE_KEY) || DEFAULT_ADMIN_THEME;
+      setModeState(savedMode);
+      setPrimaryState(savedPrimary);
+      document.documentElement.classList.toggle('dark', savedMode === 'dark');
+    });
 
     // Keep state in sync with theme/mode changes from any source: the toggles
     // dispatch these events after writing storage, so components that only
@@ -39,6 +44,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('koi_mode_changed', onModeChanged);
     window.addEventListener('koi_theme_changed', onThemeChanged);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('koi_mode_changed', onModeChanged);
       window.removeEventListener('koi_theme_changed', onThemeChanged);
     };
