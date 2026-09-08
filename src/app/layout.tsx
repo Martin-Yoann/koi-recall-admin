@@ -3,6 +3,7 @@ import { AntdRegistry } from '@ant-design/nextjs-registry';
 import Script from 'next/script';
 import { AdminProviders } from '@/components/admin/admin-providers';
 import { AntdThemeProvider } from '@/components/admin/antd-theme-provider';
+import { ThemeProvider } from '@/components/admin/theme-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,12 +15,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <head>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`const saved = localStorage.getItem('koi_admin_mode') || 'light';
-            if (saved === 'dark') document.documentElement.classList.add('dark');`}
-        </Script>
-      </head>
       <body className="h-screen flex bg-surface-secondary overflow-hidden">
         <a
           href="#main-content"
@@ -28,10 +23,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <AntdRegistry>
-          <AntdThemeProvider>
-            <AdminProviders>{children}</AdminProviders>
-          </AntdThemeProvider>
+          <ThemeProvider>
+            <AntdThemeProvider>
+              <AdminProviders>{children}</AdminProviders>
+            </AntdThemeProvider>
+          </ThemeProvider>
         </AntdRegistry>
+        {/* Apply the persisted dark mode before hydration to avoid a flash of
+            the wrong theme. next/script injects this into <head>. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function() {
+            try {
+              const saved = localStorage.getItem('koi_admin_mode') || 'light';
+              if (saved === 'dark') document.documentElement.classList.add('dark');
+            } catch (e) {}
+          })()`}
+        </Script>
       </body>
     </html>
   );

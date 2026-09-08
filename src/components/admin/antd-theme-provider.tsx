@@ -1,19 +1,13 @@
 'use client';
 
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
-import { ADMIN_MODE_STORAGE_KEY, ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { useTheme } from '@/components/admin/theme-provider';
 
 /**
  * antd theme mapped onto the KOI Navy/Blue palette (#0D1B2A + #3A86FF).
- * Keep control heights at 36px and radii at 6px so antd controls match the
- * existing Element-style form controls defined in globals.css.
- *
- * The admin theme is user-switchable: changing it in Account Settings updates
- * both the antd tokens AND the global CSS variables used by Tailwind (sidebar,
- * menu active/hover, buttons, focus rings) so the whole backend changes color.
  */
-
 const themeConfig: ThemeConfig = {
   algorithm: antdTheme.defaultAlgorithm,
   token: {
@@ -115,17 +109,18 @@ function applyGlobalTheme(primary: string, mode: 'light' | 'dark') {
   root.style.setProperty('--color-brand-700', darken(primary, 0.3));
   root.style.setProperty('--status-info', primary);
   // Sidebar menu: active = theme primary; hover = a deep tint of the theme
-  // that stays legible on the dark sidebar.
-  root.style.setProperty('--menu-hover', `color-mix(in srgb, ${primary} 24%, #0D1B2A)`);
+  // that stays legible on the dark sidebar. The base mix color follows the
+  // sidebar background so hover reads consistently in both modes.
+  const menuBase = mode === 'dark' ? '#2B2B2B' : '#0D1B2A';
+  root.style.setProperty('--menu-hover', `color-mix(in srgb, ${primary} ${mode === 'dark' ? 22 : 24}%, ${menuBase})`);
 }
 
 export function AntdThemeProvider({ children }: { children: ReactNode }) {
-  const primary = useSyncExternalStore(subscribeToTheme, readStoredThemeSnapshot, getServerThemeSnapshot);
-  const mode = useSyncExternalStore(subscribeToMode, readStoredModeSnapshot, getServerModeSnapshot);
-  const theme = themeConfigForKey(primary, mode as 'light' | 'dark');
+  const { primary, mode } = useTheme();
+  const theme = themeConfigForKey(primary, mode);
 
   useEffect(() => {
-    applyGlobalTheme(primary, mode as 'light' | 'dark');
+    applyGlobalTheme(primary, mode);
   }, [primary, mode]);
 
   return (
@@ -135,33 +130,6 @@ export function AntdThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Read and validate the persisted theme; returns the default when absent/invalid. */
-function readStoredTheme(): string {
-  if (typeof window === 'undefined') return DEFAULT_ADMIN_THEME;
-  try {
-    const value = localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
-    if (value && /^#[0-9a-fA-F]{6}$/.test(value)) return value;
-  } catch {
-    // Storage can be unavailable in private browsing modes.
-  }
-  return DEFAULT_ADMIN_THEME;
-}
-
-function readStoredThemeSnapshot(): string {
-  return readStoredTheme();
-}
-
-function getServerThemeSnapshot(): string {
-  return DEFAULT_ADMIN_THEME;
-}
-
-function subscribeToTheme(onStoreChange: () => void): () => void {
-  const handleThemeChange = () => onStoreChange();
-  window.addEventListener('koi_theme_changed', handleThemeChange);
-  return () => window.removeEventListener('koi_theme_changed', handleThemeChange);
-}
-
-/** Build a theme config with the given primary color (tokens + control outline). */
 function themeConfigForKey(primary: string, mode: 'light' | 'dark'): ThemeConfig {
   const dark = mode === 'dark';
   const surface = dark ? '#2B2B2B' : '#FFFFFF';
@@ -220,28 +188,4 @@ function themeConfigForKey(primary: string, mode: 'light' | 'dark'): ThemeConfig
       Tooltip: { ...themeConfig.components?.Tooltip, colorBgSpotlight: dark ? '#404040' : '#0D1B2A' },
     },
   };
-}
-
-function readStoredMode(): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'light';
-  try {
-    const value = localStorage.getItem(ADMIN_MODE_STORAGE_KEY);
-    return value === 'dark' ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
-}
-
-function readStoredModeSnapshot(): 'light' | 'dark' {
-  return readStoredMode();
-}
-
-function getServerModeSnapshot(): 'light' | 'dark' {
-  return 'light';
-}
-
-function subscribeToMode(onStoreChange: () => void): () => void {
-  const handleModeChange = () => onStoreChange();
-  window.addEventListener('koi_mode_changed', handleModeChange);
-  return () => window.removeEventListener('koi_mode_changed', handleModeChange);
 }

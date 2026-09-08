@@ -54,13 +54,13 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
     <TooltipProvider delay={300}>
       <ToastProvider>
         <AdminAuthProvider>
-          <AuthInterceptor>
-            {/* The login page renders standalone (no admin chrome); every other
-                route is wrapped in the admin shell. */}
-            {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
-          </AuthInterceptor>
-          <AuthModals />
-        </AdminAuthProvider>
+            <AuthInterceptor>
+              {/* The login page renders standalone (no admin chrome); every other
+                  route is wrapped in the admin shell. */}
+              {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
+            </AuthInterceptor>
+            <AuthModals />
+          </AdminAuthProvider>
       </ToastProvider>
     </TooltipProvider>
   );
