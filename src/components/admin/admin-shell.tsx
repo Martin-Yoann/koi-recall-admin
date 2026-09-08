@@ -209,7 +209,7 @@ function HelpMenu() {
         <CircleHelp className="h-[18px] w-[18px] text-text-secondary" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 mt-2">
-        <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(240,91,120,0.10)' }}>
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <p className="text-sm font-semibold text-text-primary">Review Workflow</p>
           <p className="text-xs text-text-tertiary mt-0.5">How a submitted claim is processed</p>
         </div>
@@ -217,7 +217,7 @@ function HelpMenu() {
           {PROCESS_STEPS.map((step, idx) => (
             <DropdownMenuItem key={step.label} render={<Link href={step.href} />} className="cursor-pointer rounded-lg py-2.5 px-3">
               <span className="flex items-start gap-3 w-full">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-strawberry/10 text-[11px] font-bold text-strawberry">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-emerald text-[11px] font-bold text-white">
                   {idx + 1}
                 </span>
                 <span className="min-w-0">
@@ -342,7 +342,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             TRANSITION_CHILD,
             expanded ? 'px-5 gap-3' : 'justify-center',
           )}
-          style={{ borderColor: 'rgba(143,180,255,0.14)' }}
+          style={{ borderColor: 'var(--sidebar-border)' }}
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white/95 shadow-[0_4px_16px_rgba(58,134,255,0.28)]">
             <Image
@@ -433,7 +433,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 {expanded && hasChildren && groupOpen && (
-                  <div id={groupId} className="ml-8 mt-1 space-y-1 border-l border-white/10 pl-2">
+                  <div id={groupId} className="ml-8 mt-1 space-y-1 border-l border-[var(--sidebar-border)] pl-2">
                     {item.children?.map((child) => {
                       const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
                       return (
@@ -467,7 +467,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             'border-t shrink-0', TRANSITION_CHILD,
             expanded ? 'opacity-100 px-4 py-3.5' : 'opacity-0 overflow-hidden px-0 py-3.5',
           )}
-          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          style={{ borderColor: 'var(--sidebar-border)' }}
         >
           <div className="flex items-center justify-between">
             {isAuthenticated && user ? (
@@ -509,7 +509,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-200 cursor-pointer',
                   'hover:bg-white/10 active:scale-90',
-                  locked ? ' text-blue-400 bg-white/8' : 'text-white/35',
+                  locked ? ' text-[var(--brand-emerald)] bg-white/10' : 'text-white/35',
                 )}
                 title={locked
                   ? 'Unpin — sidebar will auto-collapse when you move the mouse away'
@@ -565,7 +565,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60 mt-2">
                   {/* User info header */}
-                  <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex items-center gap-3">
                       {'avatarDataUrl' in user && user.avatarDataUrl ? (
                         <Image src={user.avatarDataUrl as string} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-full object-cover" unoptimized />
@@ -600,7 +600,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       </div>
                     </DropdownMenuItem>
                   </div>
-                  <div className="p-1.5 pt-0 border-t" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
+                  <div className="p-1.5 pt-0 border-t" style={{ borderColor: 'var(--border)' }}>
                     <DropdownMenuItem onClick={logout} className="cursor-pointer rounded-lg py-2.5 px-3 text-sm text-red-600 hover:bg-red-50 transition-colors">
                       <LogOut className="mr-2.5 h-4.5 w-4.5" />
                       Sign Out

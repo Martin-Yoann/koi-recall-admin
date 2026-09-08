@@ -8,7 +8,8 @@ import { X, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { useToast } from '@/components/ui/toast';
-import { ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { useTheme } from '@/components/admin/theme-provider';
+import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 
 /** Admin theme presets. Persisted and broadcast via `koi_admin_theme`. */
 const THEMES = [
@@ -55,6 +56,7 @@ function computeInitials(name: string): string {
 
 export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) {
   const { user, updateProfile, changePassword } = useAdminAuth();
+  const { primary, setPrimary } = useTheme();
 
   if (!open || !user) return null;
 
@@ -66,6 +68,8 @@ export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) 
       initialTab={initialTab}
       updateProfile={updateProfile}
       changePassword={changePassword}
+      primary={primary}
+      setPrimary={setPrimary}
     />
   );
 }
@@ -76,21 +80,18 @@ interface ProfileDialogContentProps {
   initialTab: 'profile' | 'password';
   updateProfile: ReturnType<typeof useAdminAuth>['updateProfile'];
   changePassword: ReturnType<typeof useAdminAuth>['changePassword'];
+  primary: string;
+  setPrimary: (color: string) => void;
 }
 
-function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword }: ProfileDialogContentProps) {
+function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword, primary, setPrimary }: ProfileDialogContentProps) {
   const toast = useToast();
   const [tab, setTab] = useState<'profile' | 'password'>(initialTab);
 
   const [name, setName] = useState(user.name || '');
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
-  // Default avatar background is the brand blue.
   const [avatarBg] = useState<string | null>(user.avatarBg || DEFAULT_ADMIN_THEME);
   const [profileError, setProfileError] = useState('');
-
-  const [currentTheme, setCurrentTheme] = useState(
-    typeof window !== 'undefined' ? localStorage.getItem(ADMIN_THEME_STORAGE_KEY) || DEFAULT_ADMIN_THEME : DEFAULT_ADMIN_THEME,
-  );
 
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -103,13 +104,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
   /** Broadcast the chosen theme to the global ConfigProvider + persist it. */
   const handleThemeChange = (newTheme: string) => {
-    setCurrentTheme(newTheme);
-    try {
-      localStorage.setItem(ADMIN_THEME_STORAGE_KEY, newTheme);
-    } catch {
-      // Storage unavailable (private mode) — the in-memory choice still works.
-    }
-    window.dispatchEvent(new CustomEvent('koi_theme_changed', { detail: newTheme }));
+    setPrimary(newTheme);
   };
 
   const handleSaveProfile = async () => {
@@ -122,7 +117,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
     const n = name.trim();
     const init = computeInitials(n);
     setProfileSaving(true);
-    const result = await updateProfile({ name: n, initials: init, avatarBg: currentTheme, avatarDataUrl });
+    const result = await updateProfile({ name: n, initials: init, avatarBg: primary, avatarDataUrl });
     setProfileSaving(false);
     if (result.ok) {
       toast.success('Profile updated');
@@ -249,7 +244,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                   'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer',
                   tab === t.key ? 'text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
                 )}
-                style={tab === t.key ? { background: currentTheme } : undefined}
+                style={tab === t.key ? { background: primary } : undefined}
               >
                 <t.icon className="h-4 w-4" />
                 {t.label}
@@ -363,11 +358,11 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                         className={cn(
                           'flex h-9 w-9 items-center justify-center rounded-full transition-[transform,box-shadow] cursor-pointer focus-visible:outline-none',
                           'hover:scale-110 hover:shadow-md active:scale-95',
-                          currentTheme === t.value && 'ring-2 ring-offset-2 ring-brand-500',
+                          primary === t.value && 'ring-2 ring-offset-2 ring-brand-500',
                         )}
                         style={{ background: t.value }}
                       >
-                        {currentTheme === t.value && <Check className="h-4 w-4 text-white drop-shadow-sm" />}
+                        {primary === t.value && <Check className="h-4 w-4 text-white drop-shadow-sm" />}
                       </button>
                     ))}
                   </div>

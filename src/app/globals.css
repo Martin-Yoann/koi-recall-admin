@@ -126,6 +126,9 @@
 
   --section-gap: 4rem;
   --content-max: 1280px;
+  /* Sidebar hover tint (equivalent to brand-emerald 24% over #0D1B2A);
+     overwritten at runtime for other user-selected theme colors. */
+  --menu-hover: #18355D;
 }
 
 .dark {
@@ -164,6 +167,8 @@
   --text-secondary: #CBD5E1;
   --text-tertiary: #94A3B8;
   --text-on-inverse: #161616;
+  /* Sidebar hover tint (brand-emerald 22% over the #2B2B2B sidebar). */
+  --menu-hover: #2E3F5A;
 }
 
 /* ============================================================
@@ -302,11 +307,8 @@
   background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
-.dark .admin-btn,
-.dark .admin-btn:hover,
-.dark .admin-btn:focus,
-.dark .admin-btn:active {
-  color: #ffffff !important;
+.dark .admin-btn {
+  color: #ffffff;
 }
 
   .ant-select-single .ant-select-selection-item,
@@ -539,9 +541,7 @@
   @apply transition-all duration-200 border-slate-200 rounded-lg cursor-pointer hover:border-brand-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
 }
 @layer components {
-  /* Sidebar navigation states are explicit so global link styles cannot
-     change the requested palette. Colors follow the user-selected admin
-     theme via CSS variables (--brand-emerald / --menu-hover). */
+  /* Sidebar navigation states */
   a[data-nav-state='active'] {
     color: #FFFFFF !important;
     background-color: var(--brand-emerald) !important;
@@ -551,17 +551,17 @@
     background-color: var(--menu-hover) !important;
   }
   a[data-nav-state='idle'] {
-    color: #94A3B8 !important;
-    background-color: transparent !important;
+    color: #94A3B8;
+    background-color: transparent;
   }
   a[data-nav-state='idle']:hover {
-    color: #FFFFFF !important;
-    background-color: var(--menu-hover) !important;
+    color: #FFFFFF;
+    background-color: var(--menu-hover);
   }
 
-  /* Toast theme accents — success/info follow the user-selected admin theme. */
+  /* Toast theme accents */
   .toast-accent-primary {
-    border-left-color: var(--brand-emerald) !important;
+    border-left-color: var(--brand-emerald);
   }
   .toast-icon-primary {
     color: #ffffff;
@@ -596,3 +596,14 @@
   from { transform: translateX(-130%) skewX(-16deg); }
   to   { transform: translateX(230%) skewX(-16deg); }
 }
+/* ============================================================
+   Ant Design Overrides
+   ============================================================ */
+.dark .ant-modal-confirm,
+.dark .ant-modal-confirm-body {
+  background-color: var(--surface-secondary);
+}
+.dark .ant-modal-confirm-title,
+.dark .ant-modal-confirm-content {
+  color: var(--text-primary);
+} 
