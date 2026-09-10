@@ -6,6 +6,7 @@ import { Shield, ShieldAlert, RefreshCw, CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
 import { closeReportabilityReview, listIncidents, type IncidentSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { CASES_UPDATED_EVENT } from '@/lib/admin-constants';
 import { usePermissions } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 
@@ -89,6 +90,7 @@ export default function IncidentsPage() {
     if (result.ok) {
       setReviewing(null);
       await fetchIncidents();
+      window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
       setDialogError(result.error?.detail || 'Failed to close reportability review.');
     }

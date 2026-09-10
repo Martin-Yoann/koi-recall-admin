@@ -16,6 +16,7 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { assignCase, exportCases, listCases, type CaseSummary } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
+import { CASES_UPDATED_EVENT } from '@/lib/admin-constants';
 import { formatAdminDate } from '@/lib/formatters';
 import { usePermissions } from '@/lib/rbac';
 import { useToast } from '@/components/ui/toast';
@@ -139,6 +140,7 @@ export default function CasesPage() {
           if (result.ok) {
             toast.success(`Case ${caseRef} is now assigned to you.`, 'Case claimed');
             await fetchCases();
+            window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
           } else {
             const message = result.error?.detail || `Failed to claim ${caseRef}.`;
             if (mountedRef.current) {
