@@ -455,9 +455,16 @@ function CaseDetailContent({
       return;
     }
 
-    // Negative closures are auditable decisions: require a written reason.
-    if (REASON_REQUIRED.includes(next) && transitionReason.trim().length === 0) {
-      setActionError(`A written reason is required before moving this case to ${next.replace(/_/g, ' ')}.`);
+    // Negative closures are auditable decisions, and a closure without a
+    // completed remedy is one too — the consumer email renders that reason.
+    // The backend enforces the same rule (≥10 chars, admins included).
+    const reasonRequired =
+      REASON_REQUIRED.includes(next) ||
+      (next === 'closed' && record.resolution?.status !== 'externally_completed');
+    if (reasonRequired && transitionReason.trim().length < 10) {
+      setActionError(
+        `A reason of at least 10 characters is required before moving this case to ${next.replace(/_/g, ' ')}.`,
+      );
       return;
     }
 
@@ -1591,7 +1598,7 @@ function CaseDetailContent({
                   id="transition-reason"
                   value={transitionReason}
                   onChange={e => setTransitionReason(e.target.value)}
-                  placeholder="Reason for the transition (required for rejected / duplicate / withdrawn)…"
+                  placeholder="Reason for the transition (required for rejected / duplicate / withdrawn / closing without a completed remedy)…"
                   className="w-full"
                   autoSize={{ minRows: 3, maxRows: 6 }}
                 />
