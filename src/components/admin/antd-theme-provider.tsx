@@ -2,8 +2,17 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd';
+import enUS from 'antd/locale/en_US';
+import zhCN from 'antd/locale/zh_CN';
 import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
+import { preferences, type AdminLocale } from '@/lib/preferences';
 import { useTheme } from '@/components/admin/theme-provider';
+
+/** antd component strings per language preference. */
+const ANTD_LOCALES: Record<AdminLocale, typeof enUS> = {
+  'en-US': enUS,
+  'zh-CN': zhCN,
+};
 
 /**
  * antd theme mapped onto the KOI Navy/Blue palette (#0D1B2A + #3A86FF).
@@ -108,23 +117,31 @@ function applyGlobalTheme(primary: string, mode: 'light' | 'dark') {
   root.style.setProperty('--color-brand-600', dark);
   root.style.setProperty('--color-brand-700', darken(primary, 0.3));
   root.style.setProperty('--status-info', primary);
-  // Sidebar menu: active = theme primary; hover = a deep tint of the theme
-  // that stays legible on the dark sidebar. The base mix color follows the
-  // sidebar background so hover reads consistently in both modes.
+  // Sidebar menu tokens, all derived from the chosen theme color so the nav
+  // follows the primary: active = solid theme, hover = a deep tint of the
+  // theme that stays legible on the dark sidebar, idle = muted slate text.
   const menuBase = mode === 'dark' ? '#2B2B2B' : '#0D1B2A';
+  root.style.setProperty('--menu-active', primary);
+  root.style.setProperty('--menu-active-foreground', '#ffffff');
+  // Unselected menu text follows the dropdown-menu text color. The rail is
+  // always dark, so it uses the sidebar foreground (identical to the dark-mode
+  // popover text, #F8FAFC) rather than a dark-on-dark popover value.
+  root.style.setProperty('--menu-idle', 'var(--sidebar-foreground)');
   root.style.setProperty('--menu-hover', `color-mix(in srgb, ${primary} ${mode === 'dark' ? 22 : 24}%, ${menuBase})`);
 }
 
 export function AntdThemeProvider({ children }: { children: ReactNode }) {
-  const { primary, mode } = useTheme();
-  const theme = themeConfigForKey(primary, mode);
+  // antd only understands light/dark, so `system` resolves first.
+  const { primary, resolvedMode } = useTheme();
+  const locale = preferences.locale.use();
+  const theme = themeConfigForKey(primary, resolvedMode);
 
   useEffect(() => {
-    applyGlobalTheme(primary, mode);
-  }, [primary, mode]);
+    applyGlobalTheme(primary, resolvedMode);
+  }, [primary, resolvedMode]);
 
   return (
-    <ConfigProvider theme={theme}>
+    <ConfigProvider theme={theme} locale={ANTD_LOCALES[locale]}>
       <AntdApp className="flex h-full w-full min-w-0 flex-1 flex-row">{children}</AntdApp>
     </ConfigProvider>
   );

@@ -6,13 +6,15 @@ import Link from 'next/link';
 import {
   LayoutDashboard, FolderOpen, ListOrdered, AlertTriangle,
   Download, Shield, Menu, X, Pin, PinOff, LogOut, LogIn,
-  User, Key, Bell, CircleHelp, ArrowRight, ChevronDown,
+  User, Key, Bell, CircleHelp, ArrowRight, ChevronDown, Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { ThemeToggle } from '@/components/admin/theme-toggle';
 import { listCases, type CaseSummary } from '@/lib/api-client';
+import { preferences } from '@/lib/preferences';
+import { playAlertTone, showDesktopNotification } from '@/lib/notify';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatAdminDateTime } from '@/lib/formatters';
 import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
@@ -64,16 +66,43 @@ const PROCESS_STEPS = [
 function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
   const { isAuthenticated } = useAdminAuth();
   const [count, setCount] = useState<number>(0);
+  const alertsEnabled = preferences.notificationsEnabled.use();
+  const pollMs = preferences.notificationPollMs.use();
+  const desktopAlerts = preferences.notificationDesktop.use();
+  const soundAlerts = preferences.notificationSound.use();
+  /** Previous poll result, so an increase can raise a desktop/sound alert. */
+  const previousCount = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !alertsEnabled) return;
     const result = await listCases({ status: 'submitted', limit: 100 });
-    if (result.ok) setCount(result.data.cases.length);
-  }, [isAuthenticated]);
+    if (!result.ok) return;
+    const next = result.data.cases.length;
+    const previous = previousCount.current;
+    setCount(next);
+    previousCount.current = next;
+    if (previous !== null && next > previous) {
+      const delta = next - previous;
+      if (desktopAlerts) {
+        showDesktopNotification(
+          'New recall submission',
+          `${delta} new submission${delta > 1 ? 's' : ''} waiting for intake.`,
+        );
+      }
+      if (soundAlerts) playAlertTone();
+    }
+  }, [isAuthenticated, alertsEnabled, desktopAlerts, soundAlerts]);
 
   useEffect(() => {
+    if (!alertsEnabled) {
+      const reset = window.setTimeout(() => {
+        setCount(0);
+        previousCount.current = null;
+      }, 0);
+      return () => window.clearTimeout(reset);
+    }
     const timer = window.setTimeout(() => void refresh(), 0);
-    const interval = window.setInterval(() => void refresh(), 60_000);
+    const interval = window.setInterval(() => void refresh(), pollMs);
     const handleUpdate = () => void refresh();
     window.addEventListener('koi_cases_updated', handleUpdate);
     return () => {
@@ -81,7 +110,7 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
       window.clearInterval(interval);
       window.removeEventListener('koi_cases_updated', handleUpdate);
     };
-  }, [refresh]);
+  }, [refresh, alertsEnabled, pollMs]);
 
   return (
     <button
@@ -91,7 +120,7 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
       className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary cursor-pointer transition-colors"
     >
       <Bell className="h-[18px] w-[18px] text-text-secondary" />
-      {count > 0 && (
+      {alertsEnabled && count > 0 && (
         <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-strawberry px-1 text-[10px] font-bold leading-none text-white">
           {count > 99 ? '99+' : count}
         </span>
@@ -247,10 +276,11 @@ const TRANSITION_CHILD = 'transition-[opacity,transform,background-color,color,p
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, isAuthenticated, logout, openLogin, openProfile } = useAdminAuth();
+  const { user, isAuthenticated, logout, openLogin, openProfile, openSettings } = useAdminAuth();
   // Keep the sidebar expanded by default, matching the reference layout.
   // Users can still unpin it from the footer to restore hover-collapse behavior.
-  const [locked, setLocked] = useState(true);
+  // Persisted so the rail keeps the operator's chosen width across reloads.
+  const locked = preferences.sidebarPinned.use();
   const [hovering, setHovering] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -393,11 +423,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         TRANSITION_CHILD,
                         expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
                         active
-                          ? 'text-[#FFFFFF] bg-[var(--brand-emerald)]'
-                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
+                          ? 'text-[var(--menu-active-foreground)] bg-[var(--menu-active)]'
+                          : 'text-[var(--menu-idle)] bg-transparent hover:text-[var(--brand-emerald)] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
                       )}
                       data-nav-state={active ? 'active' : 'idle'}
-                      style={active ? { color: '#FFFFFF', backgroundColor: 'var(--brand-emerald)' } : undefined}
                       title={!expanded ? item.label : undefined}
                     >
                       <Icon className="w-[20px] h-[20px] shrink-0" />
@@ -418,11 +447,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         TRANSITION_CHILD,
                         expanded ? 'gap-3 px-[10px] py-[9px] justify-start' : 'gap-0 py-[9px] justify-center',
                         active
-                          ? 'text-[#FFFFFF] bg-[var(--brand-emerald)]'
-                          : 'text-[#94A3B8] bg-transparent hover:text-[#FFFFFF] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
+                          ? 'text-[var(--menu-active-foreground)] bg-[var(--menu-active)]'
+                          : 'text-[var(--menu-idle)] bg-transparent hover:text-[var(--brand-emerald)] hover:bg-[var(--menu-hover)] active:scale-[0.985]',
                       )}
                       data-nav-state={active ? 'active' : 'idle'}
-                      style={active ? { color: '#FFFFFF', backgroundColor: 'var(--brand-emerald)' } : undefined}
                       title={!expanded ? item.label : undefined}
                     >
                       <Icon className="w-[20px] h-[20px] shrink-0" />
@@ -444,11 +472,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                           className={cn(
                             'flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors duration-200 cursor-pointer',
                             childActive
-                              ? 'bg-[var(--menu-hover)] text-[#FFFFFF]'
-                              : 'text-[#94A3B8] hover:bg-[var(--menu-hover)] hover:text-[#FFFFFF]',
+                              ? 'bg-[var(--menu-active)] text-[var(--menu-active-foreground)]'
+                              : 'text-[var(--menu-idle)] hover:bg-[var(--menu-hover)] hover:text-[var(--brand-emerald)]',
                           )}
                           data-nav-state={childActive ? 'subactive' : 'idle'}
-                          style={childActive ? { color: '#FFFFFF', backgroundColor: 'var(--menu-hover)' } : undefined}
                         >
                           <span className="truncate">{child.label}</span>
                         </Link>
@@ -505,7 +532,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               )}
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setLocked((v) => !v); }}
+                onClick={(e) => { e.stopPropagation(); preferences.sidebarPinned.set(!locked); }}
                 className={cn(
                   'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-200 cursor-pointer',
                   'hover:bg-white/10 active:scale-90',
@@ -589,7 +616,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       <User className="mr-2.5 h-4.5 w-4.5 text-text-tertiary" />
                       <div className="flex flex-col items-start">
                         <span className="font-medium text-text-primary">Edit Profile</span>
-                        <span className="text-xs text-text-tertiary font-normal">Change name, avatar, color</span>
+                        <span className="text-xs text-text-tertiary font-normal">Change name and avatar</span>
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openProfile('password')} className="cursor-pointer rounded-lg py-2.5 px-3 text-sm hover:bg-surface-secondary transition-colors">
@@ -597,6 +624,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       <div className="flex flex-col items-start">
                         <span className="font-medium text-text-primary">Change Password</span>
                         <span className="text-xs text-text-tertiary font-normal">Update your credentials</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={openSettings} className="cursor-pointer rounded-lg py-2.5 px-3 text-sm hover:bg-surface-secondary transition-colors">
+                      <Settings className="mr-2.5 h-4.5 w-4.5 text-text-tertiary" />
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium text-text-primary">Settings</span>
+                        <span className="text-xs text-text-tertiary font-normal">Theme, language, notifications</span>
                       </div>
                     </DropdownMenuItem>
                   </div>
@@ -611,7 +645,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             ) : (
               <button
                 onClick={openLogin}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--brand-emerald)] hover:bg-[var(--menu-hover)] text-white text-xs font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--sidebar-primary)] hover:bg-[var(--brand-emerald-dark)] text-[var(--menu-active-foreground)] text-xs font-medium transition-colors cursor-pointer"
               >
                 <LogIn className="h-3.5 w-3.5" />
                 Sign In

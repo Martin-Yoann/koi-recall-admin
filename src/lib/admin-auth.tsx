@@ -42,10 +42,16 @@ interface AuthCtx {
   openLogin: () => void;
   closeLogin: () => void;
   profileOpen: boolean;
-  profileTab: 'profile' | 'password';
-  openProfile: (tab?: 'profile' | 'password') => void;
+  profileTab: ProfileTab;
+  openProfile: (tab?: ProfileTab) => void;
   closeProfile: () => void;
+  settingsOpen: boolean;
+  openSettings: () => void;
+  closeSettings: () => void;
 }
+
+/** Sections of the account-settings dialog. */
+export type ProfileTab = 'profile' | 'password';
 
 const AdminAuthCtx = createContext<AuthCtx | undefined>(undefined);
 
@@ -192,7 +198,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const [loginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [profileTab, setProfileTab] = useState<'profile' | 'password'>('profile');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<ProfileTab>('profile');
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await staffLogin({ email, password });
@@ -285,13 +292,15 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const closeLogin = useCallback(() => {}, []);
   const openProfile = useCallback(
-    (tab: 'profile' | 'password' = 'profile') => {
+    (tab: ProfileTab = 'profile') => {
       setProfileTab(tab);
       setProfileOpen(true);
     },
     [],
   );
   const closeProfile = useCallback(() => setProfileOpen(false), []);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   return (
     <AdminAuthCtx.Provider
@@ -308,6 +317,9 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         closeLogin,
         profileOpen,
         profileTab,
+        settingsOpen,
+        openSettings,
+        closeSettings,
         openProfile,
         closeProfile,
       }}

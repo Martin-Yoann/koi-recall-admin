@@ -4,29 +4,18 @@
 
 import { useState, useRef } from 'react';
 import { Button, Input } from 'antd';
-import { X, Check, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
+import { X, User, Lock, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAdminAuth } from '@/lib/admin-auth';
+import { useAdminAuth, type ProfileTab } from '@/lib/admin-auth';
 import { useToast } from '@/components/ui/toast';
 import { useTheme } from '@/components/admin/theme-provider';
+import { AdminDialog } from '@/components/admin/admin-dialog';
 import { DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
-
-/** Admin theme presets. Persisted and broadcast via `koi_admin_theme`. */
-const THEMES = [
-  { label: 'Navy Blue', value: DEFAULT_ADMIN_THEME },
-  { label: 'Midnight', value: '#052745' },
-  { label: 'Emerald', value: '#006C49' },
-  { label: 'Violet', value: '#7C3AED' },
-  { label: 'Rose', value: '#E11D48' },
-  { label: 'Amber', value: '#D97706' },
-  { label: 'Cyan', value: '#0E7490' },
-  { label: 'Slate', value: '#475569' },
-];
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  initialTab?: 'profile' | 'password';
+  initialTab?: ProfileTab;
 }
 
 /** Validate name: max 6 Chinese chars or 12 ASCII chars */
@@ -56,7 +45,7 @@ function computeInitials(name: string): string {
 
 export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) {
   const { user, updateProfile, changePassword } = useAdminAuth();
-  const { primary, setPrimary } = useTheme();
+  const { primary } = useTheme();
 
   if (!open || !user) return null;
 
@@ -69,7 +58,6 @@ export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) 
       updateProfile={updateProfile}
       changePassword={changePassword}
       primary={primary}
-      setPrimary={setPrimary}
     />
   );
 }
@@ -77,16 +65,15 @@ export function ProfileDialog({ open, onClose, initialTab = 'profile' }: Props) 
 interface ProfileDialogContentProps {
   user: NonNullable<ReturnType<typeof useAdminAuth>['user']>;
   onClose: () => void;
-  initialTab: 'profile' | 'password';
+  initialTab: ProfileTab;
   updateProfile: ReturnType<typeof useAdminAuth>['updateProfile'];
   changePassword: ReturnType<typeof useAdminAuth>['changePassword'];
   primary: string;
-  setPrimary: (color: string) => void;
 }
 
-function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword, primary, setPrimary }: ProfileDialogContentProps) {
+function ProfileDialogContent({ user, onClose, initialTab, updateProfile, changePassword, primary }: ProfileDialogContentProps) {
   const toast = useToast();
-  const [tab, setTab] = useState<'profile' | 'password'>(initialTab);
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
 
   const [name, setName] = useState(user.name || '');
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(user.avatarDataUrl ?? null);
@@ -102,13 +89,7 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /** Broadcast the chosen theme to the global ConfigProvider + persist it. */
-  const handleThemeChange = (newTheme: string) => {
-    setPrimary(newTheme);
-  };
-
-  const handleSaveProfile = async () => {
-    setProfileError('');
+  const handleSaveProfile = async () => {    setProfileError('');
     const err = validateName(name);
     if (err) {
       setProfileError(err);
@@ -190,72 +171,47 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
   const displayInitials = computeInitials(name || user.name);
 
   return (
-    <>
-      {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Close account settings"
-        className="fixed inset-0 z-[65] cursor-default bg-black/25 animate-[fadeIn_150ms] motion-reduce:animate-none"
-        onClick={onClose}
-      />
-
-      {/* Centered dialog */}
-      <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="account-settings-title"
-          className="w-full max-w-[440px] max-h-[calc(100vh-2rem)] overflow-hidden overscroll-contain rounded-2xl shadow-2xl animate-[scaleIn_200ms_ease-out] motion-reduce:animate-none bg-[var(--surface-elevated)] backdrop-blur-md"
-        >
-          {/* Header */}
-          <div
-            className="flex items-center justify-between px-6 py-4 border-b"
-            style={{ borderColor: 'var(--border)' }}
+    <AdminDialog
+      // The outer ProfileDialog gates on `open`; inside, the dialog is mounted open.
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title="Account Settings"
+      labelId="account-settings-title"
+      icon={User}
+    >
+      {/* Tabs */}
+      <div role="tablist" aria-label="Account settings sections" className="flex gap-1 px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.08)' }}>
+        {(
+          [
+            { key: 'profile' as const, label: 'Edit Profile', icon: User },
+            { key: 'password' as const, label: 'Change Password', icon: Lock },
+          ]
+        ).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            onClick={() => setTab(t.key)}
+            aria-selected={tab === t.key}
+            tabIndex={tab === t.key ? 0 : -1}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+              tab === t.key ? 'text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
+            )}
+            style={tab === t.key ? { background: primary } : undefined}
           >
-            <h3 id="account-settings-title" className="text-base font-bold text-[var(--text-primary)]">
-              Account Settings
-            </h3>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close account settings"
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
-            >
-              <X className="h-4 w-4 text-text-tertiary" />
-            </button>
-          </div>
+            <t.icon className="h-4 w-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Tabs */}
-          <div role="tablist" aria-label="Account settings sections" className="flex gap-1 px-4 py-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.08)' }}>
-            {(
-              [
-                { key: 'profile' as const, label: 'Edit Profile', icon: User },
-                { key: 'password' as const, label: 'Change Password', icon: Lock },
-              ]
-            ).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                onClick={() => setTab(t.key)}
-                aria-selected={tab === t.key}
-                tabIndex={tab === t.key ? 0 : -1}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer',
-                  tab === t.key ? 'text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
-                )}
-                style={tab === t.key ? { background: primary } : undefined}
-              >
-                <t.icon className="h-4 w-4" />
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Content — shrinks to fit; no inner scrollbar */}
-          <div className="p-5 space-y-4">
-            {tab === 'profile' && (
-              <>
+      {/* Content */}
+      <div className="p-5 space-y-4">
+        {tab === 'profile' && (
+          <>
                 {/* Avatar preview */}
                 <div className="flex flex-col items-center gap-2.5 pb-3 border-b" style={{ borderColor: 'rgba(0,53,39,0.06)' }}>
                   <button
@@ -340,35 +296,6 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                     maxLength={24}
                   />
                   <p className="text-[10px] text-text-tertiary">6 Chinese characters or 12 English letters max</p>
-                </div>
-
-                {/* Admin Theme Picker */}
-                <div className="space-y-2">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
-                    Admin Theme
-                  </label>
-                  <div className="flex flex-wrap gap-3">
-                    {THEMES.map((t) => (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => handleThemeChange(t.value)}
-                        aria-label={`Switch to ${t.label} theme`}
-                        title={t.label}
-                        className={cn(
-                          'flex h-9 w-9 items-center justify-center rounded-full transition-[transform,box-shadow] cursor-pointer focus-visible:outline-none',
-                          'hover:scale-110 hover:shadow-md active:scale-95',
-                          primary === t.value && 'ring-2 ring-offset-2 ring-brand-500',
-                        )}
-                        style={{ background: t.value }}
-                      >
-                        {primary === t.value && <Check className="h-4 w-4 text-white drop-shadow-sm" />}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-text-tertiary">
-                    Applies to the whole admin interface — buttons, menus and highlights.
-                  </p>
                 </div>
 
                 {profileError && (
@@ -467,9 +394,8 @@ function ProfileDialogContent({ user, onClose, initialTab, updateProfile, change
                 </Button>
               </>
             )}
-          </div>
-        </div>
+
       </div>
-    </>
+    </AdminDialog>
   );
 }

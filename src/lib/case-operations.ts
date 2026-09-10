@@ -2,21 +2,24 @@ import {
   approveResolution,
   cancelResolution,
   completeResolution,
+  recordShipment,
   type ApiResult,
   type CaseDetail,
   type CaseResolution,
   type CaseSummary,
 } from '@/lib/api-client';
 
-export type CaseAction =
-  | `transition:${string}`
+export type ResolutionAction =
   | 'resolution:approve'
   | 'resolution:complete'
-  | 'resolution:cancel';
+  | 'resolution:cancel'
+  | 'resolution:ship';
+
+export type CaseAction = `transition:${string}` | ResolutionAction;
 
 export interface CaseOperationsView {
   transitions: string[];
-  resolutionActions: Array<'resolution:approve' | 'resolution:complete' | 'resolution:cancel'>;
+  resolutionActions: ResolutionAction[];
   blockingReasons: string[];
 }
 
@@ -29,10 +32,11 @@ export function getCaseOperationsView(
       .filter((action): action is `transition:${string}` => action.startsWith('transition:'))
       .map((action) => action.slice('transition:'.length)),
     resolutionActions: actions.filter(
-      (
-        action,
-      ): action is 'resolution:approve' | 'resolution:complete' | 'resolution:cancel' =>
-        action === 'resolution:approve' || action === 'resolution:complete' || action === 'resolution:cancel',
+      (action): action is ResolutionAction =>
+        action === 'resolution:approve' ||
+        action === 'resolution:complete' ||
+        action === 'resolution:cancel' ||
+        action === 'resolution:ship',
     ),
     blockingReasons: record.workflow?.blockingReasons ?? [],
   };
@@ -55,7 +59,7 @@ export function formatWorkflowLabel(value: string): string {
 
 export async function runResolutionAction(
   caseReference: string,
-  action: 'resolution:approve' | 'resolution:complete' | 'resolution:cancel',
+  action: ResolutionAction,
   input: {
     note: string;
     expectedVersion: number;
@@ -63,6 +67,7 @@ export async function runResolutionAction(
     refundAmountMinor?: number;
     currency?: string;
     externalReference?: string;
+    trackingNumber?: string;
   },
 ): Promise<ApiResult<CaseResolution>> {
   switch (action) {
@@ -79,6 +84,11 @@ export async function runResolutionAction(
         note: input.note,
         expectedVersion: input.expectedVersion,
         externalReference: input.externalReference,
+      });
+    case 'resolution:ship':
+      return recordShipment(caseReference, {
+        trackingNumber: input.trackingNumber?.trim() ?? '',
+        expectedVersion: input.expectedVersion,
       });
     case 'resolution:cancel':
       return cancelResolution(caseReference, {

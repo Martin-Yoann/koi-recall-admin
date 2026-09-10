@@ -109,6 +109,8 @@ export interface CaseResolution {
   externalReference: string | null;
   completedByStaffUserId: string | null;
   completedAt: string | null;
+  trackingNumber: string | null;
+  shippedAt: string | null;
   version: number;
 }
 
@@ -905,6 +907,19 @@ export async function cancelResolution(
 ): Promise<ApiResult<CaseResolution>> {
   const result = await fetchApi<CaseResolutionResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}/resolution/cancel`,
+    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+  );
+  if (result.ok) return { ok: true, data: result.data.resolution };
+  return result;
+}
+
+/** POST /admin/cases/{caseRef}/resolution/shipment — record the replacement shipment fact (sends the shipped email). */
+export async function recordShipment(
+  caseRef: string,
+  body: { trackingNumber: string; expectedVersion: number; shippedAt?: string },
+): Promise<ApiResult<CaseResolution>> {
+  const result = await fetchApi<CaseResolutionResponse>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/resolution/shipment`,
     { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
   );
   if (result.ok) return { ok: true, data: result.data.resolution };

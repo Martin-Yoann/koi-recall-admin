@@ -129,6 +129,9 @@
   /* Sidebar hover tint (equivalent to brand-emerald 24% over #0D1B2A);
      overwritten at runtime for other user-selected theme colors. */
   --menu-hover: #18355D;
+  /* Unselected menu text = the dropdown-menu text color on the dark rail
+     (runtime-overridden from the active theme); hover = the theme color. */
+  --menu-idle: var(--sidebar-foreground);
 }
 
 .dark {
@@ -430,6 +433,11 @@
   to   { opacity: 1; }
 }
 
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 @keyframes slideInRight {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
@@ -438,6 +446,27 @@
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Reduced motion — honours both the OS setting and the in-app preference
+   (`data-reduce-motion` is set on <html> by the preferences effects). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-reduce-motion='true'] *,
+html[data-reduce-motion='true'] *::before,
+html[data-reduce-motion='true'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }
 
 /* ============================================================
@@ -472,7 +501,7 @@
     background-clip: padding-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in srgb, var(--brand-emerald) 40%, var(--border));
+    background-color: color-mix(in srgb, var(--border) 80%, transparent) transparent;
   }
   *::-webkit-scrollbar-corner {
     background: transparent;
@@ -541,7 +570,13 @@
   @apply transition-all duration-200 border-slate-200 rounded-lg cursor-pointer hover:border-brand-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
 }
 @layer components {
-  /* Sidebar navigation states */
+  /* Sidebar navigation states.
+     `!important` on the link colors is deliberate: antd's CSS-in-JS injects an
+     unlayered `:where(.css-…) a { color: var(--ant-color-link) }`, and
+     unlayered rules beat everything inside Tailwind's @layer — which turned
+     every <a> nav item theme-blue while the <button> group headers stayed on
+     --menu-idle. The important flags keep the rail's own palette authoritative;
+     specificity still separates idle from :hover. */
   a[data-nav-state='active'] {
     color: #FFFFFF !important;
     background-color: var(--brand-emerald) !important;
@@ -551,11 +586,11 @@
     background-color: var(--menu-hover) !important;
   }
   a[data-nav-state='idle'] {
-    color: #94A3B8;
+    color: var(--menu-idle) !important;
     background-color: transparent;
   }
   a[data-nav-state='idle']:hover {
-    color: #FFFFFF;
+    color: var(--brand-emerald) !important;
     background-color: var(--menu-hover);
   }
 

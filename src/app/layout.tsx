@@ -29,13 +29,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </AntdThemeProvider>
           </ThemeProvider>
         </AntdRegistry>
-        {/* Apply the persisted dark mode before hydration to avoid a flash of
-            the wrong theme. next/script injects this into <head>. */}
+        {/* Apply the persisted theme before hydration to avoid a flash of the
+            wrong theme. `system` resolves against the OS preference here too.
+            next/script injects this into <head>. */}
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function() {
             try {
-              const saved = localStorage.getItem('koi_admin_mode') || 'light';
-              if (saved === 'dark') document.documentElement.classList.add('dark');
+              var saved = localStorage.getItem('koi_admin_mode') || 'light';
+              var dark = saved === 'dark' ||
+                (saved === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+              if (dark) document.documentElement.classList.add('dark');
+              var lang = localStorage.getItem('koi_admin_locale');
+              if (lang === 'en-US' || lang === 'zh-CN') document.documentElement.lang = lang;
+              if (localStorage.getItem('koi_admin_reduce_motion') === 'true') {
+                document.documentElement.setAttribute('data-reduce-motion', 'true');
+              }
             } catch (e) {}
           })()`}
         </Script>

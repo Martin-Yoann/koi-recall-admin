@@ -7,6 +7,8 @@ import { ToastProvider } from '@/components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/admin-auth';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { ProfileDialog } from '@/components/admin/profile-dialog';
+import { SettingsDialog } from '@/components/admin/settings-dialog';
+import { PreferencesEffects } from '@/components/admin/preferences-effects';
 
 const LOGIN_PATH = '/login';
 
@@ -42,8 +44,13 @@ function AuthInterceptor({ children }: { children: React.ReactNode }) {
 }
 
 function AuthModals() {
-  const { profileOpen, profileTab, closeProfile } = useAdminAuth();
-  return <ProfileDialog open={profileOpen} onClose={closeProfile} initialTab={profileTab} />;
+  const { profileOpen, profileTab, closeProfile, settingsOpen, closeSettings } = useAdminAuth();
+  return (
+    <>
+      <ProfileDialog open={profileOpen} onClose={closeProfile} initialTab={profileTab} />
+      <SettingsDialog open={settingsOpen} onClose={closeSettings} />
+    </>
+  );
 }
 
 export function AdminProviders({ children }: { children: React.ReactNode }) {
@@ -54,6 +61,7 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
     <TooltipProvider delay={300}>
       <ToastProvider>
         <AdminAuthProvider>
+            <PreferencesEffects />
             <AuthInterceptor>
               {/* The login page renders standalone (no admin chrome); every other
                   route is wrapped in the admin shell. */}
