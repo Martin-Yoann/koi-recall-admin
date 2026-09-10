@@ -1,12 +1,17 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react';
 import { ADMIN_MODE_STORAGE_KEY, ADMIN_THEME_STORAGE_KEY, DEFAULT_ADMIN_THEME } from '@/lib/admin-constants';
 
-type ThemeMode = 'light' | 'dark';
+/** `system` follows the OS `prefers-color-scheme` setting. */
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type ResolvedThemeMode = 'light' | 'dark';
 
 interface ThemeContextType {
+  /** The stored preference, which may be `system`. */
   mode: ThemeMode;
+  /** What `mode` currently resolves to — use this for anything visual. */
+  resolvedMode: ResolvedThemeMode;
   primary: string;
   setMode: (mode: ThemeMode) => void;
   setPrimary: (color: string) => void;
@@ -14,57 +19,71 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+const MODE_EVENT = 'koi_mode_changed';
+const THEME_EVENT = 'koi_theme_changed';
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+function readMode(): ThemeMode {
+  const raw = localStorage.getItem(ADMIN_MODE_STORAGE_KEY);
+  return raw === 'dark' || raw === 'system' ? raw : 'light';
+}
+
+function readPrimary(): string {
+  const saved = localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
+  return saved && HEX_COLOR.test(saved) ? saved : DEFAULT_ADMIN_THEME;
+}
+
+/**
+ * localStorage is the single source of truth for the theme. The hooks read it
+ * through `useSyncExternalStore` (SSR-safe, no setState-in-effect) and the
+ * setters write storage then notify subscribers — the same custom events the
+ * toggles already broadcast, so other listeners keep working.
+ */
+function subscribe(onStoreChange: () => void): () => void {
+  window.addEventListener(MODE_EVENT, onStoreChange);
+  window.addEventListener(THEME_EVENT, onStoreChange);
+  window.addEventListener('storage', onStoreChange);
+  return () => {
+    window.removeEventListener(MODE_EVENT, onStoreChange);
+    window.removeEventListener(THEME_EVENT, onStoreChange);
+    window.removeEventListener('storage', onStoreChange);
+  };
+}
+
+function subscribeSystemDark(onStoreChange: () => void): () => void {
+  const query = window.matchMedia(DARK_QUERY);
+  query.addEventListener('change', onStoreChange);
+  return () => query.removeEventListener('change', onStoreChange);
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('light');
-  const [primary, setPrimaryState] = useState(DEFAULT_ADMIN_THEME);
+  const mode = useSyncExternalStore<ThemeMode>(subscribe, readMode, () => 'light');
+  const primary = useSyncExternalStore<string>(subscribe, readPrimary, () => DEFAULT_ADMIN_THEME);
+  const systemDark = useSyncExternalStore<boolean>(
+    subscribeSystemDark,
+    () => window.matchMedia(DARK_QUERY).matches,
+    () => false,
+  );
+  const resolvedMode: ResolvedThemeMode =
+    mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
 
   useEffect(() => {
-    // Initial load runs one frame after mount (effects already fire
-    // post-paint), keeping the setState out of the effect body without
-    // risking an SSR hydration mismatch.
-    const raf = requestAnimationFrame(() => {
-      const savedMode = (localStorage.getItem(ADMIN_MODE_STORAGE_KEY) as ThemeMode) || 'light';
-      const savedPrimary = localStorage.getItem(ADMIN_THEME_STORAGE_KEY) || DEFAULT_ADMIN_THEME;
-      setModeState(savedMode);
-      setPrimaryState(savedPrimary);
-      document.documentElement.classList.toggle('dark', savedMode === 'dark');
-    });
-
-    // Keep state in sync with theme/mode changes from any source: the toggles
-    // dispatch these events after writing storage, so components that only
-    // broadcast (e.g. the profile dialog color picker) still update live.
-    const onModeChanged = (e: Event) => {
-      const next = (e as CustomEvent).detail;
-      if (next === 'light' || next === 'dark') setModeState(next);
-    };
-    const onThemeChanged = (e: Event) => {
-      const color = (e as CustomEvent).detail;
-      if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) setPrimaryState(color);
-    };
-    window.addEventListener('koi_mode_changed', onModeChanged);
-    window.addEventListener('koi_theme_changed', onThemeChanged);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('koi_mode_changed', onModeChanged);
-      window.removeEventListener('koi_theme_changed', onThemeChanged);
-    };
-  }, []);
+    document.documentElement.classList.toggle('dark', resolvedMode === 'dark');
+  }, [resolvedMode]);
 
   const setMode = useCallback((newMode: ThemeMode) => {
-    setModeState(newMode);
     localStorage.setItem(ADMIN_MODE_STORAGE_KEY, newMode);
-    document.documentElement.classList.toggle('dark', newMode === 'dark');
-    window.dispatchEvent(new CustomEvent('koi_mode_changed', { detail: newMode }));
+    window.dispatchEvent(new CustomEvent(MODE_EVENT, { detail: newMode }));
   }, []);
 
   const setPrimary = useCallback((color: string) => {
-    setPrimaryState(color);
     localStorage.setItem(ADMIN_THEME_STORAGE_KEY, color);
-    window.dispatchEvent(new CustomEvent('koi_theme_changed', { detail: color }));
+    window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: color }));
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode, primary, setMode, setPrimary }}>
+    <ThemeContext.Provider value={{ mode, resolvedMode, primary, setMode, setPrimary }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -31,6 +31,7 @@ import {
   formatWorkflowLabel,
   getCaseOperationsView,
   runResolutionAction,
+  type ResolutionAction,
 } from '@/lib/case-operations';
 import { formatAdminDate, formatAdminDateTime, formatAdminDateTimeWithYear } from '@/lib/formatters';
 
@@ -150,6 +151,7 @@ const RESOLUTION_ACTION_STYLES: Record<string, string> = {
   'resolution:approve': 'bg-brand-emerald hover:bg-brand-emerald-dark text-white',
   'resolution:complete': 'bg-blue-600 hover:bg-blue-700 text-white',
   'resolution:cancel': 'bg-red-600 hover:bg-red-700 text-white',
+  'resolution:ship': 'bg-amber-600 hover:bg-amber-700 text-white',
 };
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -208,6 +210,7 @@ function CaseDetailContent({
   const [refundAmount, setRefundAmount] = useState('');
   const [refundCurrency, setRefundCurrency] = useState('USD');
   const [externalReference, setExternalReference] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [viewingRawPii, setViewingRawPii] = useState(false);
   const [needInfoOpen, setNeedInfoOpen] = useState(false);
   const [needInfoNote, setNeedInfoNote] = useState('');
@@ -540,14 +543,18 @@ function CaseDetailContent({
     setSubmitting(false);
   };
 
-  const handleResolutionAction = async (
-    action: 'resolution:approve' | 'resolution:complete' | 'resolution:cancel',
-  ) => {
+  const handleResolutionAction = async (action: ResolutionAction) => {
     if (!record?.resolution) return;
 
     const note = resolutionNote.trim();
-    if (note.length < 10) {
+    // Recording a shipment carries its own fact (the tracking number) and
+    // needs no narrative note; every other action does.
+    if (action !== 'resolution:ship' && note.length < 10) {
       setActionError('Resolution note must be at least 10 characters.');
+      return;
+    }
+    if (action === 'resolution:ship' && trackingNumber.trim().length < 3) {
+      setActionError('A tracking number of at least 3 characters is required.');
       return;
     }
 
@@ -575,10 +582,12 @@ function CaseDetailContent({
       refundAmountMinor,
       currency: refundCurrency.trim().toUpperCase() || undefined,
       externalReference: externalReference.trim() || undefined,
+      trackingNumber: trackingNumber.trim() || undefined,
     });
     if (result.ok) {
       setResolutionNote('');
       setExternalReference('');
+      setTrackingNumber('');
       if (action === 'resolution:approve') {
         setResolutionTypeOverride(null);
         setRefundAmount('');
@@ -660,6 +669,7 @@ function CaseDetailContent({
   const resolutionActions = operations.resolutionActions;
   const canApproveResolution = resolutionActions.includes('resolution:approve');
   const canCompleteResolution = resolutionActions.includes('resolution:complete');
+  const canShipResolution = resolutionActions.includes('resolution:ship');
   const resolution = cse.resolution;
   /** Approval type pre-fills from what the consumer requested (overridable). */
   const resolutionType = resolutionTypeOverride ?? resolution?.requestedType ?? 'replacement';
@@ -1414,6 +1424,13 @@ function CaseDetailContent({
                   </div>
                 )}
 
+                {resolution.trackingNumber && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-text-secondary">
+                    Tracking number: <span className="font-bold text-text-primary">{resolution.trackingNumber}</span>
+                    {resolution.shippedAt ? ` · shipped ${formatAdminDateTimeWithYear(resolution.shippedAt)}` : ''}
+                  </div>
+                )}
+
                 {resolution.completedAt && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
                     Completed externally {formatAdminDateTimeWithYear(resolution.completedAt)}
@@ -1478,6 +1495,20 @@ function CaseDetailContent({
                           ) : null}
                         </div>
                       </div>
+                    ) : null}
+                    {canShipResolution ? (
+                      <>
+                      <label htmlFor="tracking-number" className="sr-only">Tracking number for the replacement shipment</label>
+                      <Input
+                        id="tracking-number"
+                        value={trackingNumber}
+                        onChange={e => setTrackingNumber(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder="Tracking number for the replacement shipment…"
+                        className="w-full"
+                      />
+                      </>
                     ) : null}
                     {canCompleteResolution ? (
                       <>
