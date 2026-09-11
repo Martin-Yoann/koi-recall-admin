@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Review &amp; Processing Workflow</title>
+<style>
+  :root{
+    --cs:#2563eb; --comp:#7c3aed; --logi:#d97706; --fin:#15803d; --sys:#64748b;
+    --page:#eef2f5; --ink:#1f2937; --mut:#6b7280; --code:#94a3b8;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--page); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--ink); padding:48px 40px 56px;}
+  .wrap{max-width:1120px; margin:0 auto;}
+  h1{text-align:center; font-size:34px; color:#0b3d2e; letter-spacing:.2px;}
+  .sub{text-align:center; color:var(--mut); font-size:14px; margin-top:10px;}
+  .legend{display:flex; justify-content:center; gap:26px; background:#fff; border-radius:12px; padding:12px 18px; margin:26px auto 34px; width:fit-content; font-size:13px; color:#374151;}
+  .legend b{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:-1px;}
+  .mail-legend{color:#0b3d2e; font-weight:600;}
+  .flow{display:flex; flex-direction:column; align-items:center;}
+  .row{display:grid; grid-template-columns:660px 350px; gap:26px; width:100%; justify-content:center; align-items:start;}
+  .row.solo{grid-template-columns:660px;}
+  .card{position:relative; background:#fff; border-radius:14px; padding:20px 24px 18px 28px; box-shadow:0 1px 3px rgba(16,24,40,.08), 0 8px 24px rgba(16,24,40,.05);}
+  .card::before{content:""; position:absolute; left:0; top:14px; bottom:14px; width:5px; border-radius:0 4px 4px 0;}
+  .c-sys::before{background:var(--sys);} .c-cs::before{background:var(--cs);} .c-logi::before{background:var(--logi);} .c-fin::before{background:var(--fin);}
+  .chips{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .chip{color:#fff; font-size:11.5px; font-weight:700; padding:4px 11px; border-radius:999px; letter-spacing:.2px;}
+  .b-sys{background:var(--sys);} .b-cs{background:var(--cs);} .b-comp{background:var(--comp);} .b-logi{background:var(--logi);} .b-fin{background:var(--fin);}
+  .stage{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; color:var(--code);}
+  h2{font-size:19px; margin-bottom:8px;}
+  h2 .no{color:#9ca3af; font-weight:700; margin-right:6px;}
+  p{font-size:13.5px; line-height:1.55; color:#4b5563;}
+  .mail{display:inline-flex; align-items:center; gap:5px; margin-top:10px; font-size:11.5px; color:#065f46; background:#ecfdf5; border:1px dashed #6ee7b7; border-radius:999px; padding:2.5px 10px;}
+  .side{border:2px dashed #cbd5e1; border-radius:14px; padding:18px 20px; background:rgba(255,255,255,.6);}
+  .side .chip{display:inline-block; margin-bottom:10px;}
+  .side h3{font-size:15px; margin-bottom:7px;}
+  .side h3 .tag{color:var(--comp);}
+  .side p{font-size:12.8px;}
+  .side .stamp{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:var(--code); margin-top:8px;}
+  .chipt{font-size:11.5px; font-weight:700; padding:3.5px 11px; border-radius:999px; display:inline-block; margin-bottom:10px;}
+  .t-comp{background:var(--comp); color:#fff;} .t-orange{background:#f59e0b; color:#fff;} .t-red{background:#dc2626; color:#fff;}
+  .arrow{color:#b6c2cf; font-size:20px; line-height:1; padding:10px 0; text-align:center; width:100%;}
+  .closure{background:#fffbeb; border:1.5px solid #f0d089; border-radius:14px; padding:22px 26px; box-shadow:0 1px 3px rgba(16,24,40,.06);}
+  .closure h2{display:flex; align-items:center; gap:10px;}
+  .gate{display:flex; gap:10px; margin:10px 0 2px; font-size:13.5px; color:#4b5563;}
+  .gate .dot{flex:none; width:17px; height:17px; border-radius:50%; background:#dc2626; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px;}
+  .closure .note{margin-top:12px; font-size:12.8px; color:#6b7280;}
+  .done{background:#0b4f32; color:#fff; border-radius:14px; padding:22px 26px;}
+  .done .chips .stage{color:#a7f3d0;}
+  .done .chip{background:transparent; border:1.5px solid #34d399; color:#d1fae5;}
+  .done h2{color:#fff;}
+  .done p{color:#d1e7dd;}
+  .finals{display:flex; justify-content:center; gap:16px; margin-top:34px;}
+  .fchip{border-radius:12px; padding:12px 22px; color:#fff; text-align:left; min-width:180px;}
+  .fchip b{font-size:15px; display:block;}
+  .fchip span{font-size:11.5px; opacity:.85;}
+  .f-closed{background:#0b4f32;} .f-rejected{background:#dc2626;} .f-dup{background:#64748b;} .f-wd{background:#475569;}
+  .foot{margin-top:40px; text-align:center; color:var(--mut); font-size:12.5px; line-height:1.7;}
+  .foot code{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; background:#fff; padding:1px 6px; border-radius:5px; border:1px solid #e2e8f0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Case Review &amp; Processing Workflow</h1>
+  <div class="sub">KOI Recall Platform Admin · A one-page overview for operations &amp; compliance teams · <b>revised to match the shipped implementation (2026-09-11)</b></div>
+
+  <div class="legend">
+    <span><b style="background:var(--sys)"></b>System / Consumer</span>
+    <span><b style="background:var(--cs)"></b>Customer Service</span>
+    <span><b style="background:var(--comp)"></b>Compliance</span>
+    <span><b style="background:var(--logi)"></b>Logistics</span>
+    <span><b style="background:var(--fin)"></b>Finance</span>
+    <span class="mail-legend">✉ = a consumer email is queued at this step</span>
+  </div>
+
+  <div class="flow">
+    <div class="row solo">
+      <div class="card c-sys">
+        <div class="chips"><span class="chip b-sys">Consumer / System</span><span class="stage">submitted</span></div>
+        <h2><span class="no">①</span>Consumer submits a claim</h2>
+        <p>The consumer submits a claim on the KOI website; the system automatically records the requested remedy (replacement or refund) <b>and queues the confirmation email</b>.</p>
+        <span class="mail">✉ claim confirmation</span>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row solo">
+      <div class="card c-cs">
+        <div class="chips"><span class="chip b-cs">Customer Service</span><span class="stage">intake_review</span></div>
+        <h2><span class="no">②</span>Intake check</h2>
+        <p>Check that the submission is complete and ready to move into triage. <i>(The case is still in status <b>submitted</b>; “Intake review” is its current stage.)</i></p>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row">
+      <div class="card c-cs">
+        <div class="chips"><span class="chip b-cs">Customer Service</span><span class="stage">triage</span></div>
+        <h2><span class="no">③</span>Triage &amp; verification</h2>
+        <p>Verify product details and evidence; resolve any product or evidence anomalies.</p>
+      </div>
+      <div class="side">
+        <span class="chipt t-comp">If a safety incident is involved</span>
+        <h3><span class="tag">⚠</span> Compliance goes first: reportability review</h3>
+        <p>While the “Does this need to be reported to the CPSC?” review is <b>pending</b>, the case’s current stage switches to <b>Compliance review</b> (<span class="stamp" style="margin:0">compliance_review</span>) and it is tracked in the urgent-injury SLA queue (4&nbsp;h). Customer service may still move the case forward — the <b>enforced block is at Closure review (Gate&nbsp;2)</b>, which cannot be passed until the review is concluded.</p>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row">
+      <div class="card c-cs">
+        <div class="chips"><span class="chip b-cs">Customer Service</span><span class="stage">case_review</span></div>
+        <h2><span class="no">④</span>Case review</h2>
+        <p>Complete the product, evidence, and risk assessment; decide whether the claim qualifies.</p>
+      </div>
+      <div>
+        <div class="side" style="margin-bottom:18px;">
+          <span class="chipt t-orange">Awaiting info</span>
+          <h3>✉ Need more info from the consumer?</h3>
+          <p>Put the case into “need info” (stage <span class="stamp" style="margin:0">awaiting_consumer_information</span>) — the consumer is <b>emailed</b> with the requested materials; once they arrive, return to Case review.</p>
+        </div>
+        <div class="side">
+          <span class="chipt t-red">Not qualified</span>
+          <h3>✉ Reject · duplicate · withdraw</h3>
+          <p>If the claim doesn’t qualify you can <b>reject</b> it; you can also mark it a <b>duplicate</b>, or the consumer may <b>withdraw</b> — all three are final states. A written reason (≥10 chars) is <b>required for every role</b> and is included in the consumer email.</p>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row solo">
+      <div class="card c-cs">
+        <div class="chips"><span class="chip b-cs">Customer Service</span><span class="stage">resolution_approval</span></div>
+        <h2><span class="no">⑤</span>Approve the remedy</h2>
+        <p>Once the claim is approved, sign off the remedy for the consumer: replacement or refund.</p>
+        <span class="mail">✉ replacement approved / refund approved</span>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row">
+      <div class="card c-logi">
+        <div class="chips"><span class="chip b-logi">Logistics</span><span class="stage">replacement_processing</span></div>
+        <h2><span class="no">⑥A</span> Ship the replacement</h2>
+        <p>Logistics arranges the shipment in the external fulfillment system.</p>
+        <span class="mail">✉ replacement shipped</span>
+      </div>
+      <div class="card c-fin">
+        <div class="chips"><span class="chip b-fin">Finance</span><span class="stage">refund_processing</span></div>
+        <h2><span class="no">⑥B</span> Issue the refund</h2>
+        <p>Finance completes the payout via Refund Export in the external system.</p>
+        <span class="mail">✉ refund completed</span>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row solo">
+      <div class="closure">
+        <h2><span class="chip b-comp">Compliance</span> <span class="no">⑦</span> Closure review <span class="stage" style="margin-left:6px">closure_review</span></h2>
+        <div class="gate"><span class="dot">◍</span><span>The remedy must be <b>fully completed externally</b> (shipped / paid) — otherwise this step cannot be entered.</span></div>
+        <div class="gate"><span class="dot">◍</span><span>If a safety incident was involved, the reportability review must be <b>concluded</b> (filed, or confirmed non-reportable).</span></div>
+        <p class="note">Both gates must pass before the case can close; if issues are found in review, send it back to Case review.</p>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="row solo">
+      <div class="done">
+        <div class="chips"><span class="chip">✓ Flow complete</span><span class="stage">completed</span></div>
+        <h2><span class="no" style="color:#a7f3d0">⑧</span>Case closed</h2>
+        <p>The consumer sees “Completed” on the website; every action leaves an audit trail. <i>(A force-closed case without a completed remedy shows “Closed” instead and queues a case-closure email.)</i></p>
+        <span class="mail" style="background:rgba(255,255,255,.08); color:#d1fae5; border-color:#34d399;">✉ case completed / case closed</span>
+      </div>
+    </div>
+
+    <div class="finals">
+      <div class="fchip f-closed"><b>✔ Closed</b><span>closed · Remedy done &amp; review passed</span></div>
+      <div class="fchip f-rejected"><b>✖ Rejected</b><span>rejected · Claim did not qualify</span></div>
+      <div class="fchip f-dup"><b>⧉ Duplicate</b><span>duplicate · Same as another case</span></div>
+      <div class="fchip f-wd"><b>↩ Withdrawn</b><span>withdrawn · Consumer withdrew</span></div>
+    </div>
+
+    <div class="foot">
+      The small gray codes are <b>workflow stage IDs</b> — they map to “Current stage” in the admin UI. Internal case statuses are a separate set:<br>
+      <code>submitted · triage · under_review · need_info · approved · closure_review · closed · rejected · duplicate · withdrawn</code><br>
+      The department on each stage is informational; the system roles are <b>ADMIN</b> and <b>MANAGER</b> only.<br>
+      Full rules &amp; verified acceptance record: <code>docs/case-review-test-cases.md</code> (§16). Source of truth: backend <code>CaseWorkflowPolicy</code> (api · src/modules/workflow/policy.ts).<br>
+      <span style="color:#9aa4af">docs/case-review-workflow.md is partially outdated (transition key &amp; role model) — see known issues #5.</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
