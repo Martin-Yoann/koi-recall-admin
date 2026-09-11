@@ -288,6 +288,16 @@
   .ant-modal .ant-btn {
     cursor: pointer;
   }
+  /* Confirm dialog: the primary button mirrors the colour of the action the
+     user clicked (the accent arrives as a CSS variable from the dialog). */
+  .confirm-accent-btn {
+    background-color: var(--confirm-accent);
+    border-color: var(--confirm-accent);
+  }
+  .confirm-accent-btn:hover {
+    background-color: color-mix(in srgb, var(--confirm-accent) 88%, #000) !important;
+    border-color: color-mix(in srgb, var(--confirm-accent) 88%, #000) !important;
+  }
   .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
     cursor: pointer;
   }

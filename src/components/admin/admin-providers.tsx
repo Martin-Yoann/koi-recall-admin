@@ -9,6 +9,7 @@ import { AdminShell } from '@/components/admin/admin-shell';
 import { ProfileDialog } from '@/components/admin/profile-dialog';
 import { SettingsDialog } from '@/components/admin/settings-dialog';
 import { PreferencesEffects } from '@/components/admin/preferences-effects';
+import { ConfirmProvider } from '@/components/admin/confirm-dialog';
 
 const LOGIN_PATH = '/login';
 
@@ -61,6 +62,7 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
     <TooltipProvider delay={300}>
       <ToastProvider>
         <AdminAuthProvider>
+          <ConfirmProvider>
             <PreferencesEffects />
             <AuthInterceptor>
               {/* The login page renders standalone (no admin chrome); every other
@@ -68,7 +70,8 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
               {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
             </AuthInterceptor>
             <AuthModals />
-          </AdminAuthProvider>
+          </ConfirmProvider>
+        </AdminAuthProvider>
       </ToastProvider>
     </TooltipProvider>
   );

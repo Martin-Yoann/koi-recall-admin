@@ -26,6 +26,7 @@ import {
 import { useAdminAuth } from '@/lib/admin-auth';
 import { CASES_UPDATED_EVENT } from '@/lib/admin-constants';
 import { usePermissions } from '@/lib/rbac';
+import { useConfirm } from '@/components/admin/confirm-dialog';
 import {
   formatBlockingReason,
   formatWorkflowLabel,
@@ -39,6 +40,10 @@ const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 
 /** Transitions that close the case negatively — always require a reason. */
 const REASON_REQUIRED = ['rejected', 'duplicate', 'withdrawn'];
+/** Statuses that end the case negatively — their confirmation warns first. */
+const NEGATIVE_TRANSITIONS = ['rejected', 'duplicate', 'withdrawn', 'closed'];
+/** Transitions that also reach the consumer by email (see the email trigger catalogue). */
+const CONSUMER_NOTIFIED_TRANSITIONS = ['rejected', 'duplicate', 'withdrawn', 'closed'];
 
 /** Prefill options for the "request more information" dialog (need_info). */
 const INFO_REQUEST_OPTIONS = [
@@ -192,6 +197,7 @@ function CaseDetailContent({
   authLoading: boolean;
 }) {
   const { can, role } = usePermissions();
+  const confirm = useConfirm();
   const [record, setRecord] = useState<CaseDetail | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
@@ -338,9 +344,15 @@ function CaseDetailContent({
 
   const toggleRawPii = async () => {
     if (piiLevelRef.current === 'masked') {
-      const confirmed = window.confirm(
-        'You are about to decrypt this consumer\'s raw PII. This read is recorded in the audit log (pii.view_raw). Continue?',
-      );
+      const confirmed = await confirm({
+        title: 'Decrypt raw consumer PII',
+        subtitle: caseRef,
+        description:
+          "You are about to decrypt this consumer's raw PII. This read is recorded in the audit log (pii.view_raw).",
+        okText: 'Decrypt PII',
+        cancelText: 'Cancel',
+        destructive: true,
+      });
       if (!confirmed) return;
       piiLevelRef.current = 'raw';
     } else {
@@ -439,7 +451,7 @@ function CaseDetailContent({
     );
   };
 
-  const handleTransition = async (next: string) => {
+  const handleTransition = async (next: string, triggerButton?: HTMLButtonElement | null) => {
     if (!record) return;
 
     // need_info requires telling the consumer what to provide — open the
@@ -451,9 +463,48 @@ function CaseDetailContent({
       return;
     }
 
-    if (!confirm(`Are you sure you want to transition this case to ${next.replace(/_/g, ' ')}?`)) {
-      return;
+    const label = next.replace(/_/g, ' ').split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    const currentLabel = formatWorkflowLabel(record.workflow?.currentStage ?? record.status);
+    const consumerNotified = CONSUMER_NOTIFIED_TRANSITIONS.includes(next);
+    const reasonRequiredForTarget =
+      REASON_REQUIRED.includes(next) ||
+      (next === 'closed' && record.resolution?.status !== 'externally_completed');
+    // Mirror the colour of the button the operator pressed (brand/red/amber/...).
+    const accent = triggerButton ? getComputedStyle(triggerButton).backgroundColor : undefined;
+    const ownerName = staff.find((s) => s.id === record.assignedToStaffUserId)?.displayName ?? 'Unassigned';
+
+    const details: Array<{ label: string; value: React.ReactNode }> = [
+      { label: 'Case reference', value: caseRef },
+      { label: 'Subtype', value: record.subtype.replace(/_/g, ' ') },
+      { label: 'Incident', value: record.incidentFlag ? 'Flagged' : 'None' },
+      { label: 'Submitted', value: formatAdminDateTimeWithYear(record.submittedAt) },
+      { label: 'Current stage', value: currentLabel },
+      { label: 'Owner', value: ownerName },
+    ];
+    if (transitionReason.trim()) {
+      details.push({ label: 'Reason (from the form)', value: transitionReason.trim() });
     }
+
+    const confirmed = await confirm({
+      title: `Move this case to ${label}?`,
+      subtitle: `${caseRef} · ${consumerName}`,
+      flow: { from: currentLabel, to: label },
+      description: consumerNotified
+        ? 'This updates the case status and emails the consumer. The change is recorded in the audit log.'
+        : 'This updates the case status and is recorded in the audit log. No consumer email is sent for this step.',
+      details,
+      note: reasonRequiredForTarget
+        ? 'A reason of at least 10 characters is required. It is stored on the case and included in the consumer email.'
+        : consumerNotified
+          ? 'The consumer is notified by email and sees the new status on the public status page.'
+          : 'Internal step — the consumer is not notified and the public status page is unchanged.',
+      noteTone: reasonRequiredForTarget ? 'warning' : 'info',
+      okText: `Yes, move to ${label}`,
+      cancelText: 'Cancel',
+      destructive: NEGATIVE_TRANSITIONS.includes(next),
+      accent,
+    });
+    if (!confirmed) return;
 
     // Negative closures are auditable decisions, and a closure without a
     // completed remedy is one too — the consumer email renders that reason.
@@ -1606,7 +1657,7 @@ function CaseDetailContent({
                   {transitions.map(next => (
                     <button
                       key={next}
-                      onClick={() => handleTransition(next)}
+                      onClick={(e) => handleTransition(next, e.currentTarget)}
                       disabled={submitting || !can('case.status.transition')}
                       title={can('case.status.transition') ? undefined : 'Requires the case.status.transition permission (reviewer+)'}
                       className={cn(
