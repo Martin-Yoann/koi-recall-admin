@@ -93,7 +93,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         centered
         width={800}
         closable={false}
-        maskClosable={false}
+        mask={{ closable: false }}
         footer={null}
         destroyOnHidden
         onCancel={() => settle(false)}
