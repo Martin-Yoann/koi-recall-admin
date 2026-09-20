@@ -118,7 +118,7 @@ export default function LoginPage() {
           </motion.div>
 
           <motion.p variants={item} className="mt-12 text-xs text-white/30">
-            © {new Date().getFullYear()} KOI · Internal use only
+            © {new Date().getFullYear()} KOI Importer Inc · Internal use only
           </motion.p>
         </motion.div>
 
@@ -223,7 +223,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <p className="relative mt-6 text-[11px] text-white/40 text-center">© {new Date().getFullYear()} KOI Recall Admin</p>
+              <p className="relative mt-6 text-[11px] text-white/40 text-center">© {new Date().getFullYear()} KOI Importer Inc</p>
             </div>
           </motion.div>
         </div>
