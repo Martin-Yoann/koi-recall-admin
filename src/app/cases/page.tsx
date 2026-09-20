@@ -29,6 +29,15 @@ const CASE_STATUSES = [
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];
 
+// Display the workflow's current handoff only; this does not grant permissions.
+const DEPARTMENT_LABELS: Record<NonNullable<CaseSummary['workflow']>['responsibleDepartment'], string> = {
+  customer_service: 'Customer Service',
+  compliance: 'Compliance / Legal',
+  logistics: 'Warehouse / Fulfillment',
+  finance: 'Finance',
+  none: 'No pending action',
+};
+
 /** Page-size options offered by the client-side pagination control. */
 const PAGE_SIZE_OPTIONS = ['5', '10', '15', '20', '50', '100'];
 
@@ -260,6 +269,18 @@ export default function CasesPage() {
       dataIndex: 'status',
       key: 'status',
       render: (value: string) => <StatusBadge variant={value as never} />,
+    },
+    {
+      title: 'Current Department',
+      key: 'currentDepartment',
+      render: (_, c) => {
+        const department = c.workflow?.responsibleDepartment;
+        return (
+          <span className="text-sm text-text-secondary">
+            {department ? (DEPARTMENT_LABELS[department] ?? 'To be confirmed') : 'To be confirmed'}
+          </span>
+        );
+      },
     },
     {
       title: 'Submitted',
