@@ -18,6 +18,9 @@ export type Permission =
   | 'case.assign'
   | 'case.status.transition'
   | 'review.close'
+  | 'disposal.review'
+  | 'disposal.hold.manage'
+  | 'disposal.instructions.publish'
   | 'audit.read'
   | 'staff.read'
   | 'staff.manage';
@@ -33,13 +36,17 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'audit.read',
     'staff.read',
   ],
-  // Safety oversight: reads cases and signs off reportability reviews, but does
-  // not drive case status — see the note in koi-recall-backend permissions.ts.
+  // Safety oversight: reads cases, signs off reportability reviews, and decides
+  // consumer-disposal questions, but does not drive case status — see the note in
+  // koi-recall-backend permissions.ts.
   COMPLIANCE: [
     'case.queue.read',
     'case.detail.read',
     'case.detail.read_pii_raw',
     'review.close',
+    'disposal.review',
+    'disposal.hold.manage',
+    'disposal.instructions.publish',
     'audit.read',
     'staff.read',
   ],
@@ -51,6 +58,9 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'case.assign',
     'case.status.transition',
     'review.close',
+    'disposal.review',
+    'disposal.hold.manage',
+    'disposal.instructions.publish',
     'audit.read',
     'staff.read',
     'staff.manage',
@@ -65,6 +75,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'case.assign': 'Assign cases',
   'case.status.transition': 'Transition & resolve cases',
   'review.close': 'Close reportability reviews',
+  'disposal.review': 'Accept disposal evidence',
+  'disposal.hold.manage': 'Place & release evidence holds',
+  'disposal.instructions.publish': 'Publish disposal instructions',
   'audit.read': 'Read audit events',
   'staff.read': 'View staff directory',
   'staff.manage': 'Manage staff',
