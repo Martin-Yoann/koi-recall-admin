@@ -1155,6 +1155,18 @@ function CaseDetailContent({
                 <p className="text-text-tertiary">Used as intended</p>
                 <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.usedAsIntended?.replace(/_/g, ' ') ?? '—'}</p>
               </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Failure mode</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.failureMode?.replace(/_/g, ' ') ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Treatment received</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.medicalTreatmentReceived?.replace(/_/g, ' ') ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-surface-secondary/60 p-3">
+                <p className="text-text-tertiary">Unit involved</p>
+                <p className="mt-1 font-semibold text-text-primary capitalize">{cse.incident.unitType?.replace(/_/g, ' ') ?? '—'}</p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {cse.incident.eventTypes.map((type) => (
@@ -1195,6 +1207,14 @@ function CaseDetailContent({
                 <Lock className="h-3 w-3" />Narrative is encrypted. Use “View raw PII” (compliance role) to decrypt — the read is audited.
               </p>
             )}
+            {cse.incident.injuryDescription !== undefined ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 mb-1 flex items-center gap-1">
+                  <Eye className="h-3 w-3" />Injury description · decrypted · audited
+                </p>
+                <p className="text-xs text-text-primary leading-relaxed whitespace-pre-wrap">{cse.incident.injuryDescription}</p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       )}

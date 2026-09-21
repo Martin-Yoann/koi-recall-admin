@@ -20,10 +20,11 @@ import type { StaffRole } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { formatAdminDate, formatAdminDateTime } from '@/lib/formatters';
 
-const STAFF_ROLES: StaffRole[] = ['ADMIN', 'MANAGER'];
+const STAFF_ROLES: StaffRole[] = ['ADMIN', 'MANAGER', 'COMPLIANCE'];
 
 const ROLE_COLORS: Record<StaffRole, string> = {
   MANAGER: 'bg-blue-50 text-blue-700',
+  COMPLIANCE: 'bg-amber-50 text-amber-700',
   ADMIN: 'bg-blue-50 text-blue-700',
 };
 
@@ -70,7 +71,7 @@ const SECTION_META: Record<Exclude<AccessSection, 'all'>, { title: string; descr
 export function AccessContent({ section = 'all' }: { section?: AccessSection }) {
   const meta = section === 'all' ? null : SECTION_META[section];
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
-  const { can } = usePermissions();
+  const { can, role } = usePermissions();
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditNextCursor, setAuditNextCursor] = useState<string | null>(null);
@@ -197,7 +198,7 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
           {[
             { label: 'Defined permissions', value: Object.keys(PERMISSION_LABELS).length, note: 'Policy capabilities' },
             { label: 'Back-office roles', value: STAFF_ROLES.length, note: 'Least privilege by default' },
-            { label: 'Your access', value: !isAuthenticated ? 'Unknown' : can('staff.manage') ? 'ADMIN' : 'MANAGER', note: !isAuthenticated ? 'Sign in to identify your role' : 'Based on current session' },
+            { label: 'Your access', value: !isAuthenticated || !role ? 'Unknown' : ROLE_LABELS[role], note: !isAuthenticated ? 'Sign in to identify your role' : 'Based on current session' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border bg-surface-elevated p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{stat.label}</p>

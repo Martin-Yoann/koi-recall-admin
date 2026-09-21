@@ -4,6 +4,209 @@
  */
 
 export interface paths {
+    "/v1/case-status-lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Look up the public status of a case by case reference and email
+         * @description Public, PII-free status lookup for the consumer-front `/lookup` page. The (caseReference, email) pair is verified with a peppered HMAC; unknown references and mismatched emails return an identical 404 ProblemDetails so references cannot be enumerated. Rate limited per client IP at 10 requests/minute; exceeding it returns 429 ProblemDetails with a Request ID.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CaseStatusLookupRequest"];
+                };
+            };
+            responses: {
+                /** @description Whitelisted public view. No PII, internal statuses, or refund data may appear — the schema is exhaustive. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CaseStatusLookupResponse"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/claim-drafts/{draftId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List draft documents with their upload lifecycle status
+         * @description Powers the six-state upload UI: uploading, verifying, verified, scan_pending, rejected, expired. Deleted documents no longer appear; the same X-Draft-Token authentication as every other Draft sub-resource applies.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Draft-Token": string;
+                };
+                path: {
+                    draftId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current draft documents in stable order. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DraftDocumentListResponse"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Draft expired or already submitted. */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/claim-drafts/{draftId}/documents/{documentId}": {
         parameters: {
             query?: never;
@@ -81,7 +284,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -214,7 +417,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -240,37 +443,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/recall-campaigns/{slug}": {
+    "/v1/consumer-auth/lookup/{claimNumber}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get the currently published public campaign configuration */
+        /**
+         * [Deprecated] Legacy claim lookup returning the whitelisted public status view
+         * @deprecated
+         * @description The response carries the §9.9 whitelist only — identical in shape to POST /v1/case-status-lookups. The phone query factor is a transition-period compatibility match and is never echoed back; the endpoint is scheduled for removal once Consumer Front migrates. New integrations must use POST /v1/case-status-lookups instead.
+         */
         get: {
             parameters: {
-                query?: {
-                    locale?: "en-US";
+                query: {
+                    phone: string;
                 };
                 header?: never;
                 path: {
-                    slug: string;
+                    claimNumber: string;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Published campaign content. */
+                /** @description Whitelisted public view, same schema as POST /v1/case-status-lookups. No PII. */
                 200: {
                     headers: {
-                        "Content-Language"?: string;
-                        /** @description Published version entity tag. */
-                        ETag?: string;
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CampaignResponse"];
+                        "application/json": components["schemas"]["CaseStatusLookupResponse"];
                     };
                 };
                 /** @description Invalid request. */
@@ -309,7 +513,116 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recall-campaigns/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the currently published public campaign configuration */
+        get: {
+            parameters: {
+                query?: {
+                    locale?: "en-US";
+                };
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Published campaign content. */
+                200: {
+                    headers: {
+                        /** @description Public, immutable-per-version content: short browser max-age, longer edge s-maxage, stale-while-revalidate. */
+                        "Cache-Control"?: string;
+                        "Content-Language"?: string;
+                        /** @description Published version entity tag. */
+                        ETag?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CampaignResponse"];
+                    };
+                };
+                /** @description Not Modified — the request If-None-Match matched the current published-version ETag. No body; validators and cache directives are repeated so caches can keep serving. */
+                304: {
+                    headers: {
+                        "Cache-Control"?: string;
+                        /** @description Published version entity tag. */
+                        ETag?: string;
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -403,7 +716,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -528,7 +841,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -624,7 +937,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description The contract exists, but the Phase 1 skeleton has no provider implementation. */
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
                 501: {
                     headers: {
                         [name: string]: unknown;
@@ -662,7 +975,17 @@ export interface components {
                 hazard: string;
                 immediateAction: string;
                 locale: string;
+                privacyNotice: {
+                    /** Format: uri */
+                    url: string;
+                    version: string;
+                };
                 products: components["schemas"]["PublicCampaignProduct"][];
+                /**
+                 * Format: date-time
+                 * @description When the published campaign version was announced; null for legacy versions predating the field.
+                 */
+                publishedAt: string | null;
                 remedies: {
                     code: string;
                     displayName: string;
@@ -680,6 +1003,54 @@ export interface components {
                 version: number;
             };
         };
+        CaseStatusLookupRequest: {
+            /**
+             * @description The public case reference shown to the consumer.
+             * @example KOI-1234-5678
+             */
+            caseReference: string;
+            /** Format: email */
+            email: string;
+        };
+        CaseStatusLookupResponse: {
+            /**
+             * @description Display name of the operationally approved resolution; populated only once that fact is consumer-visible.
+             * @example Refund
+             */
+            approvedResolution: string | null;
+            /**
+             * @description Title of the campaign the case belongs to.
+             * @example Music Lollipop Recall
+             */
+            campaignTitle: string;
+            /**
+             * @description The public case reference shown to the consumer.
+             * @example KOI-1234-5678
+             */
+            caseReference: string;
+            /** @description Neutral next-action copy for the consumer; never empty. */
+            consumerNextAction: string;
+            /**
+             * Format: date-time
+             * @description When the case was last updated (ISO 8601 UTC).
+             */
+            lastUpdatedAt: string;
+            /**
+             * @description Coarse public status derived server-side from the internal lifecycle.
+             * @enum {string}
+             */
+            publicStatus: "received" | "in_review" | "action_required" | "resolution_approved" | "resolution_in_progress" | "completed" | "not_approved" | "closed";
+            /**
+             * @description English display copy produced by the API; render verbatim.
+             * @example Under review
+             */
+            publicStatusLabel: string;
+            /**
+             * @description Display name of the resolution the consumer requested; null when unavailable.
+             * @example Replacement
+             */
+            requestedResolution: string | null;
+        };
         ClaimDraftResponse: {
             /** Format: uuid */
             draftId: string;
@@ -696,11 +1067,11 @@ export interface components {
                 type: "privacy_notice" | "information_accuracy";
             }[];
             consumer: {
+                currentDeliveryAddress?: components["schemas"]["ConsumerAddress"];
                 /** Format: email */
                 email: string;
                 firstName: string;
                 lastName: string;
-                mailingAddress: components["schemas"]["ConsumerAddress"];
                 phone?: string;
             };
             documentIds: string[];
@@ -726,15 +1097,19 @@ export interface components {
         ClaimedProductInput: {
             /** Format: uuid */
             campaignProductId: string;
-            dateCode: string;
-            flavor: string;
-            lotCode: string;
+            dateCode?: string;
+            flavor?: string;
+            /** @enum {string} */
+            identificationMode: "product_identifiers" | "purchase_evidence" | "unknown";
+            identifiers?: components["schemas"]["ProductIdentifier"][];
+            lotCode?: string;
             orderNumber?: string;
             /** @enum {string} */
             purchaseChannel: "amazon" | "tiktok" | "koi" | "retailer" | "gift" | "other";
             purchaseDate?: string;
+            purchaseEvidence?: components["schemas"]["PurchaseEvidence"];
             quantity: number;
-            shape: string;
+            shape?: string;
         };
         ConsumerAddress: {
             city: string;
@@ -745,6 +1120,32 @@ export interface components {
             postalCode: string;
             state: string;
         };
+        DraftDocument: {
+            /** @enum {string} */
+            category: "product_photo" | "proof_of_purchase" | "incident_evidence";
+            /** Format: uuid */
+            documentId: string;
+            fileName: string;
+            /**
+             * Format: date-time
+             * @description Last lifecycle transition of this document (ISO 8601 UTC).
+             */
+            lastStatusChangedAt: string;
+            status: components["schemas"]["DraftDocumentStatus"];
+            statusReason: components["schemas"]["DraftDocumentStatusReason"];
+            /**
+             * Format: date-time
+             * @description When the bytes landed in Private Blob; null until reconciliation.
+             */
+            uploadedAt: string | null;
+        };
+        DraftDocumentListResponse: {
+            documents: components["schemas"]["DraftDocument"][];
+        };
+        /** @enum {string} */
+        DraftDocumentStatus: "uploading" | "verifying" | "verified" | "scan_pending" | "rejected" | "expired";
+        /** @enum {string|null} */
+        DraftDocumentStatusReason: "mime_mismatch" | "malware_detected" | null;
         EvidenceRequirement: {
             allowedMimeTypes: string[];
             /** @enum {string} */
@@ -758,13 +1159,20 @@ export interface components {
         IncidentDetailsInput: {
             eventTypes?: ("injury" | "illness" | "choking" | "ingestion" | "fire" | "overheating" | "property_damage" | "near_miss" | "other" | "unknown")[];
             /** @enum {string} */
+            failureMode?: "body_rupture" | "battery_exposure" | "choking_hazard" | "leak" | "overheating" | "other" | "unknown";
+            injuryDescription?: string;
+            /** @enum {string} */
             injurySeverity?: "none" | "minor" | "medical_attention" | "hospitalized" | "death" | "unknown";
             /** @enum {string} */
             medicalTreatment?: "none" | "first_aid" | "outpatient" | "emergency" | "hospitalized" | "unknown";
+            /** @enum {string} */
+            medicalTreatmentReceived?: "yes" | "no" | "unknown";
             narrative: string;
             occurredDate?: string;
             /** @default false */
             occurredDateUnknown: boolean;
+            /** @enum {string} */
+            unitType?: "original" | "replacement" | "unknown";
             /** @enum {string} */
             usedAsIntended?: "yes" | "no" | "unknown";
         };
@@ -781,19 +1189,64 @@ export interface components {
             /** Format: uri */
             type: string;
         };
-        ProductCheckRequest: {
-            dateCode: string;
-            flavor: string;
-            lotCode: string;
-            shape: string;
+        ProductCheckIdentifiersInput: {
+            identifiers: components["schemas"]["ProductIdentifier"][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "product_identifiers";
+            purchaseEvidence?: components["schemas"]["PurchaseEvidence"];
         };
+        ProductCheckLegacyInput: {
+            dateCode?: string;
+            flavor?: string;
+            lotCode?: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "legacy";
+            shape?: string;
+        };
+        ProductCheckPurchaseEvidenceInput: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "purchase_evidence";
+            purchaseEvidence: components["schemas"]["PurchaseEvidence"];
+        };
+        ProductCheckRequest: components["schemas"]["ProductCheckIdentifiersInput"] | components["schemas"]["ProductCheckPurchaseEvidenceInput"] | components["schemas"]["ProductCheckUnknownInput"] | components["schemas"]["ProductCheckLegacyInput"];
         ProductCheckResponse: {
             checkedCampaignVersion: number;
             /** @enum {string} */
             disclaimer: "This check is preliminary and is not a final eligibility decision.";
-            message: string;
+            /** @enum {string} */
+            identificationMode: "product_identifiers" | "purchase_evidence" | "unknown" | "legacy";
+            matchedVariantIds: string[];
+            /** @enum {string} */
+            messageKey: "product_check.potential_match" | "product_check.manual_review.ambiguous" | "product_check.manual_review.insufficient_signals" | "product_check.not_matched";
+            /** @enum {string} */
+            purchaseCorroboration?: "verified" | "partial" | "not_provided" | "conflict";
+            reasonCodes: string[];
             /** @enum {string} */
             result: "potential_match" | "not_matched" | "manual_review";
+            riskFlags?: string[];
+        };
+        ProductCheckUnknownInput: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "unknown";
+            note?: string;
+            purchaseEvidence?: components["schemas"]["PurchaseEvidence"];
+        };
+        ProductIdentifier: {
+            /** @enum {string} */
+            type: "sku" | "unit_upc" | "gtin14" | "model" | "style" | "lot_code" | "date_code";
+            value: string;
         };
         PublicCampaignProduct: {
             affectedLots: {
@@ -809,7 +1262,22 @@ export interface components {
             /** Format: uuid */
             productId: string;
             shapes: string[];
+            /** @description Internal catalogue SKU. Deliberately NOT a UPC — unit UPCs are exposed via `upcs`. */
             sku: string;
+            upcs: string[];
+        };
+        PurchaseEvidence: {
+            amountPaidMinor?: number;
+            currency?: string;
+            lineItemSku?: string;
+            lineItemTitle?: string;
+            orderNumber?: string;
+            /** @enum {string} */
+            platform?: "amazon" | "tiktok" | "koi" | "retailer" | "gift" | "other";
+            purchaseDate?: string;
+            quantity?: number;
+            receiptDocumentIds?: string[];
+            sellerOrStore?: string;
         };
         UploadTokenRequest: {
             /** @enum {string} */
@@ -824,8 +1292,7 @@ export interface components {
             documentId: string;
             /** Format: date-time */
             expiresAt: string;
-            /** Format: uri */
-            uploadUrl: string;
+            pathname: string;
         };
     };
     responses: never;

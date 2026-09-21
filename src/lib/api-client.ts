@@ -17,7 +17,7 @@ export type ProblemDetails = components['schemas']['ProblemDetails'];
 
 // ── Admin B-end types (inline until openapi-typescript regenerates with admin paths) ──
 
-export type StaffRole = 'ADMIN' | 'MANAGER';
+export type StaffRole = 'ADMIN' | 'MANAGER' | 'COMPLIANCE';
 
 export interface StaffPrincipal {
   staffUserId: string;
@@ -175,6 +175,10 @@ export interface CaseIncidentReport {
   injurySeverity?: string | null;
   medicalTreatment?: string | null;
   usedAsIntended?: string | null;
+  /** Structured capture (P0-4); null on incidents reported before it existed. */
+  failureMode?: string | null;
+  medicalTreatmentReceived?: string | null;
+  unitType?: string | null;
   occurredAt?: string | null;
   occurredDateUnknown: boolean;
   companyObtainedAt: string;
@@ -186,6 +190,8 @@ export interface CaseIncidentReport {
   } | null;
   /** Decrypted narrative — present only for the raw PII tier (audited read). */
   narrative?: string;
+  /** Decrypted injury detail — same tier rule and same audited read as narrative. */
+  injuryDescription?: string;
 }
 
 export interface CaseDetail {
@@ -261,6 +267,10 @@ export interface IncidentSummary {
   eventTypes: string[];
   injurySeverity?: string | null;
   medicalTreatment?: string | null;
+  /** Queue-visible structured capture (P0-4); no free-text injury detail here. */
+  failureMode?: string | null;
+  medicalTreatmentReceived?: string | null;
+  unitType?: string | null;
   occurredAt?: string | null;
   createdAt: string;
   reportability: IncidentReportability | null;

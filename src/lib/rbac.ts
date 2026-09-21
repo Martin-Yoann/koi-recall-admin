@@ -30,6 +30,15 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'case.export',
     'case.assign',
     'case.status.transition',
+    'audit.read',
+    'staff.read',
+  ],
+  // Safety oversight: reads cases and signs off reportability reviews, but does
+  // not drive case status — see the note in koi-recall-backend permissions.ts.
+  COMPLIANCE: [
+    'case.queue.read',
+    'case.detail.read',
+    'case.detail.read_pii_raw',
     'review.close',
     'audit.read',
     'staff.read',
@@ -64,6 +73,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 export const ROLE_LABELS: Record<StaffRole, string> = {
   ADMIN: 'Admin',
   MANAGER: 'Manager',
+  COMPLIANCE: 'Compliance',
 };
 
 export function roleHasPermission(role: StaffRole | undefined | null, permission: Permission): boolean {

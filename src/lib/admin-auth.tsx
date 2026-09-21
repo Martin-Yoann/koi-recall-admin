@@ -66,6 +66,10 @@ const STORAGE_KEY = SESSION_STORAGE_KEY;
  */
 function normalizeStoredRole(value: unknown): StaffRole | undefined {
   if (value === 'ADMIN' || value === 'administrator') return 'ADMIN';
+  // Canonical check before the legacy aliases below: 'COMPLIANCE' is a real role
+  // now, while the lowercase 'compliance' was an old UI-only name. Without this
+  // the new role would restore as unknown and every `can()` would return false.
+  if (value === 'COMPLIANCE') return 'COMPLIANCE';
   if (value === 'MANAGER' || value === 'viewer' || value === 'reviewer' || value === 'compliance') {
     return 'MANAGER';
   }
