@@ -4,20 +4,23 @@
 // Phase 1: 501 → callers should fall back to mock data
 // ============================================================
 
-import type { paths, components } from '@/types/api';
+import type { paths, components } from "@/types/api";
 
 // ── Convenience type aliases from generated paths ──
 
-export type GetCampaignOk = paths['/v1/recall-campaigns/{slug}']['get']['responses'][200]['content']['application/json'];
-export type ProductCheckBody = paths['/v1/recall-campaigns/{slug}/product-checks']['post']['requestBody']['content']['application/json'];
-export type ProductCheckOk = paths['/v1/recall-campaigns/{slug}/product-checks']['post']['responses'][200]['content']['application/json'];
+export type GetCampaignOk =
+  paths["/v1/recall-campaigns/{slug}"]["get"]["responses"][200]["content"]["application/json"];
+export type ProductCheckBody =
+  paths["/v1/recall-campaigns/{slug}/product-checks"]["post"]["requestBody"]["content"]["application/json"];
+export type ProductCheckOk =
+  paths["/v1/recall-campaigns/{slug}/product-checks"]["post"]["responses"][200]["content"]["application/json"];
 
-export type CampaignView = GetCampaignOk['campaign'];
-export type ProblemDetails = components['schemas']['ProblemDetails'];
+export type CampaignView = GetCampaignOk["campaign"];
+export type ProblemDetails = components["schemas"]["ProblemDetails"];
 
 // ── Admin B-end types (inline until openapi-typescript regenerates with admin paths) ──
 
-export type StaffRole = 'ADMIN' | 'MANAGER' | 'COMPLIANCE';
+export type StaffRole = "ADMIN" | "MANAGER" | "COMPLIANCE";
 
 export interface StaffPrincipal {
   staffUserId: string;
@@ -51,18 +54,47 @@ export interface StaffSession {
 }
 
 export interface CaseResolutionSummary {
-  requestedType: 'replacement' | 'refund' | null;
-  approvedType: 'replacement' | 'refund' | null;
-  status: 'requested' | 'approved' | 'externally_completed' | 'cancelled';
+  requestedType: "replacement" | "refund" | null;
+  approvedType: "replacement" | "refund" | null;
+  status: "requested" | "approved" | "externally_completed" | "cancelled";
 }
 
 export interface CaseWorkflow {
   currentStage: string;
-  responsibleDepartment: 'customer_service' | 'compliance' | 'logistics' | 'finance' | 'none';
+  responsibleDepartment:
+    "customer_service" | "compliance" | "logistics" | "finance" | "none";
   nextAction: string;
   allowedActions: string[];
   blockingReasons: string[];
   publicStatus: string;
+}
+
+/**
+ * Disposal queue row. Mirrors the backend view; the admin disposal surface is not
+ * in the published OpenAPI document, so these are declared here like the rest of
+ * the admin shapes.
+ */
+export interface DisposalQueueRow {
+  taskId: string;
+  caseReference: string | null;
+  eligibilityStatus:
+    | "pending_confirmation"
+    | "confirmed_eligible"
+    | "not_applicable"
+    | "ineligible";
+  instructionVersionNumber: number | null;
+  evidenceReviewStatus:
+    "pending" | "accepted" | "needs_resubmission" | "superseded" | null;
+  authorizationStatus: "active" | "suspended" | "revoked" | null;
+  holdActive: boolean;
+  blockingReasons: string[];
+  productCount: number;
+  createdAt: string;
+}
+
+export interface DisposalQueueResponse {
+  tasks: DisposalQueueRow[];
+  total: number;
 }
 
 export interface CaseSummary {
@@ -86,7 +118,7 @@ export interface CaseListResponse {
 }
 
 export interface CaseConsumer {
-  piiTier: 'masked' | 'raw';
+  piiTier: "masked" | "raw";
   firstName: string;
   lastName: string;
   email: string;
@@ -98,10 +130,10 @@ export interface CaseConsumer {
 export interface CaseResolution {
   id: string;
   caseId: string;
-  requestedType: 'replacement' | 'refund' | null;
+  requestedType: "replacement" | "refund" | null;
   requestedRemedyOptionId: string | null;
-  approvedType: 'replacement' | 'refund' | null;
-  status: 'requested' | 'approved' | 'externally_completed' | 'cancelled';
+  approvedType: "replacement" | "refund" | null;
+  status: "requested" | "approved" | "externally_completed" | "cancelled";
   refundAmountMinor: number | null;
   currency: string | null;
   approvedByStaffUserId: string | null;
@@ -232,7 +264,7 @@ export interface StaffUser {
   email: string;
   displayName: string;
   role: string;
-  status: 'active' | 'disabled';
+  status: "active" | "disabled";
   lastLoginAt: string | null;
   avatarDataUrl: string | null;
 }
@@ -252,7 +284,7 @@ export interface UpdateStaffRequest {
 
 export interface IncidentReportability {
   id: string;
-  status: 'pending' | 'filed' | 'documented_non_reportable';
+  status: "pending" | "filed" | "documented_non_reportable";
   cpscReference?: string | null;
   filedAt?: string | null;
   decisionAt?: string | null;
@@ -320,7 +352,7 @@ export interface AuditEvent {
   resourceType: string;
   resourceId?: string | null;
   /** Mirrors the backend audit outcome enum (`success | denied | error`). */
-  outcome: 'success' | 'denied' | 'error';
+  outcome: "success" | "denied" | "error";
   reasonCode?: string | null;
   metadata?: Record<string, unknown>;
   occurredAt: string;
@@ -348,9 +380,11 @@ export interface ReportabilityReview {
 
 // ── Runtime ──
 
-const ONLINE_API_BASE = 'https://koi-recall-backend.vercel.app';
+const ONLINE_API_BASE = "https://koi-recall-backend.vercel.app";
 
-const configuredApi = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+const configuredApi = (process.env.NEXT_PUBLIC_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 
 // Default to the deployed API. Local development remains opt-in through
 // NEXT_PUBLIC_API_URL so production builds never try a visitor's localhost.
@@ -359,40 +393,47 @@ const PRIMARY_API_BASE = configuredApi || ONLINE_API_BASE;
 // When the primary points at a local backend that isn't running, transparently
 // fall back to the deployed API so the admin panel keeps working. Only localhost
 // URLs get an online fallback — an explicitly configured remote URL is used as-is.
-const isLocalPrimary = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(PRIMARY_API_BASE);
+const isLocalPrimary = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
+  PRIMARY_API_BASE,
+);
 const API_BASES: string[] =
   isLocalPrimary && PRIMARY_API_BASE !== ONLINE_API_BASE
     ? [PRIMARY_API_BASE, ONLINE_API_BASE]
     : [PRIMARY_API_BASE];
 
 export type ApiResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: ProblemDetails; status: number };
+  { ok: true; data: T } | { ok: false; error: ProblemDetails; status: number };
 
-function toProblemDetails(body: unknown, status: number, statusText: string): ProblemDetails {
+function toProblemDetails(
+  body: unknown,
+  status: number,
+  statusText: string,
+): ProblemDetails {
   if (
     body &&
-    typeof body === 'object' &&
-    'type' in body &&
-    typeof (body as { type?: unknown }).type === 'string'
+    typeof body === "object" &&
+    "type" in body &&
+    typeof (body as { type?: unknown }).type === "string"
   ) {
     return body as ProblemDetails;
   }
 
   return {
-    type: 'about:blank',
-    title: statusText || 'Request failed',
+    type: "about:blank",
+    title: statusText || "Request failed",
     status,
     detail:
-      body && typeof body === 'object' && 'detail' in body && typeof (body as { detail?: unknown }).detail === 'string'
+      body &&
+      typeof body === "object" &&
+      "detail" in body &&
+      typeof (body as { detail?: unknown }).detail === "string"
         ? (body as { detail: string }).detail
-        : 'Request failed.',
+        : "Request failed.",
   };
 }
 
-
 function requestId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -400,7 +441,7 @@ function requestId(): string {
 
 // ── Auth header helper ──
 
-export const SESSION_STORAGE_KEY = 'koi_admin_session';
+export const SESSION_STORAGE_KEY = "koi_admin_session";
 
 let adminSessionToken: string | null = null;
 
@@ -422,7 +463,7 @@ interface StoredAdminSession {
 }
 
 function readStoredSession(): StoredAdminSession | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
@@ -430,7 +471,8 @@ function readStoredSession(): StoredAdminSession | null {
     if (!parsed?.token) return null;
     // Drop definitively expired snapshots so requests fail as "logged out"
     // instead of replaying a dead token.
-    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now()) return null;
+    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now())
+      return null;
     return parsed;
   } catch {
     return null;
@@ -438,7 +480,7 @@ function readStoredSession(): StoredAdminSession | null {
 }
 
 function writeStoredSession(update: StoredAdminSession) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     const current = readStoredSession() ?? {};
     window.localStorage.setItem(
@@ -451,14 +493,14 @@ function writeStoredSession(update: StoredAdminSession) {
 }
 
 function clearStoredSession() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
   } catch {
     // ignore
   }
   // Let the auth context drop its in-memory user so the UI shows signed-out.
-  window.dispatchEvent(new CustomEvent('koi_admin_session_expired'));
+  window.dispatchEvent(new CustomEvent("koi_admin_session_expired"));
 }
 
 // ── Cross-tab session sync ──
@@ -470,15 +512,15 @@ function clearStoredSession() {
 // whole account out. Mirror the rotated token into this tab so all tabs stay
 // on the live one.
 function startSessionTabSync() {
-  if (typeof window === 'undefined') return;
-  window.addEventListener('storage', (e) => {
+  if (typeof window === "undefined") return;
+  window.addEventListener("storage", (e) => {
     if (e.key !== SESSION_STORAGE_KEY) return;
     if (!e.newValue) {
       // Signed out in another tab — mirror the signed-out state here too so a
       // stale tab cannot keep using a token the session no longer holds.
       if (adminSessionToken || readStoredSession()) {
         adminSessionToken = null;
-        window.dispatchEvent(new CustomEvent('koi_admin_session_expired'));
+        window.dispatchEvent(new CustomEvent("koi_admin_session_expired"));
       }
       return;
     }
@@ -488,7 +530,7 @@ function startSessionTabSync() {
       // auth context resync its user) instead of sending the stale one.
       if (parsed.token && parsed.token !== adminSessionToken) {
         adminSessionToken = parsed.token;
-        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+        window.dispatchEvent(new CustomEvent("koi_admin_session_refreshed"));
       }
     } catch {
       // Malformed write from another tab — keep the current token.
@@ -539,15 +581,18 @@ async function refreshAdminSession(): Promise<boolean> {
       const cached = readStoredSession();
       if (inMem && cached?.token && cached.token !== inMem) {
         adminSessionToken = cached.token;
-        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+        window.dispatchEvent(new CustomEvent("koi_admin_session_refreshed"));
         return true;
       }
       const token = inMem ?? cached?.token;
       if (!token) return false;
       try {
         const res = await fetch(`${API_BASES[0]}/admin/sessions/refresh`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'X-Request-Id': requestId() },
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-Request-Id": requestId(),
+          },
           signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) return false;
@@ -570,7 +615,7 @@ async function refreshAdminSession(): Promise<boolean> {
           ...(body.displayName ? { displayName: body.displayName } : {}),
         });
         // admin-auth listens and refreshes its in-memory user from storage.
-        window.dispatchEvent(new CustomEvent('koi_admin_session_refreshed'));
+        window.dispatchEvent(new CustomEvent("koi_admin_session_refreshed"));
         return true;
       } catch {
         return false;
@@ -601,8 +646,8 @@ async function fetchApi<T>(
         // pending indefinitely.
         signal: options.signal ?? AbortSignal.timeout(10_000),
         headers: {
-          'Content-Type': 'application/json',
-          'X-Request-Id': rid,
+          "Content-Type": "application/json",
+          "X-Request-Id": rid,
           ...options.headers,
         },
       });
@@ -620,10 +665,10 @@ async function fetchApi<T>(
       const problem: ProblemDetails = body?.type
         ? (body as ProblemDetails)
         : {
-            type: 'about:blank',
+            type: "about:blank",
             title: res.statusText,
             status: res.status,
-            detail: body?.detail ?? 'Unexpected error',
+            detail: body?.detail ?? "Unexpected error",
             requestId: rid,
           };
       return { ok: false, error: problem, status: res.status };
@@ -639,7 +684,12 @@ async function fetchApi<T>(
 
     // A 401 on an admin route may mean the rotated/expired token — refresh
     // the session once and replay the request before giving up.
-    if (!result.ok && result.status === 401 && path.startsWith('/admin/') && allowSessionRetry) {
+    if (
+      !result.ok &&
+      result.status === 401 &&
+      path.startsWith("/admin/") &&
+      allowSessionRetry
+    ) {
       const refreshed = await refreshAdminSession();
       if (refreshed) {
         return fetchApi<T>(path, options, false);
@@ -654,10 +704,10 @@ async function fetchApi<T>(
   return {
     ok: false,
     error: {
-      type: 'about:blank',
-      title: 'Network Error',
+      type: "about:blank",
+      title: "Network Error",
       status: 0,
-      detail: 'Could not reach the API server.',
+      detail: "Could not reach the API server.",
       requestId: rid,
     },
     status: 0,
@@ -682,24 +732,39 @@ async function fetchApiText(
         ...options,
         signal: options.signal ?? AbortSignal.timeout(10_000),
         headers: {
-          'Content-Type': 'application/json',
-          'X-Request-Id': rid,
+          "Content-Type": "application/json",
+          "X-Request-Id": rid,
           ...options.headers,
         },
       });
 
       if (response.ok) {
-        return { ok: true, data: { text: await response.text(), headers: response.headers } };
+        return {
+          ok: true,
+          data: { text: await response.text(), headers: response.headers },
+        };
       }
 
       const body = await response.json().catch(() => null);
-      const error = toProblemDetails(body, response.status, response.statusText);
-      if (response.status === 401 && path.startsWith('/admin/') && allowSessionRetry) {
+      const error = toProblemDetails(
+        body,
+        response.status,
+        response.statusText,
+      );
+      if (
+        response.status === 401 &&
+        path.startsWith("/admin/") &&
+        allowSessionRetry
+      ) {
         const refreshed = await refreshAdminSession();
         if (refreshed) return fetchApiText(path, options, false);
         clearStoredSession();
       }
-      return { ok: false, status: response.status, error: { ...error, requestId: error.requestId ?? rid } };
+      return {
+        ok: false,
+        status: response.status,
+        error: { ...error, requestId: error.requestId ?? rid },
+      };
     } catch {
       // Try the next configured base for network failures.
     }
@@ -709,10 +774,10 @@ async function fetchApiText(
     ok: false,
     status: 0,
     error: {
-      type: 'about:blank',
-      title: 'Network Error',
+      type: "about:blank",
+      title: "Network Error",
       status: 0,
-      detail: 'Could not reach the API server.',
+      detail: "Could not reach the API server.",
       requestId: rid,
     },
   };
@@ -723,7 +788,7 @@ async function fetchApiText(
 /** GET /v1/recall-campaigns/{slug} */
 export async function getCampaign(
   slug: string,
-  locale = 'en-US',
+  locale = "en-US",
 ): Promise<ApiResult<GetCampaignOk>> {
   return fetchApi<GetCampaignOk>(
     `/v1/recall-campaigns/${slug}?locale=${encodeURIComponent(locale)}`,
@@ -737,7 +802,7 @@ export async function checkProduct(
 ): Promise<ApiResult<ProductCheckOk>> {
   return fetchApi<ProductCheckOk>(
     `/v1/recall-campaigns/${slug}/product-checks`,
-    { method: 'POST', body: JSON.stringify(body) },
+    { method: "POST", body: JSON.stringify(body) },
   );
 }
 
@@ -749,8 +814,8 @@ export async function checkProduct(
 export async function staffLogin(
   body: StaffLoginRequest,
 ): Promise<ApiResult<StaffLoginResponse>> {
-  const result = await fetchApi<StaffLoginResponse>('/admin/sessions', {
-    method: 'POST',
+  const result = await fetchApi<StaffLoginResponse>("/admin/sessions", {
+    method: "POST",
     body: JSON.stringify(body),
   });
   if (result.ok) {
@@ -761,8 +826,8 @@ export async function staffLogin(
 
 /** DELETE /admin/sessions — Staff logout */
 export async function staffLogout(): Promise<ApiResult<void>> {
-  const result = await fetchApi<void>('/admin/sessions', {
-    method: 'DELETE',
+  const result = await fetchApi<void>("/admin/sessions", {
+    method: "DELETE",
     headers: authHeaders(),
   });
   setAdminSessionToken(null);
@@ -771,8 +836,8 @@ export async function staffLogout(): Promise<ApiResult<void>> {
 
 /** POST /admin/sessions/refresh — Refresh session token */
 export async function refreshSession(): Promise<ApiResult<StaffLoginResponse>> {
-  const result = await fetchApi<StaffLoginResponse>('/admin/sessions/refresh', {
-    method: 'POST',
+  const result = await fetchApi<StaffLoginResponse>("/admin/sessions/refresh", {
+    method: "POST",
     headers: authHeaders(),
   });
   if (result.ok) {
@@ -783,8 +848,12 @@ export async function refreshSession(): Promise<ApiResult<StaffLoginResponse>> {
       token: result.data.token,
       expiresAt: result.data.expiresAt,
       ...(result.data.role ? { role: result.data.role } : {}),
-      ...(result.data.staffUserId ? { staffUserId: result.data.staffUserId } : {}),
-      ...(result.data.displayName ? { displayName: result.data.displayName } : {}),
+      ...(result.data.staffUserId
+        ? { staffUserId: result.data.staffUserId }
+        : {}),
+      ...(result.data.displayName
+        ? { displayName: result.data.displayName }
+        : {}),
     });
   }
   return result;
@@ -796,8 +865,8 @@ export async function updateOwnProfile(body: {
   avatarDataUrl?: string | null;
 }): Promise<ApiResult<{ displayName: string; avatarDataUrl: string | null }>> {
   return fetchApi<{ displayName: string; avatarDataUrl: string | null }>(
-    '/admin/profile',
-    { method: 'PATCH', body: JSON.stringify(body), headers: authHeaders() },
+    "/admin/profile",
+    { method: "PATCH", body: JSON.stringify(body), headers: authHeaders() },
   );
 }
 
@@ -806,8 +875,8 @@ export async function updatePassword(body: {
   currentPassword: string;
   newPassword: string;
 }): Promise<ApiResult<void>> {
-  return fetchApi<void>('/admin/profile/password', {
-    method: 'POST',
+  return fetchApi<void>("/admin/profile/password", {
+    method: "POST",
     body: JSON.stringify(body),
     headers: authHeaders(),
   });
@@ -824,21 +893,20 @@ export async function listCases(params?: {
   cursor?: string;
 }): Promise<ApiResult<CaseListResponse>> {
   const searchParams = new URLSearchParams();
-  if (params?.status) searchParams.set('status', params.status);
-  if (params?.queue) searchParams.set('queue', params.queue);
-  if (params?.search) searchParams.set('search', params.search);
-  if (params?.limit) searchParams.set('limit', String(params.limit));
-  if (params?.cursor) searchParams.set('cursor', params.cursor);
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.queue) searchParams.set("queue", params.queue);
+  if (params?.search) searchParams.set("search", params.search);
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.cursor) searchParams.set("cursor", params.cursor);
   const qs = searchParams.toString();
-  return fetchApi<CaseListResponse>(
-    `/admin/cases${qs ? `?${qs}` : ''}`,
-    { headers: authHeaders() },
-  );
+  return fetchApi<CaseListResponse>(`/admin/cases${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+  });
 }
 
 /** GET /admin/cases/export — CSV export all cases */
 export async function exportCases(): Promise<ApiResult<Blob>> {
-  return fetchBlob('/admin/cases/export', { method: 'GET' });
+  return fetchBlob("/admin/cases/export", { method: "GET" });
 }
 
 async function fetchBlob(
@@ -850,22 +918,35 @@ async function fetchBlob(
     try {
       const res = await fetch(`${base}${path}`, {
         ...options,
-        headers: { 'X-Request-Id': rid, ...authHeaders(), ...options.headers },
+        headers: { "X-Request-Id": rid, ...authHeaders(), ...options.headers },
       });
       if (res.ok) return { ok: true, data: await res.blob() };
       const body = await res.json().catch(() => ({}));
-      return { ok: false, error: toProblemDetails(body, res.status, res.statusText), status: res.status };
+      return {
+        ok: false,
+        error: toProblemDetails(body, res.status, res.statusText),
+        status: res.status,
+      };
     } catch {
       continue;
     }
   }
-  return { ok: false, error: { type: 'about:blank', title: 'Network Error', status: 0, detail: 'Failed to reach API' }, status: 0 };
+  return {
+    ok: false,
+    error: {
+      type: "about:blank",
+      title: "Network Error",
+      status: 0,
+      detail: "Failed to reach API",
+    },
+    status: 0,
+  };
 }
 
 /** GET /admin/cases/{caseRef} — Get case detail */
 export async function getCaseDetail(
   caseRef: string,
-  piiLevel: 'masked' | 'raw' = 'masked',
+  piiLevel: "masked" | "raw" = "masked",
 ): Promise<ApiResult<CaseDetailResponse>> {
   return fetchApi<CaseDetailResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}?pii=${piiLevel}`,
@@ -900,7 +981,7 @@ export async function assignCase(
 ): Promise<ApiResult<unknown>> {
   return fetchApi<unknown>(
     `/admin/cases/${encodeURIComponent(caseRef)}/assign`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
 }
 
@@ -911,7 +992,7 @@ export async function transitionCaseStatus(
 ): Promise<ApiResult<unknown>> {
   return fetchApi<unknown>(
     `/admin/cases/${encodeURIComponent(caseRef)}/status`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
 }
 
@@ -919,7 +1000,7 @@ export async function transitionCaseStatus(
 
 /** GET /admin/staff — List staff users (backend wraps in `{ staff: [...] }`) */
 export async function listStaff(): Promise<ApiResult<StaffUser[]>> {
-  const result = await fetchApi<{ staff: StaffUser[] }>('/admin/staff', {
+  const result = await fetchApi<{ staff: StaffUser[] }>("/admin/staff", {
     headers: authHeaders(),
   });
   if (result.ok) return { ok: true, data: result.data.staff };
@@ -930,8 +1011,8 @@ export async function listStaff(): Promise<ApiResult<StaffUser[]>> {
 export async function createStaff(
   body: CreateStaffRequest,
 ): Promise<ApiResult<StaffUser>> {
-  return fetchApi<StaffUser>('/admin/staff', {
-    method: 'POST',
+  return fetchApi<StaffUser>("/admin/staff", {
+    method: "POST",
     body: JSON.stringify(body),
     headers: authHeaders(),
   });
@@ -940,7 +1021,7 @@ export async function createStaff(
 export async function approveResolution(
   caseRef: string,
   body: {
-    type: 'replacement' | 'refund';
+    type: "replacement" | "refund";
     note: string;
     expectedVersion: number;
     refundAmountMinor?: number;
@@ -949,7 +1030,7 @@ export async function approveResolution(
 ): Promise<ApiResult<CaseResolution>> {
   const result = await fetchApi<CaseResolutionResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}/resolution/approve`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
   if (result.ok) return { ok: true, data: result.data.resolution };
   return result;
@@ -961,7 +1042,7 @@ export async function completeResolution(
 ): Promise<ApiResult<CaseResolution>> {
   const result = await fetchApi<CaseResolutionResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}/resolution/complete`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
   if (result.ok) return { ok: true, data: result.data.resolution };
   return result;
@@ -973,7 +1054,7 @@ export async function cancelResolution(
 ): Promise<ApiResult<CaseResolution>> {
   const result = await fetchApi<CaseResolutionResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}/resolution/cancel`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
   if (result.ok) return { ok: true, data: result.data.resolution };
   return result;
@@ -986,29 +1067,33 @@ export async function recordShipment(
 ): Promise<ApiResult<CaseResolution>> {
   const result = await fetchApi<CaseResolutionResponse>(
     `/admin/cases/${encodeURIComponent(caseRef)}/resolution/shipment`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
   if (result.ok) return { ok: true, data: result.data.resolution };
   return result;
 }
-
 
 /** PATCH /admin/staff/{id} — Update staff user */
 export async function updateStaff(
   staffUserId: string,
   body: UpdateStaffRequest,
 ): Promise<ApiResult<StaffUser>> {
-  return fetchApi<StaffUser>(`/admin/staff/${encodeURIComponent(staffUserId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-    headers: authHeaders(),
-  });
+  return fetchApi<StaffUser>(
+    `/admin/staff/${encodeURIComponent(staffUserId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+      headers: authHeaders(),
+    },
+  );
 }
 
 /** DELETE /admin/staff/{id} — Permanently delete a staff user (ADMIN only). */
-export async function deleteStaff(staffUserId: string): Promise<ApiResult<void>> {
+export async function deleteStaff(
+  staffUserId: string,
+): Promise<ApiResult<void>> {
   return fetchApi<void>(`/admin/staff/${encodeURIComponent(staffUserId)}`, {
-    method: 'DELETE',
+    method: "DELETE",
     headers: authHeaders(),
   });
 }
@@ -1017,31 +1102,40 @@ export async function deleteStaff(staffUserId: string): Promise<ApiResult<void>>
 export async function revokeUserSessions(
   staffUserId: string,
 ): Promise<ApiResult<void>> {
-  return fetchApi<void>(`/admin/sessions/by-user/${encodeURIComponent(staffUserId)}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
+  return fetchApi<void>(
+    `/admin/sessions/by-user/${encodeURIComponent(staffUserId)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(),
+    },
+  );
 }
 
 // -- Reportability Reviews --
 
 /** GET /admin/incidents — Incident operations summary */
-export async function listIncidents(): Promise<ApiResult<IncidentListResponse>> {
-  return fetchApi<IncidentListResponse>('/admin/incidents', {
+export async function listIncidents(): Promise<
+  ApiResult<IncidentListResponse>
+> {
+  return fetchApi<IncidentListResponse>("/admin/incidents", {
     headers: authHeaders(),
   });
 }
 
 /** GET /admin/campaigns — Read-only campaign overview with case counts */
-export async function listCampaigns(): Promise<ApiResult<{ campaigns: AdminCampaignSummary[] }>> {
-  return fetchApi<{ campaigns: AdminCampaignSummary[] }>('/admin/campaigns', {
+export async function listCampaigns(): Promise<
+  ApiResult<{ campaigns: AdminCampaignSummary[] }>
+> {
+  return fetchApi<{ campaigns: AdminCampaignSummary[] }>("/admin/campaigns", {
     headers: authHeaders(),
   });
 }
 
 /** GET /admin/refund-exports — Refund export history */
-export async function listRefundExports(): Promise<ApiResult<RefundExportHistoryResponse>> {
-  return fetchApi<RefundExportHistoryResponse>('/admin/refund-exports', {
+export async function listRefundExports(): Promise<
+  ApiResult<RefundExportHistoryResponse>
+> {
+  return fetchApi<RefundExportHistoryResponse>("/admin/refund-exports", {
     headers: authHeaders(),
   });
 }
@@ -1051,22 +1145,22 @@ export async function createRefundExport(body: {
   purpose: string;
   includeExported?: boolean;
 }): Promise<ApiResult<RefundExportResponse>> {
-  const result = await fetchApiText('/admin/refund-exports', {
-    method: 'POST',
+  const result = await fetchApiText("/admin/refund-exports", {
+    method: "POST",
     body: JSON.stringify(body),
-    cache: 'no-store',
+    cache: "no-store",
     headers: authHeaders(),
   });
   if (!result.ok) return result;
 
-  const disposition = result.data.headers.get('Content-Disposition');
+  const disposition = result.data.headers.get("Content-Disposition");
   const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
   return {
     ok: true,
     data: {
       csv: result.data.text,
-      batchId: result.data.headers.get('X-Refund-Export-Batch-Id'),
-      sha256: result.data.headers.get('X-Refund-Export-Sha256'),
+      batchId: result.data.headers.get("X-Refund-Export-Batch-Id"),
+      sha256: result.data.headers.get("X-Refund-Export-Sha256"),
       filename: filenameMatch?.[1] ?? null,
     },
   };
@@ -1075,23 +1169,51 @@ export async function createRefundExport(body: {
 /** POST /admin/reportability-reviews/{id}/close — Close reportability review */
 export async function closeReportabilityReview(
   reviewId: string,
-  body: { outcome: 'filed' | 'documented_non_reportable'; rationale: string; cpscReference?: string },
+  body: {
+    outcome: "filed" | "documented_non_reportable";
+    rationale: string;
+    cpscReference?: string;
+  },
 ): Promise<ApiResult<void>> {
   return fetchApi<void>(
     `/admin/reportability-reviews/${encodeURIComponent(reviewId)}/close`,
-    { method: 'POST', body: JSON.stringify(body), headers: authHeaders() },
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
 }
 
 // -- Audit --
 
 /** GET /admin/audit-events — Query audit log (server-side cursor pagination) */
+/** GET /admin/disposal-tasks — tasks that need a person. */
+export async function listDisposalTasks(
+  limit?: number,
+): Promise<ApiResult<DisposalQueueResponse>> {
+  const query = limit === undefined ? "" : `?limit=${limit}`;
+  return fetchApi<DisposalQueueResponse>(`/admin/disposal-tasks${query}`, {});
+}
+
+/** POST /admin/disposal-tasks/{taskId}/eligibility — decide whether it applies. */
+export async function confirmDisposalEligibility(
+  taskId: string,
+  body: {
+    eligibilityStatus: "confirmed_eligible" | "not_applicable" | "ineligible";
+    note: string;
+    expectedVersion: number;
+  },
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(`/admin/disposal-tasks/${taskId}/eligibility`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function queryAuditEvents(params?: {
   actor?: string;
   action?: string;
   resource?: string;
   resourceId?: string;
-  outcome?: 'success' | 'denied' | 'error';
+  outcome?: "success" | "denied" | "error";
   from?: string;
   to?: string;
   limit?: number;
@@ -1100,18 +1222,18 @@ export async function queryAuditEvents(params?: {
   const searchParams = new URLSearchParams();
   // Keep these names aligned with the backend contract:
   // actorUserId, resourceType, resourceId, outcome, since, and until.
-  if (params?.actor) searchParams.set('actorUserId', params.actor);
-  if (params?.action) searchParams.set('action', params.action);
-  if (params?.resource) searchParams.set('resourceType', params.resource);
-  if (params?.resourceId) searchParams.set('resourceId', params.resourceId);
-  if (params?.outcome) searchParams.set('outcome', params.outcome);
-  if (params?.from) searchParams.set('since', params.from);
-  if (params?.to) searchParams.set('until', params.to);
-  if (params?.limit) searchParams.set('limit', String(params.limit));
-  if (params?.cursor) searchParams.set('cursor', params.cursor);
+  if (params?.actor) searchParams.set("actorUserId", params.actor);
+  if (params?.action) searchParams.set("action", params.action);
+  if (params?.resource) searchParams.set("resourceType", params.resource);
+  if (params?.resourceId) searchParams.set("resourceId", params.resourceId);
+  if (params?.outcome) searchParams.set("outcome", params.outcome);
+  if (params?.from) searchParams.set("since", params.from);
+  if (params?.to) searchParams.set("until", params.to);
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.cursor) searchParams.set("cursor", params.cursor);
   const qs = searchParams.toString();
   return fetchApi<AuditQueryResponse>(
-    `/admin/audit-events${qs ? `?${qs}` : ''}`,
+    `/admin/audit-events${qs ? `?${qs}` : ""}`,
     { headers: authHeaders() },
   );
 }
