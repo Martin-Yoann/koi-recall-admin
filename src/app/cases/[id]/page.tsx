@@ -39,9 +39,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { cn } from "@/lib/utils";
 import {
   getCaseDetail,
-  getDisposalTaskForAdmin,
-  confirmDisposalProduct,
-  confirmDisposalEligibility,
   transitionCaseStatus,
   assignCase,
   listStaff,
@@ -55,6 +52,7 @@ import {
 } from "@/lib/api-client";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { CASES_UPDATED_EVENT } from "@/lib/admin-constants";
+import { DisposalTaskPanel } from "@/components/admin/disposal-task-panel";
 import { usePermissions } from "@/lib/rbac";
 import { useConfirm } from "@/components/admin/confirm-dialog";
 import {
@@ -319,20 +317,6 @@ function CaseDetailContent({
   const initialLoadStartedRef = useRef(false);
   /** Kept in a ref so refresh() always reloads at the tier currently on screen. */
   const piiLevelRef = useRef<"masked" | "raw">("masked");
-
-  useEffect(() => {
-    if (!(cse as any)?.disposalTaskId) return;
-    let cancelled = false;
-    void getDisposalTaskForAdmin((cse as any).disposalTaskId).then((res) => {
-      if (cancelled || !res.ok) return;
-      setDisposalTask(res.data.task);
-      setDisposalProducts(res.data.products);
-      setDisposalBlocked(res.data.blockingReasons);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [cse?.disposalTaskId]);
 
   useEffect(() => {
     // Reset on every setup so React StrictMode's dev double-invoke (setup →
@@ -1666,6 +1650,20 @@ function CaseDetailContent({
           </CardContent>
         </Card>
       )}
+
+      {/*
+        Product and eligibility decisions for the disposal task this case opened,
+        when it has one. The panel owns its own fetching and state so this page
+        stays a layout rather than another place that must know about disposal.
+      */}
+      {(cse as { disposalTaskId?: string | null }).disposalTaskId ? (
+        <DisposalTaskPanel
+          disposalTaskId={
+            (cse as { disposalTaskId?: string | null }).disposalTaskId as string
+          }
+          caseReference={cse.caseReference}
+        />
+      ) : null}
 
       {/* ── Closure checklist (the two gates before closed) ── */}
       {["approved", "closure_review"].includes(cse.status) && (
