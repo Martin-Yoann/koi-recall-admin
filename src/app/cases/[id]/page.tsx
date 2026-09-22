@@ -481,27 +481,24 @@ function CaseDetailContent({
   }, [refresh]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated) return;
-    if (initialLoadStartedRef.current || loading || record || notFound) {
-      return;
-    }
+    if (authLoading || !isAuthenticated) return;
+    // Exactly one automatic load per mounted case. The latch is deliberately
+    // never released: releasing it from the effect cleanup — the obvious way to
+    // survive StrictMode's setup -> cleanup -> setup — turned a single attempt
+    // into an unbounded retry loop, because every failure cleared `loading`,
+    // which re-ran this effect, which released the latch again. Recovering from
+    // a failure is the Retry button's job.
+    if (initialLoadStartedRef.current) return;
     initialLoadStartedRef.current = true;
-    const timer = window.setTimeout(() => {
+    // The attempt is deferred and its timer is deliberately not cancelled by a
+    // cleanup: StrictMode cancels the first setup, and cancelling the request
+    // with it would leave the page with no attempt at all. Every state write
+    // inside loadInitialData is guarded on mountedRef, so an attempt that
+    // outlives its own setup is harmless.
+    window.setTimeout(() => {
       void loadInitialData();
     }, 0);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    authError,
-    authLoading,
-    isAuthenticated,
-    loadInitialData,
-    loading,
-    notFound,
-    record,
-  ]);
+  }, [authLoading, isAuthenticated, loadInitialData]);
 
   // Mint short-lived access URLs for evidence files so images can render and
   // PDFs can be opened. Re-minted after every refresh (fresh expiry window).
@@ -625,7 +622,7 @@ function CaseDetailContent({
 
     const confirmed = await confirm({
       title: `Move this case to ${label}?`,
-      subtitle: `${caseRef} · ${consumerName}`,
+      subtitle: consumerName ? `${caseRef} · ${consumerName}` : caseRef,
       flow: { from: currentLabel, to: label },
       description: consumerNotified
         ? "This updates the case status and emails the consumer. The change is recorded in the audit log."
@@ -921,8 +918,10 @@ function CaseDetailContent({
   const resolutionType =
     resolutionTypeOverride ?? resolution?.requestedType ?? "replacement";
   const assignedStaff = staff.find((s) => s.id === cse.assignedToStaffUserId);
+  // Empty when the consumer's stored details could not be decrypted — an
+  // unreadable name must not be interpolated as the literal "undefined".
   const consumerName =
-    `${cse.consumer.firstName} ${cse.consumer.lastName}`.trim();
+    `${cse.consumer.firstName ?? ""} ${cse.consumer.lastName ?? ""}`.trim();
   /** Latest need_info transition note — what the review team asked the consumer to provide. */
   const infoRequest = (() => {
     const events = cse.events ?? [];
@@ -1882,62 +1881,83 @@ function CaseDetailContent({
               <span
                 className={cn(
                   "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded",
-                  cse.consumer.piiTier === "raw"
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-slate-100 text-slate-600",
+                  cse.consumer.piiUnavailable
+                    ? "bg-amber-50 text-amber-700"
+                    : cse.consumer.piiTier === "raw"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-100 text-slate-600",
                 )}
               >
-                {cse.consumer.piiTier === "raw" ? "Raw PII" : "Masked PII"}
+                {cse.consumer.piiUnavailable
+                  ? "Unreadable"
+                  : cse.consumer.piiTier === "raw"
+                    ? "Raw PII"
+                    : "Masked PII"}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            <p className="text-base font-semibold text-text-primary">
-              {consumerName || "—"}
-            </p>
-            <div className="space-y-1.5 text-sm text-text-secondary">
-              <p className="flex items-center gap-2">
-                <Mail className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
-                {cse.consumer.email || "—"}
+            {cse.consumer.piiUnavailable ? (
+              // The stored row exists but its ciphertext does not authenticate
+              // with the configured key (a rotated key, or another environment
+              // writing to this database with a different one). Saying so beats
+              // rendering blanks, which a reviewer would read as "the consumer
+              // left it empty". The ciphertext itself is never displayed.
+              <p className="text-sm text-amber-700">
+                Stored consumer details could not be decrypted, so no contact
+                information can be shown for this case. The record has not been
+                deleted.
               </p>
-              <p className="flex items-center gap-2">
-                <Phone className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
-                {cse.consumer.phone || "—"}
-              </p>
-              <p className="flex items-center gap-2">
-                <Globe className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
-                {cse.consumer.countryCode || "—"}
-              </p>
-              {(() => {
-                const address = cse.consumer.address as
-                  Record<string, unknown> | undefined;
-                const lines = address
-                  ? [
-                      typeof address.line1 === "string" && address.line1
-                        ? address.line1
-                        : null,
-                      typeof address.line2 === "string" && address.line2
-                        ? address.line2
-                        : null,
-                      [address.city, address.state, address.postalCode]
-                        .filter(Boolean)
-                        .join(", ") || null,
-                      typeof address.countryCode === "string" &&
-                      address.countryCode
-                        ? address.countryCode
-                        : null,
-                    ].filter(Boolean)
-                  : [];
-                return lines.length > 0 ? (
-                  <p className="flex items-start gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-text-tertiary shrink-0 mt-0.5" />
-                    <span className="whitespace-pre-line">
-                      {lines.join("\n")}
-                    </span>
+            ) : (
+              <>
+                <p className="text-base font-semibold text-text-primary">
+                  {consumerName || "—"}
+                </p>
+                <div className="space-y-1.5 text-sm text-text-secondary">
+                  <p className="flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+                    {cse.consumer.email || "—"}
                   </p>
-                ) : null;
-              })()}
-            </div>
+                  <p className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+                    {cse.consumer.phone || "—"}
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+                    {cse.consumer.countryCode || "—"}
+                  </p>
+                  {(() => {
+                    const address = cse.consumer.address as
+                      Record<string, unknown> | undefined;
+                    const lines = address
+                      ? [
+                          typeof address.line1 === "string" && address.line1
+                            ? address.line1
+                            : null,
+                          typeof address.line2 === "string" && address.line2
+                            ? address.line2
+                            : null,
+                          [address.city, address.state, address.postalCode]
+                            .filter(Boolean)
+                            .join(", ") || null,
+                          typeof address.countryCode === "string" &&
+                          address.countryCode
+                            ? address.countryCode
+                            : null,
+                        ].filter(Boolean)
+                      : [];
+                    return lines.length > 0 ? (
+                      <p className="flex items-start gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-text-tertiary shrink-0 mt-0.5" />
+                        <span className="whitespace-pre-line">
+                          {lines.join("\n")}
+                        </span>
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
+              </>
+            )}
             <div className="pt-3 border-t text-xs text-text-tertiary space-y-1">
               <p className="flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />

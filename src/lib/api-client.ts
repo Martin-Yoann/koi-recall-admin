@@ -153,11 +153,18 @@ export interface CaseListResponse {
 
 export interface CaseConsumer {
   piiTier: "masked" | "raw";
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  countryCode: string;
+  /**
+   * The stored row exists but its ciphertext did not authenticate with the
+   * server's key, so no field could be read and every field below is absent.
+   * That is not the same as the consumer leaving them blank, so the UI must say
+   * so rather than render empty values.
+   */
+  piiUnavailable?: boolean;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  countryCode?: string;
   address?: { raw: string };
 }
 
