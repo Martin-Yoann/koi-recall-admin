@@ -1261,6 +1261,50 @@ export async function reviewDisposalBatch(
   });
 }
 
+/**
+ * POST /admin/disposal-tasks/{taskId}/authorization — issue the permission.
+ *
+ * No force option: the service re-reads state and refuses unless every
+ * precondition holds, so a stale page cannot obtain a permission the current
+ * state does not support.
+ */
+export async function issueDisposalAuthorization(
+  taskId: string,
+): Promise<ApiResult<{ authorizationId: string; status: string }>> {
+  return fetchApi<{ authorizationId: string; status: string }>(
+    `/admin/disposal-tasks/${taskId}/authorization`,
+    { method: "POST", headers: authHeaders() },
+  );
+}
+
+/** POST /admin/disposal-tasks/{taskId}/hold — pause until a person lifts it. */
+export async function placeDisposalHold(
+  taskId: string,
+  body: {
+    reason:
+      "incident_evidence_retention" | "compliance_investigation" | "other";
+    note: string;
+  },
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(`/admin/disposal-tasks/${taskId}/hold`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** POST /admin/disposal-tasks/{taskId}/hold/release — lift the pause. */
+export async function releaseDisposalHold(
+  taskId: string,
+  note: string,
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(`/admin/disposal-tasks/${taskId}/hold/release`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+}
+
 export async function listDisposalTasks(
   limit?: number,
 ): Promise<ApiResult<DisposalQueueResponse>> {

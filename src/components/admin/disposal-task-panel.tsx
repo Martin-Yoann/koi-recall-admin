@@ -11,6 +11,9 @@ import {
   confirmDisposalProduct,
   getDisposalTaskForAdmin,
   getDocumentAccessUrl,
+  issueDisposalAuthorization,
+  placeDisposalHold,
+  releaseDisposalHold,
   reviewDisposalBatch,
   type DisposalLatestBatch,
 } from "@/lib/api-client";
@@ -125,6 +128,10 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
   );
   const [reasonCode, setReasonCode] = useState("recognition_unclear");
   const [rationale, setRationale] = useState("");
+  const [holdNote, setHoldNote] = useState("");
+  const [holdReason, setHoldReason] = useState<
+    "incident_evidence_retention" | "compliance_investigation" | "other"
+  >("compliance_investigation");
   const [choice, setChoice] =
     useState<(typeof ELIGIBILITY_CHOICES)[number]["value"]>(
       "confirmed_eligible",
@@ -208,6 +215,47 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
       return;
     }
     setRationale("");
+    refresh();
+  };
+
+  const onIssueAuthorization = async () => {
+    setBusy(true);
+    setActionError(null);
+    const result = await issueDisposalAuthorization(disposalTaskId);
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    refresh();
+  };
+
+  const onPlaceHold = async () => {
+    setBusy(true);
+    setActionError(null);
+    const result = await placeDisposalHold(disposalTaskId, {
+      reason: holdReason,
+      note: holdNote.trim(),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    setHoldNote("");
+    refresh();
+  };
+
+  const onReleaseHold = async () => {
+    setBusy(true);
+    setActionError(null);
+    const result = await releaseDisposalHold(disposalTaskId, holdNote.trim());
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    setHoldNote("");
     refresh();
   };
 
@@ -476,6 +524,83 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── A6-5 / A6-6: permission and hold ── */}
+      {mayReview && (
+        <div className="space-y-3 rounded border border-dashed p-3">
+          <p className="text-xs font-semibold text-text-primary">
+            Permission and holds
+          </p>
+
+          {detail.allowedActions.includes("disposal.issue_authorization") ? (
+            <div className="space-y-1.5">
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => void onIssueAuthorization()}
+              >
+                {busy ? "Issuing…" : "Issue permission to dispose"}
+              </Button>
+              <p className="text-[11px] text-text-tertiary">
+                Refused unless eligibility, an authorizing approval, accepted
+                photos and no active hold all hold at this moment. There is no
+                force option.
+              </p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-text-tertiary">
+              A permission can be issued once the outstanding items above are
+              cleared.
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <Label
+              htmlFor={`disposal-hold-${disposalTaskId}`}
+              className="text-xs font-medium"
+            >
+              {task.holdActive ? "Release the hold" : "Pause this task"}
+            </Label>
+            {task.holdActive === false && (
+              <select
+                value={holdReason}
+                onChange={(event) => setHoldReason(event.target.value as never)}
+                className="w-full rounded border px-2 py-1.5 text-xs"
+              >
+                <option value="compliance_investigation">
+                  Compliance investigation
+                </option>
+                <option value="incident_evidence_retention">
+                  Keep evidence for an incident
+                </option>
+                <option value="other">Other</option>
+              </select>
+            )}
+            <Textarea
+              id={`disposal-hold-${disposalTaskId}`}
+              rows={2}
+              value={holdNote}
+              onChange={(event) => setHoldNote(event.target.value)}
+              placeholder="Why, and what would lift it? (at least 10 characters)"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || holdNote.trim().length < 10}
+              onClick={() =>
+                void (task.holdActive ? onReleaseHold() : onPlaceHold())
+              }
+            >
+              {task.holdActive ? "Release hold" : "Place hold"}
+            </Button>
+            <p className="text-[11px] text-text-tertiary">
+              A hold stops evidence being accepted and blocks any permission,
+              whatever the photos show. It is separate from the reportability
+              review: closing that review never lifts a hold.
+            </p>
+          </div>
         </div>
       )}
 
