@@ -1189,7 +1189,9 @@ export async function listDisposalTasks(
   limit?: number,
 ): Promise<ApiResult<DisposalQueueResponse>> {
   const query = limit === undefined ? "" : `?limit=${limit}`;
-  return fetchApi<DisposalQueueResponse>(`/admin/disposal-tasks${query}`, {});
+  return fetchApi<DisposalQueueResponse>(`/admin/disposal-tasks${query}`, {
+    headers: authHeaders(),
+  });
 }
 
 /** POST /admin/disposal-tasks/{taskId}/eligibility — decide whether it applies. */
@@ -1203,7 +1205,7 @@ export async function confirmDisposalEligibility(
 ): Promise<ApiResult<null>> {
   return fetchApi<null>(`/admin/disposal-tasks/${taskId}/eligibility`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
