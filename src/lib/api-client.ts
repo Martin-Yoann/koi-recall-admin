@@ -97,6 +97,27 @@ export interface DisposalQueueResponse {
   total: number;
 }
 
+export interface DisposalBatchDocument {
+  documentId: string;
+  fileName: string;
+  status:
+    | "uploading"
+    | "verifying"
+    | "verified"
+    | "scan_pending"
+    | "rejected"
+    | "expired";
+  statusReason: "mime_mismatch" | "malware_detected" | null;
+}
+
+export interface DisposalLatestBatch {
+  id: string;
+  batchNumber: number;
+  reviewStatus: "pending" | "accepted" | "needs_resubmission" | "superseded";
+  submittedAt: string;
+  documents: DisposalBatchDocument[];
+}
+
 export interface CaseSummary {
   caseReference: string;
   status: string;
@@ -1216,6 +1237,28 @@ export async function confirmDisposalProduct(
       body: JSON.stringify({ quantity }),
     },
   );
+}
+
+/** POST /admin/disposal-batches/{batchId}/review — accept or ask for more. */
+export async function reviewDisposalBatch(
+  batchId: string,
+  body: {
+    decision: "accepted" | "needs_resubmission";
+    rationale: string;
+    reasonCode?:
+      | "recognition_unclear"
+      | "coverage_insufficient"
+      | "photo_unreadable"
+      | "wrong_product"
+      | "safety_step_not_visible"
+      | "other";
+  },
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(`/admin/disposal-batches/${batchId}/review`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function listDisposalTasks(

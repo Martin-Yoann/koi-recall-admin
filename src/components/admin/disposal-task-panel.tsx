@@ -10,6 +10,9 @@ import {
   confirmDisposalEligibility,
   confirmDisposalProduct,
   getDisposalTaskForAdmin,
+  getDocumentAccessUrl,
+  reviewDisposalBatch,
+  type DisposalLatestBatch,
 } from "@/lib/api-client";
 import { usePermissions } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
@@ -116,6 +119,12 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [note, setNote] = useState("");
+  const [batch, setBatch] = useState<DisposalLatestBatch | null>(null);
+  const [decision, setDecision] = useState<"accepted" | "needs_resubmission">(
+    "accepted",
+  );
+  const [reasonCode, setReasonCode] = useState("recognition_unclear");
+  const [rationale, setRationale] = useState("");
   const [choice, setChoice] =
     useState<(typeof ELIGIBILITY_CHOICES)[number]["value"]>(
       "confirmed_eligible",
@@ -129,6 +138,13 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
       if (cancelled) return;
       if (result.ok) {
         setDetail(result.data as unknown as DisposalDetailShape);
+        setBatch(
+          (
+            result.data as unknown as {
+              latestBatch?: DisposalLatestBatch | null;
+            }
+          ).latestBatch ?? null,
+        );
         setLoadError(null);
       } else {
         setLoadError(result.error.detail);
@@ -173,6 +189,39 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
     }
     setNote("");
     refresh();
+  };
+
+  const onSubmitReview = async () => {
+    if (!batch) return;
+    setBusy(true);
+    setActionError(null);
+    const result = await reviewDisposalBatch(batch.id, {
+      decision,
+      rationale: rationale.trim(),
+      ...(decision === "needs_resubmission"
+        ? { reasonCode: reasonCode as never }
+        : {}),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    setRationale("");
+    refresh();
+  };
+
+  const onOpenDocument = async (documentId: string) => {
+    setActionError(null);
+    const result = await getDocumentAccessUrl(caseReference, documentId);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    const url =
+      (result.data as { downloadUrl?: string; url?: string }).downloadUrl ??
+      (result.data as { url?: string }).url;
+    if (url) window.open(url, "_blank", "noopener");
   };
 
   if (loadError) {
@@ -312,6 +361,123 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
           recorded only when a person says so.
         </p>
       </div>
+
+      {/* ── A6-4: the photo review ── */}
+      {batch && (
+        <div className="space-y-3 rounded border border-dashed p-3">
+          <p className="text-xs font-semibold text-text-primary">
+            Evidence batch {batch.batchNumber} ·{" "}
+            {batch.reviewStatus.replace(/_/g, " ")}
+          </p>
+          <ul className="space-y-1.5">
+            {batch.documents.map((document) => (
+              <li
+                key={document.documentId}
+                className="flex flex-wrap items-center justify-between gap-2 text-xs"
+              >
+                <span className="text-text-primary">{document.fileName}</span>
+                <span className="text-text-tertiary capitalize">
+                  {document.status.replace(/_/g, " ")}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void onOpenDocument(document.documentId)}
+                >
+                  View photo
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-text-tertiary">
+            Technical status only. A photo passing our checks is not the same as
+            it showing what the instructions ask for — that is this decision.
+          </p>
+
+          {mayReview && batch.reviewStatus === "pending" && (
+            <div className="space-y-2.5">
+              <fieldset className="space-y-1.5">
+                <legend className="sr-only">Review decision</legend>
+                <label className="flex items-center gap-2 text-xs text-text-primary">
+                  <input
+                    type="radio"
+                    name={`disposal-review-${batch.id}`}
+                    checked={decision === "accepted"}
+                    onChange={() => setDecision("accepted")}
+                  />
+                  Accept these photos
+                </label>
+                <label className="flex items-center gap-2 text-xs text-text-primary">
+                  <input
+                    type="radio"
+                    name={`disposal-review-${batch.id}`}
+                    checked={decision === "needs_resubmission"}
+                    onChange={() => setDecision("needs_resubmission")}
+                  />
+                  Ask for different photos
+                </label>
+              </fieldset>
+
+              {decision === "needs_resubmission" && (
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor={`disposal-reason-${batch.id}`}
+                    className="text-xs font-medium"
+                  >
+                    Reason (the consumer is shown this)
+                  </Label>
+                  <select
+                    id={`disposal-reason-${batch.id}`}
+                    value={reasonCode}
+                    onChange={(event) => setReasonCode(event.target.value)}
+                    className="w-full rounded border px-2 py-1.5 text-xs"
+                  >
+                    <option value="recognition_unclear">
+                      The product is not identifiable
+                    </option>
+                    <option value="coverage_insufficient">
+                      Not enough of the product is shown
+                    </option>
+                    <option value="photo_unreadable">
+                      The photo is unreadable
+                    </option>
+                    <option value="wrong_product">
+                      This looks like a different product
+                    </option>
+                    <option value="safety_step_not_visible">
+                      A required step is not visible
+                    </option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor={`disposal-rationale-${batch.id}`}
+                  className="text-xs font-medium"
+                >
+                  Rationale (at least 10 characters, recorded in the audit
+                  trail)
+                </Label>
+                <Textarea
+                  id={`disposal-rationale-${batch.id}`}
+                  rows={2}
+                  value={rationale}
+                  onChange={(event) => setRationale(event.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                disabled={busy || rationale.trim().length < 10}
+                onClick={() => void onSubmitReview()}
+              >
+                {busy ? "Recording…" : "Record review"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── A6-3: the eligibility decision ── */}
       {mayReview && (
