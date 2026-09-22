@@ -460,7 +460,7 @@ export default function DisposalInstructionsPage() {
                 )
               }
             >
-              {busy ? "Recording…" : "Record material"}
+              {busy ? "Recording…" : "Record this material"}
             </Button>
             <Button
               size="sm"
