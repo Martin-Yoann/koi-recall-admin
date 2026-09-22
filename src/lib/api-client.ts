@@ -107,6 +107,7 @@ export interface CaseSummary {
   assignedAt?: string | null;
   resolution?: CaseResolutionSummary | null;
   workflow?: CaseWorkflow | null;
+  disposalTaskId?: string | null;
 }
 
 export interface CaseListResponse {
@@ -1185,6 +1186,38 @@ export async function closeReportabilityReview(
 
 /** GET /admin/audit-events — Query audit log (server-side cursor pagination) */
 /** GET /admin/disposal-tasks — tasks that need a person. */
+/**
+ * GET /admin/disposal-tasks/{taskId} — task detail for admin.
+ */
+export async function getDisposalTaskForAdmin(taskId: string): Promise<
+  ApiResult<{
+    task: Record<string, unknown>;
+    products: Array<Record<string, unknown>>;
+    allowedActions: string[];
+    blockingReasons: string[];
+  }>
+> {
+  return fetchApi(`/admin/disposal-tasks/${taskId}`, {
+    headers: authHeaders(),
+  });
+}
+
+/** POST /admin/disposal-tasks/{taskId}/products/{productId}/confirm */
+export async function confirmDisposalProduct(
+  taskId: string,
+  campaignProductId: string,
+  quantity: number,
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(
+    `/admin/disposal-tasks/${taskId}/products/${campaignProductId}/confirm`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity }),
+    },
+  );
+}
+
 export async function listDisposalTasks(
   limit?: number,
 ): Promise<ApiResult<DisposalQueueResponse>> {
