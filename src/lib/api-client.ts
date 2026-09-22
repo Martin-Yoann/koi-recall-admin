@@ -118,6 +118,18 @@ export interface DisposalLatestBatch {
   documents: DisposalBatchDocument[];
 }
 
+export interface DisposalInstructionSummary {
+  id: string;
+  campaignVersionId: string;
+  versionNumber: number;
+  locale: string;
+  status: "draft" | "approved" | "withdrawn";
+  title: string;
+  /** True only when a live approval authorizes consumer disposal. */
+  authorizesConsumerDisposal: boolean;
+  approvalCount: number;
+}
+
 export interface CaseSummary {
   caseReference: string;
   status: string;
@@ -1303,6 +1315,112 @@ export async function releaseDisposalHold(
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ note }),
   });
+}
+
+/** GET /admin/disposal-instructions — content library. */
+export async function listDisposalInstructions(
+  campaignVersionId?: string,
+): Promise<ApiResult<{ versions: DisposalInstructionSummary[] }>> {
+  const query = campaignVersionId
+    ? `?campaignVersionId=${campaignVersionId}`
+    : "";
+  return fetchApi<{ versions: DisposalInstructionSummary[] }>(
+    `/admin/disposal-instructions${query}`,
+    { headers: authHeaders() },
+  );
+}
+
+/** POST /admin/disposal-instructions — a new draft version. */
+export async function createDisposalInstruction(body: {
+  campaignVersionId: string;
+  locale: string;
+  title: string;
+  steps: Array<{ order: number; text: string }>;
+  referenceImages: Array<{ url: string; altText: string; caption?: string }>;
+  videoUrl?: string;
+  safetyWarnings: string[];
+  recognitionRequirements: string[];
+  declarationTextVersion: string;
+}): Promise<
+  ApiResult<{ instructionVersionId: string; versionNumber: number }>
+> {
+  return fetchApi<{ instructionVersionId: string; versionNumber: number }>(
+    `/admin/disposal-instructions`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/**
+ * POST /admin/disposal-instructions/{versionId}/approvals
+ *
+ * Only the material identity is sent. Whether it authorizes consumer disposal is
+ * computed server-side, so the response is the first place a caller learns it —
+ * and the database will refuse a combination that does not add up.
+ */
+export async function recordDisposalInstructionApproval(
+  versionId: string,
+  body: {
+    materialType:
+      | "recall_expectation_letter"
+      | "cap_or_written_coordination"
+      | "nov"
+      | "laboratory_report"
+      | "form_332_inventory_procedure"
+      | "cbp_seizure_record"
+      | "other";
+    scope:
+      | "consumer_held_product"
+      | "enterprise_inventory"
+      | "port_involved_goods"
+      | "not_determined";
+    measure:
+      | "consumer_disposal"
+      | "consumer_return"
+      | "professional_recycling"
+      | "other_compensation"
+      | "not_determined";
+    referenceText?: string;
+  },
+): Promise<
+  ApiResult<{ approvalId: string; authorizesConsumerDisposal: boolean }>
+> {
+  return fetchApi<{ approvalId: string; authorizesConsumerDisposal: boolean }>(
+    `/admin/disposal-instructions/${versionId}/approvals`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** POST /admin/disposal-instructions/{versionId}/publish */
+export async function publishDisposalInstruction(
+  versionId: string,
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(`/admin/disposal-instructions/${versionId}/publish`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+/** POST /admin/disposal-instructions/{versionId}/withdraw — suspends live permissions. */
+export async function withdrawDisposalInstruction(
+  versionId: string,
+  reason: string,
+): Promise<ApiResult<{ suspendedAuthorizations: number }>> {
+  return fetchApi<{ suspendedAuthorizations: number }>(
+    `/admin/disposal-instructions/${versionId}/withdraw`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
 }
 
 export async function listDisposalTasks(

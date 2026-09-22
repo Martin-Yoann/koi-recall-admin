@@ -9,6 +9,7 @@ import {
   ListOrdered,
   AlertTriangle,
   PackageX,
+  FileText,
   Download,
   Shield,
   Menu,
@@ -60,6 +61,11 @@ const SIDENAV = [
   },
   { label: "Incidents & Safety", href: "/incidents", icon: AlertTriangle },
   { label: "Disposal Review", href: "/disposal", icon: PackageX },
+  {
+    label: "Disposal Instructions",
+    href: "/disposal-instructions",
+    icon: FileText,
+  },
   { label: "Exports & Jobs", href: "/exports", icon: Download },
   {
     label: "Access & Audit",
