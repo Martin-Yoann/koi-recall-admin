@@ -1492,6 +1492,30 @@ export function isPhase1NotImplemented(result: ApiResult<unknown>): boolean {
   return !result.ok && result.status === 501;
 }
 
+export async function getDisposalRetention(): Promise<
+  ApiResult<{ retentionDays: number | null }>
+> {
+  return fetchApi<{ retentionDays: number | null }>(
+    "/admin/disposal/retention",
+    {
+      headers: authHeaders(),
+    },
+  );
+}
+
+export async function updateDisposalRetention(
+  retentionDays: number | null,
+): Promise<ApiResult<{ retentionDays: number | null }>> {
+  return fetchApi<{ retentionDays: number | null }>(
+    "/admin/disposal/retention",
+    {
+      method: "PATCH",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ retentionDays }),
+    },
+  );
+}
+
 /** Returns true when the server returned 503 (not ready). */
 export function isServiceUnavailable(result: ApiResult<unknown>): boolean {
   return !result.ok && result.status === 503;

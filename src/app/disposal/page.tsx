@@ -5,7 +5,12 @@ import Link from "next/link";
 import { AlertTriangle, PackageX, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { listDisposalTasks, type DisposalQueueRow } from "@/lib/api-client";
+import {
+  getDisposalRetention,
+  listDisposalTasks,
+  updateDisposalRetention,
+  type DisposalQueueRow,
+} from "@/lib/api-client";
 import { usePermissions } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 
@@ -104,16 +109,41 @@ export default function DisposalQueuePage() {
     loading: true,
   });
   const [attempt, setAttempt] = useState(0);
+  const [retentionDays, setRetentionDays] = useState<string>("48");
+  const [retentionSaving, setRetentionSaving] = useState(false);
+  const [retentionMsg, setRetentionMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void readQueue().then((next) => {
       if (!cancelled) setState(next);
     });
+    void getDisposalRetention().then((res) => {
+      if (!cancelled && res.ok) {
+        setRetentionDays(
+          res.data.retentionDays !== null ? String(res.data.retentionDays) : "",
+        );
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, [attempt]);
+
+  const saveRetention = async () => {
+    setRetentionSaving(true);
+    setRetentionMsg(null);
+    const num =
+      retentionDays.trim() === "" ? null : Number.parseInt(retentionDays, 10);
+    const res = await updateDisposalRetention(num);
+    setRetentionSaving(false);
+    if (res.ok) {
+      setRetentionMsg("Retention period updated successfully.");
+      setTimeout(() => setRetentionMsg(null), 3000);
+    } else {
+      setRetentionMsg(res.error.detail);
+    }
+  };
 
   const { rows, error, loading: isLoading } = state;
   const load = () => setAttempt((previous) => previous + 1);
@@ -145,6 +175,46 @@ export default function DisposalQueuePage() {
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Refresh
         </Button>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-2">
+        <h2 className="text-sm font-semibold text-text-primary">
+          Evidence Retention Period
+        </h2>
+        <p className="text-xs text-text-tertiary">
+          Configure how many days uploaded photo evidence is retained after
+          review. Leave blank for permanent retention.
+        </p>
+        <div className="flex items-center gap-3 pt-1">
+          <input
+            type="number"
+            min="0"
+            value={retentionDays}
+            onChange={(e) => setRetentionDays(e.target.value)}
+            placeholder="e.g. 48"
+            className="h-8 w-32 rounded-md border border-slate-300 px-2.5 text-sm"
+          />
+          <span className="text-sm text-text-secondary">days</span>
+          <Button
+            size="sm"
+            disabled={retentionSaving || !can("disposal.hold.manage")}
+            onClick={() => void saveRetention()}
+          >
+            {retentionSaving ? "Saving…" : "Save retention"}
+          </Button>
+          {retentionMsg && (
+            <span
+              className={cn(
+                "text-xs",
+                retentionMsg.includes("success")
+                  ? "text-emerald-600"
+                  : "text-red-600",
+              )}
+            >
+              {retentionMsg}
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (
