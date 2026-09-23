@@ -80,6 +80,19 @@ const BLOCKING_LABELS: Record<string, string> = {
   TASK_CLOSED: "Closed",
 };
 
+/**
+ * A consumer statement that closed the step without photos. The task is complete
+ * and out of every queue, so these rows are the operator's only sight of it.
+ */
+const EXCEPTION_LABELS: Record<
+  NonNullable<DisposalQueueRow["exceptionType"]>,
+  string
+> = {
+  already_disposed_before_authorization: "Already disposed of before approval",
+  evidence_unavailable: "Could not take the photos",
+  other: "Something else",
+};
+
 function shortId(id: string) {
   return id.slice(0, 8);
 }
@@ -109,6 +122,7 @@ export default function DisposalQueuePage() {
     loading: true,
   });
   const [attempt, setAttempt] = useState(0);
+  const [onlyFollowUps, setOnlyFollowUps] = useState(false);
   const [retentionDays, setRetentionDays] = useState<string>("48");
   const [retentionSaving, setRetentionSaving] = useState(false);
   const [retentionMsg, setRetentionMsg] = useState<string | null>(null);
@@ -145,7 +159,10 @@ export default function DisposalQueuePage() {
     }
   };
 
-  const { rows, error, loading: isLoading } = state;
+  const { rows: allRows, error, loading: isLoading } = state;
+  const rows = onlyFollowUps
+    ? allRows.filter((row) => row.exceptionType !== null)
+    : allRows;
   const load = () => setAttempt((previous) => previous + 1);
 
   if (!can("disposal.review")) {
@@ -171,10 +188,21 @@ export default function DisposalQueuePage() {
             approval, accepted photos and no active hold all line up.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()}>
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-text-secondary">
+            <input
+              type="checkbox"
+              checked={onlyFollowUps}
+              onChange={(event) => setOnlyFollowUps(event.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Only statements needing follow-up
+          </label>
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-2">
@@ -308,6 +336,21 @@ export default function DisposalQueuePage() {
                       </Link>
                     ) : (
                       <span className="text-text-tertiary">Not yet a case</span>
+                    )}
+                    {row.exceptionType && (
+                      <span className="mt-1 block">
+                        <span className="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          Needs follow-up
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-text-secondary">
+                          {EXCEPTION_LABELS[row.exceptionType]}
+                        </span>
+                        {row.exceptionNote && (
+                          <span className="mt-0.5 block text-[11px] italic text-text-tertiary">
+                            “{row.exceptionNote}”
+                          </span>
+                        )}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">
