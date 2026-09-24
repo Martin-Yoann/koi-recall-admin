@@ -301,6 +301,13 @@ function CaseDetailContent({
     "filed" | "documented_non_reportable"
   >("filed");
   const [repCpsc, setRepCpsc] = useState("");
+  // Today, read once. Safe to read in an initializer because this form renders only
+  // after the case has loaded, so the value never lands in the server-rendered markup
+  // and cannot disagree with the client's. The operator can change it either way.
+  const [repFiledAt, setRepFiledAt] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [repFilingEvidence, setRepFilingEvidence] = useState("");
   const [repRationale, setRepRationale] = useState("");
   const [repSubmitting, setRepSubmitting] = useState(false);
   const [repError, setRepError] = useState<string | null>(null);
@@ -717,16 +724,33 @@ function CaseDetailContent({
       setRepError("CPSC reference is required when closing as filed.");
       return;
     }
+    if (repOutcome === "filed" && !repFiledAt.trim()) {
+      setRepError(
+        "The date the filing was made is required when closing as filed.",
+      );
+      return;
+    }
+    if (repOutcome === "filed" && repFilingEvidence.trim().length < 10) {
+      setRepError(
+        "What the filing rests on — the receipt or acknowledgement — is required when closing as filed.",
+      );
+      return;
+    }
     setRepSubmitting(true);
     setRepError(null);
     const result = await closeReportabilityReview(review.id, {
       outcome: repOutcome,
       rationale: repRationale.trim(),
       ...(repCpsc.trim() ? { cpscReference: repCpsc.trim() } : {}),
+      ...(repFiledAt.trim() ? { filedAt: repFiledAt.trim() } : {}),
+      ...(repFilingEvidence.trim()
+        ? { filingEvidence: repFilingEvidence.trim() }
+        : {}),
     });
     if (result.ok) {
       setRepRationale("");
       setRepCpsc("");
+      setRepFilingEvidence("");
       await refresh();
       window.dispatchEvent(new CustomEvent(CASES_UPDATED_EVENT));
     } else {
@@ -1811,6 +1835,14 @@ function CaseDetailContent({
                           placeholder="CPSC reference (e.g. CPSC-2026-001)…"
                           className="flex-1 min-w-40"
                         />
+                        <Input
+                          id="case-filed-at"
+                          type="date"
+                          value={repFiledAt}
+                          onChange={(e) => setRepFiledAt(e.target.value)}
+                          aria-label="Date the filing was made"
+                          className="w-44"
+                        />
                       </>
                     )}
                   </div>
@@ -1829,6 +1861,22 @@ function CaseDetailContent({
                     maxLength={2000}
                     autoSize={{ minRows: 3, maxRows: 6 }}
                   />
+                  {repOutcome === "filed" && (
+                    <>
+                      <label htmlFor="case-filing-evidence" className="sr-only">
+                        What the filing rests on
+                      </label>
+                      <Input.TextArea
+                        id="case-filing-evidence"
+                        value={repFilingEvidence}
+                        onChange={(e) => setRepFilingEvidence(e.target.value)}
+                        placeholder="What the filing rests on — the receipt, acknowledgement or submission confirmation (minimum 10 characters)…"
+                        className="w-full"
+                        maxLength={2000}
+                        autoSize={{ minRows: 2, maxRows: 5 }}
+                      />
+                    </>
+                  )}
                   {repError && (
                     <p
                       role="alert"

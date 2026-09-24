@@ -1225,6 +1225,14 @@ export async function closeReportabilityReview(
     outcome: "filed" | "documented_non_reportable";
     rationale: string;
     cpscReference?: string;
+    /**
+     * The date the filing was actually made, ISO 8601. The operator's fact, not the
+     * moment the review is closed — the server refuses a filing without it rather
+     * than filling in its own clock.
+     */
+    filedAt?: string;
+    /** What the filing rests on: the receipt, acknowledgement or confirmation. */
+    filingEvidence?: string;
   },
 ): Promise<ApiResult<void>> {
   return fetchApi<void>(
