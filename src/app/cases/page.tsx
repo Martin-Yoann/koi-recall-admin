@@ -25,6 +25,7 @@ import { useToast } from '@/components/ui/toast';
 const CASE_STATUSES = [
   'submitted', 'triage', 'under_review', 'need_info', 'approved',
   'closure_review', 'closed', 'rejected', 'duplicate', 'withdrawn',
+  'escalated',
 ] as const;
 
 const TERMINAL = ['closed', 'rejected', 'duplicate', 'withdrawn'];

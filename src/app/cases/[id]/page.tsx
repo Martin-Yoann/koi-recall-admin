@@ -202,6 +202,7 @@ const TRANSITION_STYLES: Record<string, string> = {
   under_review: "bg-blue-600 hover:bg-blue-700 text-white",
   need_info: "bg-orange-600 hover:bg-orange-700 text-white",
   closure_review: "bg-violet-600 hover:bg-violet-700 text-white",
+  escalated: "bg-amber-600 hover:bg-amber-700 text-white",
 };
 
 const AUDIT_DOT: Record<string, string> = {
