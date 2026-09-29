@@ -645,7 +645,9 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
               <p className="text-[11px] text-text-tertiary">
                 The consumer is told the permission no longer applies. The
                 permission, its coverage and any declaration already made stay
-                on the record; a new permission needs newly accepted photos.
+                on the record. If a permission is issued again later, every
+                gate is re-checked against the state at that moment — nothing
+                carries over from this one.
               </p>
             </div>
           )}
