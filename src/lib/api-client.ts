@@ -276,6 +276,8 @@ export interface CaseIncidentReport {
   narrative?: string;
   /** Decrypted injury detail — same tier rule and same audited read as narrative. */
   injuryDescription?: string;
+  /** Decrypted what-other-means detail — same tier rule as injuryDescription. */
+  failureModeOtherDescription?: string;
 }
 
 export interface CaseDetail {
@@ -290,6 +292,11 @@ export interface CaseDetail {
   products?: CaseProduct[];
   documents?: CaseDocument[];
   incident?: CaseIncidentReport | null;
+  /**
+   * The case-level reportability review, present only when the case has NO
+   * incident but owes a review anyway (a review-required escalation opened it).
+   */
+  reportability?: IncidentReportability | null;
   consumer: CaseConsumer;
   resolution?: CaseResolution | null;
   workflow?: CaseWorkflow | null;
@@ -1044,6 +1051,69 @@ export async function transitionCaseStatus(
 ): Promise<ApiResult<unknown>> {
   return fetchApi<unknown>(
     `/admin/cases/${encodeURIComponent(caseRef)}/status`,
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
+  );
+}
+
+// -- Case escalations --
+
+/** PRD 3.4.1 escalation classifications plus `other`, verbatim from the API enum. */
+export type CaseEscalationCategory =
+  | "injury"
+  | "battery_ingestion"
+  | "legal"
+  | "regulator"
+  | "media"
+  | "suspected_fraud"
+  | "data_privacy"
+  | "other";
+
+export interface CaseEscalation {
+  id: string;
+  category: CaseEscalationCategory;
+  reason: string;
+  openedAt: string;
+  openedByStaffUserId: string | null;
+  closedAt: string | null;
+  closedByStaffUserId: string | null;
+  closureEvidence: string | null;
+  reviewId: string | null;
+}
+
+/** GET /admin/cases/{caseRef}/escalations — list a case's escalations */
+export async function listCaseEscalations(
+  caseRef: string,
+): Promise<ApiResult<CaseEscalation[]>> {
+  const result = await fetchApi<{ escalations: CaseEscalation[] }>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/escalations`,
+    { headers: authHeaders() },
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: result.data.escalations };
+}
+
+/**
+ * POST /admin/cases/{caseRef}/escalations — open an escalation. The five
+ * report-gated categories open a pending reportability review on the case when
+ * it does not have one; the server does that, not the console.
+ */
+export async function openCaseEscalation(
+  caseRef: string,
+  body: { category: CaseEscalationCategory; reason: string },
+): Promise<ApiResult<{ escalationId: string }>> {
+  return fetchApi<{ escalationId: string }>(
+    `/admin/cases/${encodeURIComponent(caseRef)}/escalations`,
+    { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
+  );
+}
+
+/** POST /admin/case-escalations/{id}/close — close with the evidence that closed it */
+export async function closeCaseEscalation(
+  escalationId: string,
+  body: { closureEvidence: string },
+): Promise<ApiResult<void>> {
+  return fetchApi<void>(
+    `/admin/case-escalations/${encodeURIComponent(escalationId)}/close`,
     { method: "POST", body: JSON.stringify(body), headers: authHeaders() },
   );
 }

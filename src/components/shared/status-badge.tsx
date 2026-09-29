@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 type StatusVariant =
   | 'open' | 'reviewing' | 'verified' | 'resolved' | 'rejected'
   | 'active' | 'pending' | 'closed' | 'expanded'
-  | 'draft' | 'submitted' | 'triage' | 'under_review' | 'need_info' | 'approved' | 'closure_review' | 'duplicate' | 'withdrawn' | 'remedy_issued';
+  | 'draft' | 'submitted' | 'escalated' | 'triage' | 'under_review' | 'need_info' | 'approved' | 'closure_review' | 'duplicate' | 'withdrawn' | 'remedy_issued';
 
 const CONFIG: Record<StatusVariant, { dot: string; text: string; bg: string }> = {
   open:           { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50' },
@@ -16,6 +16,10 @@ const CONFIG: Record<StatusVariant, { dot: string; text: string; bg: string }> =
   closed:         { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-50' },
   expanded:       { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50' },
   draft:          { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-50' },
+  // The parallel of `submitted` while a safety review routes the case to
+  // compliance: same weight as triage, but its own color so the queue can tell
+  // "waiting on product verification" from "escalated on safety" at a glance.
+  escalated:      { dot: 'bg-rose-500', text: 'text-rose-700', bg: 'bg-rose-50' },
   submitted:      { dot: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50' },
   under_review:   { dot: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50' },
   remedy_issued:  { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
@@ -30,7 +34,7 @@ const CONFIG: Record<StatusVariant, { dot: string; text: string; bg: string }> =
 const LABELS: Record<StatusVariant, string> = {
   open: 'Open', reviewing: 'Reviewing', verified: 'Verified', resolved: 'Resolved',
   rejected: 'Rejected', active: 'Active', pending: 'Pending', closed: 'Closed',
-  expanded: 'Expanded', draft: 'Draft', submitted: 'Submitted', under_review: 'Under Review',
+  expanded: 'Expanded', draft: 'Draft', submitted: 'Submitted', escalated: 'Escalated', under_review: 'Under Review',
   remedy_issued: 'Remedy Issued', triage: 'Triage', need_info: 'Need Info', approved: 'Approved', closure_review: 'Closure Review', duplicate: 'Duplicate', withdrawn: 'Withdrawn',
 };
 

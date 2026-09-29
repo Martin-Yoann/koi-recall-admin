@@ -45,7 +45,12 @@ import {
   queryAuditEvents,
   closeReportabilityReview,
   getDocumentAccessUrl,
+  listCaseEscalations,
+  openCaseEscalation,
+  closeCaseEscalation,
   type CaseDetail,
+  type CaseEscalation,
+  type CaseEscalationCategory,
   type StaffUser,
   type AuditEvent,
   type CaseDocument,
@@ -221,6 +226,36 @@ const RESOLUTION_ACTION_STYLES: Record<string, string> = {
   "resolution:ship": "bg-amber-600 hover:bg-amber-700 text-white",
 };
 
+/** PRD 3.4.1 classifications plus `other`; labels only — values are the API enum. */
+const ESCALATION_CATEGORY_OPTIONS: {
+  value: CaseEscalationCategory;
+  label: string;
+}[] = [
+  { value: "injury", label: "Injury" },
+  { value: "battery_ingestion", label: "Battery ingestion" },
+  { value: "legal", label: "Legal / attorney contact" },
+  { value: "regulator", label: "Regulator contact" },
+  { value: "media", label: "Media inquiry" },
+  { value: "suspected_fraud", label: "Suspected fraud" },
+  { value: "data_privacy", label: "Data privacy incident" },
+  { value: "other", label: "Other" },
+];
+
+/**
+ * How long the reportability review has been pending, counted from when the
+ * company obtained the report (not from submission). Approximate to the console
+ * clock; the alert threshold is compliance's to set, so the raw duration is
+ * shown rather than a judgement.
+ */
+function pendingHoursSince(iso: string): string {
+  const hours = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000),
+  );
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
+}
+
 export default function CaseDetailPage({
   params,
 }: {
@@ -311,6 +346,14 @@ function CaseDetailContent({
   const [repRationale, setRepRationale] = useState("");
   const [repSubmitting, setRepSubmitting] = useState(false);
   const [repError, setRepError] = useState<string | null>(null);
+  const [escalations, setEscalations] = useState<CaseEscalation[] | null>(null);
+  const [escCategory, setEscCategory] = useState<CaseEscalationCategory>("legal");
+  const [escReason, setEscReason] = useState("");
+  const [escSubmitting, setEscSubmitting] = useState(false);
+  const [escError, setEscError] = useState<string | null>(null);
+  const [escClosingId, setEscClosingId] = useState<string | null>(null);
+  const [escCloseEvidence, setEscCloseEvidence] = useState("");
+  const [escCloseError, setEscCloseError] = useState<string | null>(null);
   /** Short-lived access URLs per document id (minted lazily for previews). */
   const [docAccess, setDocAccess] = useState<
     Record<string, { url: string; downloadUrl: string }>
@@ -713,8 +756,70 @@ function CaseDetailContent({
   };
 
   /** Close the pending reportability review from the closure checklist. */
+  const refreshEscalations = useCallback(async () => {
+    const result = await listCaseEscalations(caseRef);
+    if (!mountedRef.current) return;
+    if (result.ok) setEscalations(result.data);
+  }, [caseRef]);
+
+  useEffect(() => {
+    // Deferred the same way the initial case load is: a synchronous setState
+    // in the effect body cascades renders, and the timer also survives
+    // StrictMode's setup -> cleanup -> setup without doubling the request.
+    const timer = window.setTimeout(() => {
+      void refreshEscalations();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshEscalations]);
+
+  const submitEscalationOpen = async () => {
+    if (escReason.trim().length < 10) {
+      setEscError("An escalation reason of at least 10 characters is required.");
+      return;
+    }
+    setEscSubmitting(true);
+    setEscError(null);
+    const result = await openCaseEscalation(caseRef, {
+      category: escCategory,
+      reason: escReason.trim(),
+    });
+    if (result.ok) {
+      setEscReason("");
+      await refreshEscalations();
+      await refresh();
+    } else {
+      setEscError(result.error?.detail || "Failed to open the escalation.");
+    }
+    setEscSubmitting(false);
+  };
+
+  const submitEscalationClose = async (escalationId: string) => {
+    if (escCloseEvidence.trim().length < 10) {
+      setEscCloseError(
+        "What closed this escalation must be recorded in at least 10 characters.",
+      );
+      return;
+    }
+    setEscSubmitting(true);
+    setEscCloseError(null);
+    const result = await closeCaseEscalation(escalationId, {
+      closureEvidence: escCloseEvidence.trim(),
+    });
+    if (result.ok) {
+      setEscClosingId(null);
+      setEscCloseEvidence("");
+      await refreshEscalations();
+      await refresh();
+    } else {
+      setEscCloseError(result.error?.detail || "Failed to close the escalation.");
+    }
+    setEscSubmitting(false);
+  };
+
   const submitReportabilityClose = async () => {
-    const review = cse?.incident?.reportability;
+    // The review being closed may hang off the incident or, for a case opened
+    // by a review-required escalation with no incident, off the case itself.
+    const review = cse?.incident?.reportability ?? cse?.reportability;
     if (!review) return;
     if (repRationale.trim().length < 10) {
       setRepError("A rationale of at least 10 characters is required.");
@@ -1635,12 +1740,19 @@ function CaseDetailContent({
                 )}
               </div>
               {cse.incident.reportability?.status === "pending" && (
-                <Link
-                  href="/incidents"
-                  className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark"
-                >
-                  Open incidents queue <ArrowRight className="h-3 w-3" />
-                </Link>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                    Pending {pendingHoursSince(cse.incident.companyObtainedAt)}{" "}
+                    since company obtained
+                  </span>
+                  <Link
+                    href="/incidents"
+                    className="inline-flex items-center gap-1 rounded-md bg-brand-emerald px-2.5 py-1.5 text-xs font-semibold text-white cursor-pointer hover:bg-brand-emerald-dark"
+                  >
+                    Open incidents queue <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
               )}
             </div>
             {cse.incident.narrative !== undefined ? (
@@ -1671,9 +1783,222 @@ function CaseDetailContent({
                 </p>
               </div>
             ) : null}
+            {cse.incident.failureModeOtherDescription !== undefined ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 mb-1 flex items-center gap-1">
+                  <Eye className="h-3 w-3" />
+                  Other failure mode · decrypted · audited
+                </p>
+                <p className="text-xs text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {cse.incident.failureModeOtherDescription}
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       )}
+
+      {/* ── Case-level reviewability (no incident, opened by an escalation) ── */}
+      {!cse.incident && cse.reportability && (
+        <Card className="border-red-200 shadow-sm">
+          <CardHeader className="border-b border-red-100 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <Siren className="h-4 w-4 text-red-500" aria-hidden="true" />
+              Reportability Review (case-level)
+            </CardTitle>
+            <p
+              data-slot="card-description"
+              className="text-xs text-text-tertiary"
+            >
+              This case owes a safety sign-off through its escalation, not
+              through an incident record.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="rounded-lg border p-3 text-xs flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-text-tertiary">Status</p>
+                <p className="mt-1 font-semibold text-text-primary">
+                  {cse.reportability.status === "filed"
+                    ? `Filed with CPSC${cse.reportability.cpscReference ? ` · ${cse.reportability.cpscReference}` : ""}`
+                    : cse.reportability.status.replace(/_/g, " ")}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-text-tertiary">
+              The case cannot be closed while this review is pending or missing.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Escalations: why this case left the standard path ── */}
+      <Card className="shadow-sm">
+        <CardHeader className="border-b pb-3">
+          <CardTitle className="flex items-center gap-1.5 text-sm">
+            <AlertTriangle
+              className="h-4 w-4 text-amber-500"
+              aria-hidden="true"
+            />
+            Escalations
+          </CardTitle>
+          <p data-slot="card-description" className="text-xs text-text-tertiary">
+            Legal, regulator, media and other out-of-band conversations. The
+            five report-gated categories keep a reportability review owed until
+            it is decided.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {escalations === null ? (
+            <p className="text-xs text-text-tertiary">Loading escalations…</p>
+          ) : escalations.length === 0 ? (
+            <p className="text-xs text-text-tertiary">
+              No escalations on this case.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {escalations.map((esc) => (
+                <li
+                  key={esc.id}
+                  className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-semibold text-text-primary">
+                      {ESCALATION_CATEGORY_OPTIONS.find(
+                        (option) => option.value === esc.category,
+                      )?.label ?? esc.category.replace(/_/g, " ")}
+                    </span>
+                    <span
+                      className={
+                        esc.closedAt
+                          ? "rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600"
+                          : "rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-700"
+                      }
+                    >
+                      {esc.closedAt
+                        ? `Closed ${formatAdminDate(esc.closedAt)}`
+                        : "Open"}
+                    </span>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed whitespace-pre-wrap">
+                    {esc.reason}
+                  </p>
+                  {esc.closedAt && esc.closureEvidence ? (
+                    <p className="text-text-tertiary leading-relaxed whitespace-pre-wrap">
+                      Closed with: {esc.closureEvidence}
+                    </p>
+                  ) : null}
+                  {!esc.closedAt && can("review.close") ? (
+                    escClosingId === esc.id ? (
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor={`esc-close-${esc.id}`}
+                          className="sr-only"
+                        >
+                          What closed this escalation
+                        </label>
+                        <Input.TextArea
+                          id={`esc-close-${esc.id}`}
+                          value={escCloseEvidence}
+                          onChange={(e) => setEscCloseEvidence(e.target.value)}
+                          placeholder="What closed it — a filing receipt, a decision letter, a regulator reference (minimum 10 characters)…"
+                          className="w-full"
+                          maxLength={2000}
+                          autoSize={{ minRows: 2, maxRows: 4 }}
+                        />
+                        {escCloseError && (
+                          <p
+                            role="alert"
+                            aria-live="polite"
+                            className="text-red-600"
+                          >
+                            {escCloseError}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="small"
+                            type="primary"
+                            loading={escSubmitting}
+                            disabled={escSubmitting}
+                            onClick={() => submitEscalationClose(esc.id)}
+                          >
+                            Record closure
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setEscClosingId(null);
+                              setEscCloseError(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setEscClosingId(esc.id);
+                          setEscCloseEvidence("");
+                          setEscCloseError(null);
+                        }}
+                      >
+                        Close escalation
+                      </Button>
+                    )
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {can("review.close") && (
+            <div className="space-y-2 rounded-lg border border-dashed p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+                Open an escalation
+              </p>
+              <label htmlFor="esc-category" className="sr-only">
+                Escalation category
+              </label>
+              <Select
+                id="esc-category"
+                value={escCategory}
+                onChange={(val) =>
+                  setEscCategory(val as CaseEscalationCategory)
+                }
+                className="w-full min-w-48"
+                options={ESCALATION_CATEGORY_OPTIONS}
+              />
+              <label htmlFor="esc-reason" className="sr-only">
+                Escalation reason
+              </label>
+              <Input.TextArea
+                id="esc-reason"
+                value={escReason}
+                onChange={(e) => setEscReason(e.target.value)}
+                placeholder="Why this case left the standard path (minimum 10 characters)…"
+                className="w-full"
+                maxLength={2000}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+              />
+              {escError && (
+                <p role="alert" aria-live="polite" className="text-red-600">
+                  {escError}
+                </p>
+              )}
+              <Button
+                type="primary"
+                loading={escSubmitting}
+                disabled={escSubmitting}
+                onClick={submitEscalationOpen}
+              >
+                {escSubmitting ? "Opening…" : "Open escalation"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/*
         Product and eligibility decisions for the disposal task this case opened,
@@ -1788,7 +2113,8 @@ function CaseDetailContent({
             )}
 
             {/* Inline close form for the pending review */}
-            {cse.incident?.reportability?.status === "pending" &&
+            {(cse.incident?.reportability ?? cse.reportability)?.status ===
+              "pending" &&
               can("review.close") && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
