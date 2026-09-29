@@ -505,8 +505,8 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
                   htmlFor={`disposal-rationale-${batch.id}`}
                   className="text-xs font-medium"
                 >
-                  Rationale (at least 10 characters, recorded in the audit
-                  trail)
+                  Internal rationale (at least 10 characters; not shown to the
+                  consumer)
                 </Label>
                 <Textarea
                   id={`disposal-rationale-${batch.id}`}
