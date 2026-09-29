@@ -93,6 +93,16 @@ const EXCEPTION_LABELS: Record<
   other: "Something else",
 };
 
+/** The queue answers "paused for what?", not just "paused". */
+const HOLD_REASON_LABELS: Record<
+  NonNullable<DisposalQueueRow["holdReason"]>,
+  string
+> = {
+  incident_evidence_retention: "Held for an incident",
+  compliance_investigation: "Held for compliance",
+  other: "On hold",
+};
+
 function shortId(id: string) {
   return id.slice(0, 8);
 }
@@ -378,7 +388,7 @@ export default function DisposalQueuePage() {
                       : "—"}
                     {row.holdActive && (
                       <span className="block text-[10px] font-semibold text-amber-700 mt-0.5">
-                        evidence on hold
+                        {HOLD_REASON_LABELS[row.holdReason ?? "other"]}
                       </span>
                     )}
                   </td>

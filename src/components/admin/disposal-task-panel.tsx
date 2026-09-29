@@ -15,6 +15,7 @@ import {
   placeDisposalHold,
   releaseDisposalHold,
   reviewDisposalBatch,
+  revokeDisposalAuthorization,
   type DisposalLatestBatch,
 } from "@/lib/api-client";
 import { usePermissions } from "@/lib/rbac";
@@ -63,6 +64,17 @@ interface DisposalDetailShape {
   products: DisposalProductShape[];
   allowedActions: string[];
   blockingReasons: string[];
+  /** The reviewer's checklist for the pinned version, shown whatever the gates. */
+  instructionChecklist?: {
+    versionNumber: number;
+    status: string;
+    recognitionRequirements: string[];
+  } | null;
+  /** The hold currently in force, so the panel can say why it stands. */
+  activeHold?: {
+    reason: "incident_evidence_retention" | "compliance_investigation" | "other";
+    placedAt: string;
+  } | null;
 }
 
 interface Props {
@@ -114,6 +126,12 @@ const ELIGIBILITY_CHOICES = [
   { value: "ineligible" as const, label: "Not part of the recall" },
 ];
 
+const HOLD_REASON_LABELS: Record<string, string> = {
+  incident_evidence_retention: "Evidence kept for an incident",
+  compliance_investigation: "Compliance investigation",
+  other: "Other reason",
+};
+
 export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
   const { can } = usePermissions();
   const [detail, setDetail] = useState<DisposalDetailShape | null>(null);
@@ -132,6 +150,7 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
   const [holdReason, setHoldReason] = useState<
     "incident_evidence_retention" | "compliance_investigation" | "other"
   >("compliance_investigation");
+  const [revokeReason, setRevokeReason] = useState("");
   const [choice, setChoice] =
     useState<(typeof ELIGIBILITY_CHOICES)[number]["value"]>(
       "confirmed_eligible",
@@ -227,6 +246,24 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
       setActionError(result.error.detail);
       return;
     }
+    refresh();
+  };
+
+  // Terminal for the permission, not for the record: the coverage snapshot and
+  // any declaration already made stay exactly as they were.
+  const onRevokeAuthorization = async () => {
+    setBusy(true);
+    setActionError(null);
+    const result = await revokeDisposalAuthorization(
+      disposalTaskId,
+      revokeReason.trim(),
+    );
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error.detail);
+      return;
+    }
+    setRevokeReason("");
     refresh();
   };
 
@@ -341,7 +378,8 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
           </p>
           {task.holdActive && (
             <p className="mt-0.5 text-[10px] font-semibold text-amber-700">
-              evidence on hold
+              {HOLD_REASON_LABELS[detail.activeHold?.reason ?? "other"] ??
+                "evidence on hold"}
             </p>
           )}
         </div>
@@ -409,6 +447,31 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
           recorded only when a person says so.
         </p>
       </div>
+
+      {/* ── the checklist the photos are decided against ── */}
+      {detail.instructionChecklist &&
+        detail.instructionChecklist.recognitionRequirements.length > 0 && (
+          <div className="space-y-1.5 rounded border border-dashed p-3">
+            <p className="text-xs font-semibold text-text-primary">
+              Photo checklist · instructions v
+              {detail.instructionChecklist.versionNumber}
+              {detail.instructionChecklist.status === "withdrawn" &&
+                " (withdrawn — photos still need deciding)"}
+            </p>
+            <ul className="list-disc space-y-1 pl-4 text-xs text-text-secondary">
+              {detail.instructionChecklist.recognitionRequirements.map(
+                (requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ),
+              )}
+            </ul>
+            <p className="text-[11px] text-text-tertiary">
+              What each photo must make identifiable. A photo that passes our
+              technical checks but shows none of this is a resubmission, not an
+              acceptance.
+            </p>
+          </div>
+        )}
 
       {/* ── A6-4: the photo review ── */}
       {batch && (
@@ -554,6 +617,37 @@ export function DisposalTaskPanel({ disposalTaskId, caseReference }: Props) {
               A permission can be issued once the outstanding items above are
               cleared.
             </p>
+          )}
+
+          {detail.allowedActions.includes("disposal.authorization.revoke") && (
+            <div className="space-y-1.5">
+              <Label
+                htmlFor={`disposal-revoke-${disposalTaskId}`}
+                className="text-xs font-medium"
+              >
+                Revoke the permission
+              </Label>
+              <Textarea
+                id={`disposal-revoke-${disposalTaskId}`}
+                rows={2}
+                value={revokeReason}
+                onChange={(event) => setRevokeReason(event.target.value)}
+                placeholder="Why is this permission being withdrawn? (at least 10 characters)"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || revokeReason.trim().length < 10}
+                onClick={() => void onRevokeAuthorization()}
+              >
+                {busy ? "Revoking…" : "Revoke permission"}
+              </Button>
+              <p className="text-[11px] text-text-tertiary">
+                The consumer is told the permission no longer applies. The
+                permission, its coverage and any declaration already made stay
+                on the record; a new permission needs newly accepted photos.
+              </p>
+            </div>
           )}
 
           <div className="space-y-1.5">

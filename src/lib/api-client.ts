@@ -87,6 +87,12 @@ export interface DisposalQueueRow {
     "pending" | "accepted" | "needs_resubmission" | "superseded" | null;
   authorizationStatus: "active" | "suspended" | "revoked" | null;
   holdActive: boolean;
+  /** Why the hold is in force, so the queue answers "paused for what?". */
+  holdReason:
+    | "incident_evidence_retention"
+    | "compliance_investigation"
+    | "other"
+    | null;
   blockingReasons: string[];
   productCount: number;
   /**
@@ -1382,6 +1388,25 @@ export async function issueDisposalAuthorization(
   return fetchApi<{ authorizationId: string; status: string }>(
     `/admin/disposal-tasks/${taskId}/authorization`,
     { method: "POST", headers: authHeaders() },
+  );
+}
+
+/**
+ * POST /admin/disposal-tasks/{taskId}/authorization/revoke — retire the live
+ * permission. Terminal for the permission, never for the history: the row,
+ * its coverage and any declaration already made all stay.
+ */
+export async function revokeDisposalAuthorization(
+  taskId: string,
+  reason: string,
+): Promise<ApiResult<null>> {
+  return fetchApi<null>(
+    `/admin/disposal-tasks/${taskId}/authorization/revoke`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
   );
 }
 
