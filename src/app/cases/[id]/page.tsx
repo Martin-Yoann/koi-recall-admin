@@ -846,9 +846,16 @@ function CaseDetailContent({
     const result = await closeReportabilityReview(review.id, {
       outcome: repOutcome,
       rationale: repRationale.trim(),
-      ...(repCpsc.trim() ? { cpscReference: repCpsc.trim() } : {}),
-      ...(repFiledAt.trim() ? { filedAt: repFiledAt.trim() } : {}),
-      ...(repFilingEvidence.trim()
+      // Filing facts only on the filing outcome: the server rejects a
+      // non-reportable that carries filedAt or filingEvidence, and a stale
+      // CPSC reference has no meaning on a non-reportable either.
+      ...(repOutcome === "filed" && repCpsc.trim()
+        ? { cpscReference: repCpsc.trim() }
+        : {}),
+      ...(repOutcome === "filed" && repFiledAt.trim()
+        ? { filedAt: repFiledAt.trim() }
+        : {}),
+      ...(repOutcome === "filed" && repFilingEvidence.trim()
         ? { filingEvidence: repFilingEvidence.trim() }
         : {}),
     });
@@ -2001,6 +2008,128 @@ function CaseDetailContent({
       </Card>
 
       {/*
+        Inline close form for the pending reportability review — incident or
+        case-level alike. This used to live inside the Closure Checklist card,
+        which only renders for approved/closure_review, hiding the decision
+        surface in exactly the states (submitted/triage/under_review) where a
+        compliance officer first meets the pending review. The condition is
+        deliberately status-independent: a review still pending at closure
+        review time keeps the form reachable.
+      */}
+      {(cse.incident?.reportability ?? cse.reportability)?.status ===
+        "pending" &&
+        can("review.close") && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+              Close reportability review
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <label htmlFor="case-reportability-outcome" className="sr-only">
+                Reportability outcome
+              </label>
+              <Select
+                id="case-reportability-outcome"
+                value={repOutcome}
+                onChange={(val) => {
+                  setRepOutcome(val as "filed" | "documented_non_reportable");
+                  // Switching outcome leaves no filing residue: the server
+                  // rejects a non-reportable that carries filedAt or
+                  // filingEvidence, and a stale CPSC reference has no meaning
+                  // on a non-reportable either.
+                  setRepCpsc("");
+                  setRepFilingEvidence("");
+                  setRepFiledAt(
+                    val === "filed"
+                      ? new Date().toISOString().slice(0, 10)
+                      : "",
+                  );
+                }}
+                className="flex-1 min-w-40"
+                options={[
+                  { value: "filed", label: "Filed with CPSC" },
+                  {
+                    value: "documented_non_reportable",
+                    label: "Documented non-reportable",
+                  },
+                ]}
+              />
+              {repOutcome === "filed" && (
+                <>
+                  <label htmlFor="case-cpsc-reference" className="sr-only">
+                    CPSC reference
+                  </label>
+                  <Input
+                    id="case-cpsc-reference"
+                    value={repCpsc}
+                    onChange={(e) => setRepCpsc(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="CPSC reference (e.g. CPSC-2026-001)…"
+                    className="flex-1 min-w-40"
+                  />
+                  <Input
+                    id="case-filed-at"
+                    type="date"
+                    value={repFiledAt}
+                    onChange={(e) => setRepFiledAt(e.target.value)}
+                    aria-label="Date the filing was made"
+                    className="w-44"
+                  />
+                </>
+              )}
+            </div>
+            <label htmlFor="case-reportability-rationale" className="sr-only">
+              Reportability rationale
+            </label>
+            <Input.TextArea
+              id="case-reportability-rationale"
+              value={repRationale}
+              onChange={(e) => setRepRationale(e.target.value)}
+              placeholder="Rationale for the decision (minimum 10 characters)…"
+              className="w-full"
+              maxLength={2000}
+              autoSize={{ minRows: 3, maxRows: 6 }}
+            />
+            {repOutcome === "filed" && (
+              <>
+                <label htmlFor="case-filing-evidence" className="sr-only">
+                  What the filing rests on
+                </label>
+                <Input.TextArea
+                  id="case-filing-evidence"
+                  value={repFilingEvidence}
+                  onChange={(e) => setRepFilingEvidence(e.target.value)}
+                  placeholder="What the filing rests on — the receipt, acknowledgement or submission confirmation (minimum 10 characters)…"
+                  className="w-full"
+                  maxLength={2000}
+                  autoSize={{ minRows: 2, maxRows: 5 }}
+                />
+              </>
+            )}
+            {repError && (
+              <p role="alert" aria-live="polite" className="text-xs text-red-600">
+                {repError}
+              </p>
+            )}
+            <Button
+              type="primary"
+              onClick={submitReportabilityClose}
+              disabled={repSubmitting}
+              loading={repSubmitting}
+              icon={
+                repSubmitting ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )
+              }
+            >
+              {repSubmitting ? "Closing…" : "Close review"}
+            </Button>
+          </div>
+        )}
+
+      {/*
         Product and eligibility decisions for the disposal task this case opened,
         when it has one. The panel owns its own fetching and state so this page
         stays a layout rather than another place that must know about disposal.
@@ -2111,124 +2240,6 @@ function CaseDetailContent({
                 )}
               </div>
             )}
-
-            {/* Inline close form for the pending review */}
-            {(cse.incident?.reportability ?? cse.reportability)?.status ===
-              "pending" &&
-              can("review.close") && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
-                    Close reportability review
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    <label
-                      htmlFor="case-reportability-outcome"
-                      className="sr-only"
-                    >
-                      Reportability outcome
-                    </label>
-                    <Select
-                      id="case-reportability-outcome"
-                      value={repOutcome}
-                      onChange={(val) =>
-                        setRepOutcome(
-                          val as "filed" | "documented_non_reportable",
-                        )
-                      }
-                      className="flex-1 min-w-40"
-                      options={[
-                        { value: "filed", label: "Filed with CPSC" },
-                        {
-                          value: "documented_non_reportable",
-                          label: "Documented non-reportable",
-                        },
-                      ]}
-                    />
-                    {repOutcome === "filed" && (
-                      <>
-                        <label
-                          htmlFor="case-cpsc-reference"
-                          className="sr-only"
-                        >
-                          CPSC reference
-                        </label>
-                        <Input
-                          id="case-cpsc-reference"
-                          value={repCpsc}
-                          onChange={(e) => setRepCpsc(e.target.value)}
-                          autoComplete="off"
-                          spellCheck={false}
-                          placeholder="CPSC reference (e.g. CPSC-2026-001)…"
-                          className="flex-1 min-w-40"
-                        />
-                        <Input
-                          id="case-filed-at"
-                          type="date"
-                          value={repFiledAt}
-                          onChange={(e) => setRepFiledAt(e.target.value)}
-                          aria-label="Date the filing was made"
-                          className="w-44"
-                        />
-                      </>
-                    )}
-                  </div>
-                  <label
-                    htmlFor="case-reportability-rationale"
-                    className="sr-only"
-                  >
-                    Reportability rationale
-                  </label>
-                  <Input.TextArea
-                    id="case-reportability-rationale"
-                    value={repRationale}
-                    onChange={(e) => setRepRationale(e.target.value)}
-                    placeholder="Rationale for the decision (minimum 10 characters)…"
-                    className="w-full"
-                    maxLength={2000}
-                    autoSize={{ minRows: 3, maxRows: 6 }}
-                  />
-                  {repOutcome === "filed" && (
-                    <>
-                      <label htmlFor="case-filing-evidence" className="sr-only">
-                        What the filing rests on
-                      </label>
-                      <Input.TextArea
-                        id="case-filing-evidence"
-                        value={repFilingEvidence}
-                        onChange={(e) => setRepFilingEvidence(e.target.value)}
-                        placeholder="What the filing rests on — the receipt, acknowledgement or submission confirmation (minimum 10 characters)…"
-                        className="w-full"
-                        maxLength={2000}
-                        autoSize={{ minRows: 2, maxRows: 5 }}
-                      />
-                    </>
-                  )}
-                  {repError && (
-                    <p
-                      role="alert"
-                      aria-live="polite"
-                      className="text-xs text-red-600"
-                    >
-                      {repError}
-                    </p>
-                  )}
-                  <Button
-                    type="primary"
-                    onClick={submitReportabilityClose}
-                    disabled={repSubmitting}
-                    loading={repSubmitting}
-                    icon={
-                      repSubmitting ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      )
-                    }
-                  >
-                    {repSubmitting ? "Closing…" : "Close review"}
-                  </Button>
-                </div>
-              )}
 
             {operations.blockingReasons.length > 0 && (
               <div className="space-y-1 rounded-lg bg-surface-secondary/60 p-3 text-xs text-text-secondary">

@@ -112,9 +112,15 @@ export default function IncidentsPage() {
     const result = await closeReportabilityReview(reviewing.reportability.id, {
       outcome,
       rationale: rationale.trim(),
-      ...(cpscReference.trim() ? { cpscReference: cpscReference.trim() } : {}),
-      ...(filedAt.trim() ? { filedAt: filedAt.trim() } : {}),
-      ...(filingEvidence.trim()
+      // Filing facts only on the filing outcome: the server rejects a
+      // non-reportable that carries filedAt or filingEvidence.
+      ...(outcome === "filed" && cpscReference.trim()
+        ? { cpscReference: cpscReference.trim() }
+        : {}),
+      ...(outcome === "filed" && filedAt.trim()
+        ? { filedAt: filedAt.trim() }
+        : {}),
+      ...(outcome === "filed" && filingEvidence.trim()
         ? { filingEvidence: filingEvidence.trim() }
         : {}),
     });
@@ -455,7 +461,21 @@ export default function IncidentsPage() {
                 <Select
                   id="rep-outcome"
                   value={outcome}
-                  onChange={(val) => setOutcome(val as typeof outcome)}
+                  onChange={(val) => {
+                    const next = val as typeof outcome;
+                    setOutcome(next);
+                    // Switching outcome leaves no filing residue: the server
+                    // rejects a non-reportable that carries filedAt or
+                    // filingEvidence, and the seeded/typed filing facts would
+                    // otherwise ride along in the payload.
+                    setCpscReference("");
+                    setFilingEvidence("");
+                    setFiledAt(
+                      next === "filed"
+                        ? new Date().toISOString().slice(0, 10)
+                        : "",
+                    );
+                  }}
                   className="w-full"
                   options={[
                     { value: "filed", label: "Filed with CPSC" },
