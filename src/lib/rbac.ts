@@ -1,16 +1,15 @@
 'use client';
 
-// ============================================================
-// KOI Admin — Client-side RBAC (mirrors backend permissions.ts)
-// The backend remains the authority (403 + denied audit row);
-// this matrix only drives which controls render enabled.
-// ============================================================
+// Authorization comes from the backend's current access policy.
 
+import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { getAccessPolicy, type AccessPolicySnapshot } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import type { StaffRole } from '@/lib/api-client';
 
 /** `resource:action` permission ids — keep in sync with koi-recall-backend. */
 export type Permission =
+  | 'campaign.publish'
   | 'case.queue.read'
   | 'case.detail.read'
   | 'case.detail.read_pii_raw'
@@ -25,86 +24,64 @@ export type Permission =
   | 'staff.read'
   | 'staff.manage';
 
-const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
-  MANAGER: [
-    'case.queue.read',
-    'case.detail.read',
-    'case.detail.read_pii_raw',
-    'case.export',
-    'case.assign',
-    'case.status.transition',
-    'audit.read',
-    'staff.read',
-  ],
-  // Safety oversight: reads cases, signs off reportability reviews, and decides
-  // consumer-disposal questions, but does not drive case status — see the note in
-  // koi-recall-backend permissions.ts.
-  COMPLIANCE: [
-    'case.queue.read',
-    'case.detail.read',
-    'case.detail.read_pii_raw',
-    'review.close',
-    'disposal.review',
-    'disposal.hold.manage',
-    'disposal.instructions.publish',
-    'audit.read',
-    'staff.read',
-  ],
-  ADMIN: [
-    'case.queue.read',
-    'case.detail.read',
-    'case.detail.read_pii_raw',
-    'case.export',
-    'case.assign',
-    'case.status.transition',
-    'review.close',
-    'disposal.review',
-    'disposal.hold.manage',
-    'disposal.instructions.publish',
-    'audit.read',
-    'staff.read',
-    'staff.manage',
-  ],
-};
-
-export const PERMISSION_LABELS: Record<Permission, string> = {
-  'case.queue.read': 'View case queues',
-  'case.detail.read': 'View case details',
-  'case.detail.read_pii_raw': 'View raw PII',
-  'case.export': 'Export cases & refunds',
-  'case.assign': 'Assign cases',
-  'case.status.transition': 'Transition & resolve cases',
-  'review.close': 'Close reportability reviews',
-  'disposal.review': 'Accept disposal evidence',
-  'disposal.hold.manage': 'Place & release evidence holds',
-  'disposal.instructions.publish': 'Publish disposal instructions',
-  'audit.read': 'Read audit events',
-  'staff.read': 'View staff directory',
-  'staff.manage': 'Manage staff',
-};
-
 export const ROLE_LABELS: Record<StaffRole, string> = {
   ADMIN: 'Admin',
   MANAGER: 'Manager',
   COMPLIANCE: 'Compliance',
 };
 
-export function roleHasPermission(role: StaffRole | undefined | null, permission: Permission): boolean {
-  if (!role) return false;
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+interface AccessContextValue {
+  policy: AccessPolicySnapshot | null;
+  error: string | null;
+  reload: () => Promise<void>;
+  adopt: (policy: AccessPolicySnapshot) => void;
+}
+const AccessContext = createContext<AccessContextValue>({ policy: null, error: null, reload: async () => {}, adopt: () => {} });
+
+/** One server-backed snapshot shared by navigation, actions, and access management. */
+export function AccessPolicyProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAdminAuth();
+  const [snapshot, setSnapshot] = useState<{ userId: string; policy: AccessPolicySnapshot } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const userId = user?.staffUserId ?? '';
+  const adopt = useCallback((policy: AccessPolicySnapshot) => setSnapshot((previous) =>
+    previous?.userId === userId && previous.policy.revision > policy.revision ? previous : { userId, policy }), [userId]);
+  const reload = useCallback(async () => {
+    if (!isAuthenticated || isLoading) return;
+    const result = await getAccessPolicy();
+    if (result.ok) { adopt(result.data); setError(null); }
+    else { setError(result.error.detail || 'Failed to load access policy.'); setSnapshot(null); }
+  }, [adopt, isAuthenticated, isLoading]);
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (!isAuthenticated || isLoading) return;
+      const result = await getAccessPolicy();
+      if (!active) return;
+      if (result.ok) { adopt(result.data); setError(null); }
+      else { setError(result.error.detail || 'Failed to load access policy.'); setSnapshot(null); }
+    };
+    void load();
+    const timer = window.setInterval(() => { void load(); }, 30000);
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [adopt, isAuthenticated, isLoading]);
+  const policy = isAuthenticated && snapshot?.userId === userId ? snapshot.policy : null;
+  return createElement(AccessContext.Provider, { value: { policy, error, reload, adopt } }, children);
 }
 
-/**
- * Role from the persisted session (set at login). Until the first login the
- * role is unknown — `can` returns false, matching the least-privilege default.
- */
+export function useAccessPolicy() { return useContext(AccessContext); }
+
 export function usePermissions() {
   const { user, isAuthenticated } = useAdminAuth();
-  const role = user?.role;
+  const { policy } = useAccessPolicy();
   return {
-    role,
+    role: user?.role,
     isAuthenticated,
-    can: (permission: Permission) => roleHasPermission(role, permission),
-    permissions: role && ROLE_PERMISSIONS[role] ? ROLE_PERMISSIONS[role] : [],
+    isOwner: policy?.isOwner ?? false,
+    can: (permission: Permission) => policy?.permissions.includes(permission) ?? false,
+    permissions: policy?.permissions ?? [],
+    roleLabels: policy ? Object.fromEntries(Object.entries(policy.roles).map(([key, value]) => [key, value.name])) as Record<StaffRole, string> : ROLE_LABELS,
   };
 }

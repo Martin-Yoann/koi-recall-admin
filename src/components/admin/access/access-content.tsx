@@ -15,7 +15,8 @@ import {
 } from '@/lib/api-client';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { useToast } from '@/components/ui/toast';
-import { PERMISSION_LABELS, ROLE_LABELS, usePermissions } from '@/lib/rbac';
+import { usePermissions } from '@/lib/rbac';
+import { PermissionManagement } from './permission-management';
 import type { StaffRole } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { formatAdminDate, formatAdminDateTime } from '@/lib/formatters';
@@ -30,13 +31,6 @@ const ROLE_COLORS: Record<StaffRole, string> = {
 
 // Backend resource types in admin_audit_events.resourceType
 const FILTER_CATS = ['case', 'incident', 'reportability', 'document', 'staff', 'audit', 'export'] as const;
-
-const PERMISSION_GROUPS = [
-  { label: 'Case operations', keys: ['case.queue.read', 'case.detail.read', 'case.assign', 'case.status.transition'] },
-  { label: 'Sensitive data', keys: ['case.detail.read_pii_raw'] },
-  { label: 'Reviews & exports', keys: ['review.close', 'case.export'] },
-  { label: 'Governance', keys: ['audit.read', 'staff.read', 'staff.manage'] },
-] as const;
 
 const DOT_COLOR: Record<string, string> = {
   case: 'bg-blue-500',
@@ -53,8 +47,8 @@ export type AccessSection = 'all' | 'permissions' | 'staff' | 'audit';
 const SECTION_META: Record<Exclude<AccessSection, 'all'>, { title: string; description: string; eyebrow: string }> = {
   permissions: {
     eyebrow: 'Governance & access',
-    title: 'Permission Overview',
-    description: 'Understand what each back-office role can view, change, and approve.',
+    title: 'Permission Management',
+    description: 'Configure role access and customize permission names.',
   },
   staff: {
     eyebrow: 'Identity & access',
@@ -71,7 +65,7 @@ const SECTION_META: Record<Exclude<AccessSection, 'all'>, { title: string; descr
 export function AccessContent({ section = 'all' }: { section?: AccessSection }) {
   const meta = section === 'all' ? null : SECTION_META[section];
   const { isAuthenticated, isLoading: authLoading, openLogin } = useAdminAuth();
-  const { can, role } = usePermissions();
+  const { can } = usePermissions();
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditNextCursor, setAuditNextCursor] = useState<string | null>(null);
@@ -190,55 +184,7 @@ export function AccessContent({ section = 'all' }: { section?: AccessSection }) 
         )}
       </div>
 
-      {/* Role matrix */}
-      {(section === 'all' || section === 'permissions') && (
-      <>
-      {section === 'permissions' && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            { label: 'Defined permissions', value: Object.keys(PERMISSION_LABELS).length, note: 'Policy capabilities' },
-            { label: 'Back-office roles', value: STAFF_ROLES.length, note: 'Least privilege by default' },
-            { label: 'Your access', value: !isAuthenticated || !role ? 'Unknown' : ROLE_LABELS[role], note: !isAuthenticated ? 'Sign in to identify your role' : 'Based on current session' },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border bg-surface-elevated p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{stat.label}</p>
-              <p className="mt-2 text-2xl font-bold text-text-primary">{stat.value}</p>
-              <p className="mt-1 text-xs text-text-secondary">{stat.note}</p>
-            </div>
-          ))}
-        </div>
-      )}
-          <div className="grid md:grid-cols-2 gap-4">
-        {STAFF_ROLES.map(role => (
-          <div key={role} className="rounded-xl border bg-surface-elevated p-4 card-lift">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">{role === 'ADMIN' ? 'Full governance' : 'Least privilege'}</span>
-            </div>
-            <div className="space-y-4">
-              {PERMISSION_GROUPS.map((group) => {
-                const visible = group.keys.filter((permission) => roleHasDisplayPermission(role, permission));
-                if (visible.length === 0) return null;
-                return (
-                  <section key={group.label}>
-                    <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{group.label}</h3>
-                    <ul className="space-y-1.5">
-                      {visible.map((permission) => (
-                        <li key={permission} className="flex items-start gap-2 text-[11px] text-text-secondary">
-                          <span className="mt-0.5 text-blue-600">✓</span>
-                          <span><span className="font-medium text-text-primary">{PERMISSION_LABELS[permission as keyof typeof PERMISSION_LABELS]}</span><span className="ml-1.5 font-mono text-[10px] text-text-tertiary">{permission}</span></span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-      </>
-      )}
+      {(section === 'all' || section === 'permissions') && <PermissionManagement />}
 
       {/* Staff directory is visible to both roles; account mutations are ADMIN-only. */}
       {(section === 'all' || section === 'staff') && isAuthenticated && (
@@ -413,14 +359,8 @@ export default function AccessPage() {
   return <AccessContent />;
 }
 
-/** Display-only permission grouping; the backend remains authoritative. */
-function roleHasDisplayPermission(role: StaffRole, permission: string): boolean {
-  return role === 'ADMIN' || permission !== 'staff.manage';
-}
-
-// ── Staff directory (staff.read); mutations are ADMIN-only via staff.manage ──
-
 function StaffManagement({ canManage }: { canManage: boolean }) {
+  const { roleLabels: ROLE_LABELS } = usePermissions();
   const { user } = useAdminAuth();
   const { modal } = AntdApp.useApp();
   const toast = useToast();
@@ -642,7 +582,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
             <tbody>
               {filteredStaff.map(s => (
                 <tr key={s.id} className="border-b last:border-0 hover:bg-surface-secondary/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-text-primary">{s.displayName}{s.id === user?.staffUserId && <span className="text-[10px] text-text-tertiary ml-1.5">(you)</span>}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">{s.displayName}{s.isOwner && <span className="ml-2 text-xs text-blue-600">Owner</span>}{s.id === user?.staffUserId && <span className="text-[10px] text-text-tertiary ml-1.5">(you)</span>}</td>
                   <td className="px-4 py-3 text-xs text-text-secondary">{s.email}</td>
                   <td className="px-4 py-3">
                     {canManage ? (
@@ -652,7 +592,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                       onChange={val => void changeRole(s, val)}
                       aria-label={`Change role for ${s.displayName}`}
                       style={{ width: 120 }}
-                      disabled={isRowBusy(s.id, 'role')}
+                      disabled={s.isOwner || isRowBusy(s.id, 'role')}
                       options={STAFF_ROLES.map(role => ({ value: role, label: ROLE_LABELS[role] }))}
                     />
                     ) : (
@@ -673,7 +613,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                         size="small"
                         onClick={() => toggleStatus(s)}
                         loading={isRowBusy(s.id, 'status')}
-                        disabled={s.id === user?.staffUserId || pendingAction !== null}
+                        disabled={s.isOwner || s.id === user?.staffUserId || pendingAction !== null}
                         title={s.id === user?.staffUserId ? 'You cannot disable your own account' : undefined}
                       >
                         {s.status === 'active' ? 'Disable' : 'Enable'}
@@ -694,7 +634,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                         icon={<Trash2 className="h-3 w-3" />}
                         onClick={() => removeStaff(s)}
                         loading={isRowBusy(s.id, 'delete')}
-                        disabled={s.id === user?.staffUserId || pendingAction !== null}
+                        disabled={s.isOwner || s.id === user?.staffUserId || pendingAction !== null}
                         title={s.id === user?.staffUserId ? 'You cannot delete your own account' : 'Delete this staff account'}
                       >
                         Delete
@@ -795,7 +735,7 @@ function StaffManagement({ canManage }: { canManage: boolean }) {
                         {form.role === role && <Check className="ml-auto h-4 w-4 text-brand-emerald" />}
                       </span>
                       <span className="text-[11px] text-text-tertiary mt-0.5">
-                        {role === 'ADMIN' ? 'Full access incl. staff, audit & settings' : 'Business operations & cases only'}
+                        Permissions configured by the Owner
                       </span>
                     </button>
                   ))}

@@ -325,6 +325,7 @@ export interface CaseStatusTransitionRequest {
 }
 
 export interface StaffUser {
+  isOwner?: boolean;
   id: string;
   email: string;
   displayName: string;
@@ -1139,11 +1140,10 @@ export async function listStaff(): Promise<ApiResult<StaffUser[]>> {
 export async function createStaff(
   body: CreateStaffRequest,
 ): Promise<ApiResult<StaffUser>> {
-  return fetchApi<StaffUser>("/admin/staff", {
-    method: "POST",
-    body: JSON.stringify(body),
-    headers: authHeaders(),
+  const result = await fetchApi<{ staff: StaffUser }>("/admin/staff", {
+    method: "POST", body: JSON.stringify(body), headers: authHeaders(),
   });
+  return result.ok ? { ok: true, data: result.data.staff } : result;
 }
 
 export async function approveResolution(
@@ -1206,7 +1206,7 @@ export async function updateStaff(
   staffUserId: string,
   body: UpdateStaffRequest,
 ): Promise<ApiResult<StaffUser>> {
-  return fetchApi<StaffUser>(
+  const result = await fetchApi<{ staff: StaffUser }>(
     `/admin/staff/${encodeURIComponent(staffUserId)}`,
     {
       method: "PATCH",
@@ -1214,6 +1214,7 @@ export async function updateStaff(
       headers: authHeaders(),
     },
   );
+  return result.ok ? { ok: true, data: result.data.staff } : result;
 }
 
 /** DELETE /admin/staff/{id} — Permanently delete a staff user (ADMIN only). */
@@ -1638,4 +1639,22 @@ export function isServiceUnavailable(result: ApiResult<unknown>): boolean {
 /** Returns true when the request was unauthorized (401) or forbidden (403). */
 export function isAuthError(result: ApiResult<unknown>): boolean {
   return !result.ok && (result.status === 401 || result.status === 403);
+}
+
+export interface AccessPolicySnapshot {
+  revision: number;
+  roles: Record<StaffRole, { name: string; permissions: string[] }>;
+  permissionNames: Record<string, string>;
+  isOwner: boolean;
+  permissions: string[];
+}
+
+export function getAccessPolicy(): Promise<ApiResult<AccessPolicySnapshot>> {
+  return fetchApi<AccessPolicySnapshot>('/admin/access', { headers: authHeaders() });
+}
+
+export function saveAccessPolicy(policy: Pick<AccessPolicySnapshot, 'roles' | 'permissionNames' | 'revision'>): Promise<ApiResult<AccessPolicySnapshot>> {
+  return fetchApi<AccessPolicySnapshot>('/admin/access', {
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify(policy),
+  });
 }

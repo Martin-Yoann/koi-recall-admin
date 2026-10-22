@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { usePermissions } from "@/lib/rbac";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { ThemeToggle } from "@/components/admin/theme-toggle";
 import { listCases, type CaseSummary } from "@/lib/api-client";
@@ -72,7 +73,7 @@ const SIDENAV = [
     href: "/access",
     icon: Shield,
     children: [
-      { label: "Permission Overview", href: "/access/permissions" },
+      { label: "Permission Management", href: "/access/permissions" },
       { label: "User Management", href: "/access/staff" },
       { label: "Operation Logs", href: "/access/audit" },
     ],
@@ -114,6 +115,8 @@ const PROCESS_STEPS = [
  */
 function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
   const { isAuthenticated } = useAdminAuth();
+  const { can } = usePermissions();
+  const canReadQueue = can("case.queue.read");
   const [count, setCount] = useState<number>(0);
   const alertsEnabled = preferences.notificationsEnabled.use();
   const pollMs = preferences.notificationPollMs.use();
@@ -123,7 +126,7 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
   const previousCount = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!isAuthenticated || !alertsEnabled) return;
+    if (!isAuthenticated || !alertsEnabled || !canReadQueue) return;
     const result = await listCases({ status: "submitted", limit: 100 });
     if (!result.ok) return;
     const next = result.data.cases.length;
@@ -140,7 +143,7 @@ function NewSubmissionsBell({ onOpen }: { onOpen: () => void }) {
       }
       if (soundAlerts) playAlertTone();
     }
-  }, [isAuthenticated, alertsEnabled, desktopAlerts, soundAlerts]);
+  }, [isAuthenticated, alertsEnabled, desktopAlerts, soundAlerts, canReadQueue]);
 
   useEffect(() => {
     if (!alertsEnabled) {
@@ -187,16 +190,18 @@ function NotificationDrawer({
   onClose: () => void;
 }) {
   const { isAuthenticated } = useAdminAuth();
+  const { can } = usePermissions();
+  const canReadQueue = can("case.queue.read");
   const [items, setItems] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !canReadQueue) return;
     setLoading(true);
     const result = await listCases({ status: "submitted", limit: 40 });
     if (result.ok) setItems(result.data.cases);
     setLoading(false);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, canReadQueue]);
 
   useEffect(() => {
     if (!open) return;
@@ -373,6 +378,16 @@ const TRANSITION_CHILD =
   "transition-[opacity,transform,background-color,color,padding,gap] duration-[280ms] ease-[cubic-bezier(0.25,0,0.15,1)]";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  const { can } = usePermissions();
+  const navAllowed = (href: string) => {
+    if (href === '/access' || href === '/access/permissions') return true;
+    if (href === '/access/staff') return can('staff.read');
+    if (href === '/access/audit') return can('audit.read');
+    if (href === '/exports') return can('case.export');
+    if (href === '/disposal-instructions') return can('disposal.instructions.publish');
+    if (href === '/disposal') return can('disposal.review');
+    return can('case.queue.read');
+  };
   const pathname = usePathname();
   const {
     user,
@@ -526,7 +541,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             expanded ? "py-5 px-3" : "py-4 px-[6px]",
           )}
         >
-          {SIDENAV.map((item) => {
+          {SIDENAV.filter((item) => navAllowed(item.href)).map((item) => {
             const Icon = item.icon;
             const active =
               item.href === "/"
@@ -617,7 +632,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     id={groupId}
                     className="ml-8 mt-1 space-y-1 border-l border-[var(--sidebar-border)] pl-2"
                   >
-                    {item.children?.map((child) => {
+                    {item.children?.filter((child) => navAllowed(child.href)).map((child) => {
                       const childActive =
                         pathname === child.href ||
                         pathname.startsWith(`${child.href}/`);
@@ -768,7 +783,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <HelpMenu />
             <ThemeToggle />
-            <NewSubmissionsBell onOpen={() => setNotifOpen(true)} />
+            {can("case.queue.read") && <NewSubmissionsBell onOpen={() => setNotifOpen(true)} />}
             <div className="h-5 w-px bg-border" />
             <span className="text-xs font-medium text-text-tertiary select-none hidden lg:inline">
               KOI Recall Admin

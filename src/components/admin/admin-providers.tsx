@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ToastProvider } from '@/components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/admin-auth';
+import { AccessPolicyProvider } from '@/lib/rbac';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { ProfileDialog } from '@/components/admin/profile-dialog';
 import { SettingsDialog } from '@/components/admin/settings-dialog';
@@ -62,6 +63,7 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
     <TooltipProvider delay={300}>
       <ToastProvider>
         <AdminAuthProvider>
+          <AccessPolicyProvider>
           <ConfirmProvider>
             <PreferencesEffects />
             <AuthInterceptor>
@@ -71,6 +73,7 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
             </AuthInterceptor>
             <AuthModals />
           </ConfirmProvider>
+          </AccessPolicyProvider>
         </AdminAuthProvider>
       </ToastProvider>
     </TooltipProvider>
