@@ -325,6 +325,7 @@ export interface CaseStatusTransitionRequest {
 }
 
 export interface StaffUser {
+  accessRoleIds?: string[] | null;
   isOwner?: boolean;
   id: string;
   email: string;
@@ -336,6 +337,7 @@ export interface StaffUser {
 }
 
 export interface CreateStaffRequest {
+  accessRoleIds?: string[];
   email: string;
   password: string;
   displayName: string;
@@ -343,6 +345,7 @@ export interface CreateStaffRequest {
 }
 
 export interface UpdateStaffRequest {
+  accessRoleIds?: string[];
   displayName?: string;
   role?: string;
   status?: string;
@@ -1643,7 +1646,7 @@ export function isAuthError(result: ApiResult<unknown>): boolean {
 
 export interface AccessPolicySnapshot {
   revision: number;
-  roles: Record<StaffRole, { name: string; permissions: string[] }>;
+  roles: Record<string, { name: string; description?: string; permissions: string[] }>;
   permissionNames: Record<string, string>;
   isOwner: boolean;
   permissions: string[];

@@ -74,7 +74,7 @@ const SIDENAV = [
     href: "/access",
     icon: Shield,
     children: [
-      { label: "Permission Management", href: "/access/permissions" },
+      { label: "Roles", href: "/access/roles" },
       { label: "User Management", href: "/access/staff" },
       { label: "Operation Logs", href: "/access/audit" },
     ],

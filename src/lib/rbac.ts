@@ -82,6 +82,6 @@ export function usePermissions() {
     isOwner: policy?.isOwner ?? false,
     can: (permission: Permission) => policy?.permissions.includes(permission) ?? false,
     permissions: policy?.permissions ?? [],
-    roleLabels: policy ? Object.fromEntries(Object.entries(policy.roles).map(([key, value]) => [key, value.name])) as Record<StaffRole, string> : ROLE_LABELS,
+    roleLabels: (policy ? Object.fromEntries(Object.entries(policy.roles).map(([key, value]) => [key, value.name])) : ROLE_LABELS) as Record<string, string>,
   };
 }

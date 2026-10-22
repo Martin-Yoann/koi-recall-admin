@@ -1,10 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Checkbox, Input } from 'antd';
-import { CheckCircle2, LoaderCircle, LockKeyhole } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Button, Input } from 'antd';
+import { ArrowLeft, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { saveAccessPolicy, type AccessPolicySnapshot } from '@/lib/api-client';
-import { ACCESS_ROLES, getPolicyChanges } from '@/lib/access-policy-changes';
+import { getPolicyChanges } from '@/lib/access-policy-changes';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { PermissionTree } from './permission-tree';
+import { RoleList } from './role-list';
+import { staffHasRole, useStaffDirectory } from './use-staff-directory';
 import { useAccessPolicy } from '@/lib/rbac';
 import { useConfirm } from '@/components/admin/confirm-dialog';
 import { useNavigationGuard } from '@/components/admin/navigation-guard';
@@ -16,6 +21,14 @@ interface PolicyDraft {
 }
 
 export function PermissionManagement() {
+  return <RoleList />;
+}
+
+export function RoleEditor({ roleId, copyFrom }: { roleId: string; copyFrom?: string | null }) {
+  const router = useRouter();
+  const isNew = roleId === 'new';
+  const [roleKey] = useState(() => (isNew ? `role_${crypto.randomUUID()}` : roleId));
+  const { users, error: directoryError } = useStaffDirectory();
   const { policy, error, reload, adopt } = useAccessPolicy();
   const confirm = useConfirm();
   const toast = useToast();
@@ -26,6 +39,20 @@ export function PermissionManagement() {
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const current = draft?.value ?? policy;
+  const template = copyFrom ? policy?.roles[copyFrom] : undefined;
+  const role = useMemo(
+    () =>
+      current?.roles[roleKey] ??
+      (isNew
+        ? {
+            name: template ? `${template.name.slice(0, 75)} copy` : '',
+            description: template?.description ?? '',
+            permissions: [...(template?.permissions ?? [])],
+          }
+        : null),
+    [current, roleKey, isNew, template],
+  );
+  const assigned = users ? users.filter((user) => staffHasRole(user, roleKey)).length : null;
   const editable = policy?.isOwner ?? draft?.base.isOwner ?? false;
   const changes = draft ? getPolicyChanges(draft.base, draft.value) : [];
   const dirty = changes.length > 0;
@@ -43,6 +70,7 @@ export function PermissionManagement() {
     if (!editable || !current || savingRef.current) return;
     const base = draft?.base ?? structuredClone(current);
     const next = structuredClone(current);
+    if (!next.roles[roleKey] && isNew && role) next.roles[roleKey] = structuredClone(role);
     update(next);
     setDraft(getPolicyChanges(base, next).length ? { base, value: next } : null);
     setMessage(null);
@@ -70,18 +98,26 @@ export function PermissionManagement() {
   };
 
   const save = useCallback(async () => {
-    if (!draft || !dirty || !editable || stale || savingRef.current) return;
+    const source =
+      draft ??
+      (isNew && policy && role
+        ? { base: policy, value: { ...policy, roles: { ...policy.roles, [roleKey]: role } } }
+        : null);
+    if (!source || (!dirty && !isNew) || !editable || stale || savingRef.current) return;
     const errors: Record<string, string> = {};
-    for (const role of ACCESS_ROLES) {
-      if (!draft.value.roles[role].name.trim()) errors[`role-name-${role}`] = 'Enter a role name.';
+    for (const role of Object.keys(source.value.roles)) {
+      if (!source.value.roles[role].name.trim()) errors[`role-name-${role}`] = 'Enter a role name.';
     }
-    for (const [key, name] of Object.entries(draft.value.permissionNames)) {
+    const editedName = source.value.roles[roleKey].name.trim().toLowerCase();
+    if (editedName === 'owner') errors[`role-name-${roleKey}`] = 'Owner is reserved for the system owner.';
+    if (Object.entries(source.value.roles).some(([id, entry]) => id !== roleKey && entry.name.trim().toLowerCase() === editedName)) errors[`role-name-${roleKey}`] = 'Use a unique role name.';
+    for (const [key, name] of Object.entries(source.value.permissionNames)) {
       if (!name.trim()) errors[`permission-name-${key}`] = 'Enter a permission name.';
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       setMessage('Some names are missing. Complete the highlighted fields before saving.');
-      document.getElementById(Object.keys(errors)[0])?.focus();
+      window.requestAnimationFrame(() => document.getElementById(Object.keys(errors)[0])?.focus());
       return;
     }
     savingRef.current = true;
@@ -89,14 +125,15 @@ export function PermissionManagement() {
     setMessage(null);
     try {
       const result = await saveAccessPolicy({
-        roles: draft.value.roles,
-        permissionNames: draft.value.permissionNames,
-        revision: draft.base.revision,
+        roles: source.value.roles,
+        permissionNames: source.value.permissionNames,
+        revision: source.base.revision,
       });
       if (result.ok) {
         adopt(result.data);
         reset();
-        toast.success('Permissions saved.');
+        toast.success(isNew ? 'Role created.' : 'Role saved.');
+        if (isNew) router.replace(`/access/roles/${roleKey}`);
       } else {
         setMessage(
           result.status === 409
@@ -111,7 +148,7 @@ export function PermissionManagement() {
       savingRef.current = false;
       setSaving(false);
     }
-  }, [draft, dirty, editable, stale, adopt, reset, toast, reload]);
+  }, [draft, dirty, editable, stale, adopt, reset, toast, reload, isNew, router, roleKey, policy, role]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -135,8 +172,21 @@ export function PermissionManagement() {
       </div>
     );
 
+  if (!role || (isNew && !editable))
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <Alert
+          type="warning"
+          title={isNew ? 'Only the Owner can create roles.' : 'This role could not be found.'}
+        />
+        <Link href="/access/roles" className="text-brand-500">
+          Back to roles
+        </Link>
+      </div>
+    );
+
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-5 pb-8">
       {editable && (dirty || saving) && (
         <div
           role="region"
@@ -181,24 +231,34 @@ export function PermissionManagement() {
           </div>
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-surface-elevated p-4">
-        <div>
-          <p className="flex items-center gap-2 font-semibold text-text-primary">
-            <LockKeyhole className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
-            Owner: admin@koi-platform.com
-          </p>
-          <p className="mt-1 text-sm text-text-secondary">
-            {editable
-              ? 'Edit role access and permission names, then save all changes together.'
-              : 'View the access configured by the Owner. Only the Owner can edit this policy.'}
-          </p>
-          <p className="mt-1 text-xs text-text-tertiary">
-            The Owner always has all permissions. Role settings apply to other staff accounts.
-          </p>
-        </div>
-        {editable && !dirty && !saving && (
-          <span className="flex items-center gap-1.5 text-xs text-text-secondary" role="status">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+      <div className="flex items-center gap-3 text-xs text-text-tertiary">
+        <Link
+          href="/access/roles"
+          aria-label="Back to roles"
+          className="rounded-full border bg-surface-elevated p-2 hover:bg-surface-secondary"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <Link href="/access/staff" className="hover:underline">
+          Users
+        </Link>
+        <span>/</span>
+        <Link href="/access/roles" className="hover:underline">
+          Roles
+        </Link>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-text-primary">
+          {isNew ? 'Add role' : role.name}
+        </h1>
+        {isNew && !dirty && editable && (
+          <Button type="primary" disabled={!role.name.trim() || saving} onClick={() => void save()}>
+            Create role
+          </Button>
+        )}
+        {!dirty && !isNew && (
+          <span className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             All changes saved
           </span>
         )}
@@ -209,126 +269,125 @@ export function PermissionManagement() {
           type="warning"
           showIcon
           title="A newer version is available"
-          description="Discard your draft to review the latest saved permissions. Your current edits will stay here until you choose to discard them."
+          description="Your draft is preserved. Discard it before editing the latest saved version."
         />
       )}
       {message && <Alert type="error" showIcon title="Changes have not been saved" description={message} />}
+      <section
+        aria-label="Role details"
+        className="overflow-hidden rounded-xl border bg-surface-elevated shadow-sm"
+      >
+        <div className="space-y-5 p-5">
+          <div>
+            <label
+              htmlFor={`role-name-${roleKey}`}
+              className="mb-2 block text-sm font-medium text-text-primary"
+            >
+              Name
+            </label>
+            <Input
+              id={`role-name-${roleKey}`}
+              aria-label="Role name"
+              value={role.name}
+              maxLength={80}
+              showCount
+              disabled={!editable || saving}
+              status={fieldErrors[`role-name-${roleKey}`] ? 'error' : undefined}
+              aria-invalid={Boolean(fieldErrors[`role-name-${roleKey}`])}
+              onChange={(event) =>
+                change((value) => {
+                  value.roles[roleKey].name = event.target.value;
+                }, `role-name-${roleKey}`)
+              }
+              placeholder="For example, Customer support"
+            />
+            {fieldErrors[`role-name-${roleKey}`] && (
+              <p className="mt-2 text-xs text-red-600">{fieldErrors[`role-name-${roleKey}`]}</p>
+            )}
+          </div>
+          <div>
+            <label
+              htmlFor={`role-description-${roleKey}`}
+              className="mb-2 block text-sm font-medium text-text-primary"
+            >
+              Description
+            </label>
+            <Input.TextArea
+              id={`role-description-${roleKey}`}
+              aria-label="Role description"
+              value={role.description ?? ''}
+              maxLength={255}
+              showCount
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              disabled={!editable || saving}
+              onChange={(event) =>
+                change((value) => {
+                  value.roles[roleKey].description = event.target.value;
+                })
+              }
+              placeholder="Describe what people with this role are responsible for."
+            />
+          </div>
+        </div>
+        <div className="border-t bg-surface-secondary px-5 py-3 text-xs leading-relaxed text-text-secondary">
+          {isNew ? (
+            'After saving, assign this role to users from User Management.'
+          ) : (
+            <>
+              {assigned !== null
+                ? `${assigned} ${assigned === 1 ? 'user has' : 'users have'} this role.`
+                : directoryError
+                  ? 'Assigned users are temporarily unavailable.'
+                  : 'Loading assigned users…'}{' '}
+              Changes to this role affect every assigned user.{' '}
+              {users && (
+                <Link
+                  href={`/access/staff?role=${encodeURIComponent(roleKey)}`}
+                  className="ml-1 font-medium text-brand-500 underline underline-offset-2"
+                >
+                  View users
+                </Link>
+              )}
+            </>
+          )}
+        </div>
+      </section>
       {dirty && (
-        <details className="rounded-xl border border-amber-300/60 bg-surface-elevated p-4 text-sm text-text-primary">
-          <summary className="cursor-pointer font-medium">
+        <details className="rounded-xl border bg-surface-elevated px-4 py-3 text-sm text-text-secondary">
+          <summary className="cursor-pointer">
             Review {changes.length} unsaved {changes.length === 1 ? 'change' : 'changes'}
           </summary>
-          <ul className="mt-3 max-h-52 list-disc space-y-1.5 overflow-y-auto pl-5">
+          <ul className="mt-3 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs">
             {changes.map((entry) => (
-              <li key={entry.id} className="break-words text-xs leading-relaxed">
-                {entry.description}
-              </li>
+              <li key={entry.id}>{entry.description}</li>
             ))}
           </ul>
         </details>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-surface-elevated">
-        <table className="w-full text-sm">
-          <caption className="sr-only">Permission names and role access</caption>
-          <thead className="bg-surface-secondary">
-            <tr>
-              <th scope="col" className="min-w-72 p-4 text-left">
-                Permission name
-              </th>
-              {ACCESS_ROLES.map((role) => {
-                const fieldId = `role-name-${role}`;
-                return (
-                  <th key={role} scope="col" className="min-w-40 p-4">
-                    {editable ? (
-                      <>
-                        <Input
-                          id={fieldId}
-                          aria-label={`Name for ${role} role`}
-                          aria-invalid={Boolean(fieldErrors[fieldId])}
-                          aria-describedby={fieldErrors[fieldId] ? `${fieldId}-error` : undefined}
-                          status={fieldErrors[fieldId] ? 'error' : undefined}
-                          maxLength={80}
-                          value={current.roles[role].name}
-                          disabled={saving}
-                          onChange={(event) =>
-                            change((value) => {
-                              value.roles[role].name = event.target.value;
-                            }, fieldId)
-                          }
-                        />
-                        {fieldErrors[fieldId] && (
-                          <p
-                            id={`${fieldId}-error`}
-                            className="mt-1 text-left text-xs font-normal text-red-600"
-                          >
-                            {fieldErrors[fieldId]}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      current.roles[role].name
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(current.permissionNames).map(([key, name]) => {
-              const fieldId = `permission-name-${key}`;
-              return (
-                <tr key={key} className="border-t">
-                  <th scope="row" className="p-4 text-left font-normal">
-                    {editable ? (
-                      <>
-                        <Input
-                          id={fieldId}
-                          aria-label={`Name for ${key}`}
-                          aria-invalid={Boolean(fieldErrors[fieldId])}
-                          aria-describedby={fieldErrors[fieldId] ? `${fieldId}-error` : undefined}
-                          status={fieldErrors[fieldId] ? 'error' : undefined}
-                          maxLength={100}
-                          value={name}
-                          disabled={saving}
-                          onChange={(event) =>
-                            change((value) => {
-                              value.permissionNames[key] = event.target.value;
-                            }, fieldId)
-                          }
-                        />
-                        {fieldErrors[fieldId] && (
-                          <p id={`${fieldId}-error`} className="mt-1 text-xs text-red-600">
-                            {fieldErrors[fieldId]}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <span className="font-medium">{name}</span>
-                    )}
-                    <div className="mt-1 font-mono text-xs text-text-tertiary">{key}</div>
-                  </th>
-                  {ACCESS_ROLES.map((role) => (
-                    <td key={role} className="p-4 text-center">
-                      <Checkbox
-                        aria-label={`${current.roles[role].name}: ${name}`}
-                        disabled={!editable || saving}
-                        checked={current.roles[role].permissions.includes(key)}
-                        onChange={(event) =>
-                          change((value) => {
-                            value.roles[role].permissions = event.target.checked
-                              ? [...value.roles[role].permissions, key]
-                              : value.roles[role].permissions.filter((permission) => permission !== key);
-                          })
-                        }
-                      />
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-text-primary">Permissions</h2>
+          <span className="text-xs text-text-tertiary">KOI workspace</span>
+        </div>
+        <PermissionTree
+          selected={role.permissions}
+          names={current.permissionNames}
+          disabled={!editable || saving}
+          canRename={editable}
+          errors={fieldErrors}
+          onSelection={(permissions) =>
+            change((value) => {
+              value.roles[roleKey].permissions = permissions;
+            })
+          }
+          onRename={(key, name) =>
+            change((value) => {
+              value.permissionNames[key] = name;
+            }, `permission-name-${key}`)
+          }
+        />
       </div>
+      {!editable && <p className="text-xs text-text-tertiary">Only the Owner can edit role definitions.</p>}
     </div>
   );
 }

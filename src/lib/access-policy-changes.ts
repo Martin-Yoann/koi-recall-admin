@@ -1,6 +1,4 @@
-import type { AccessPolicySnapshot, StaffRole } from '@/lib/api-client';
-
-export const ACCESS_ROLES: StaffRole[] = ['ADMIN', 'MANAGER', 'COMPLIANCE'];
+import type { AccessPolicySnapshot } from '@/lib/api-client';
 
 export interface PolicyChange {
   id: string;
@@ -10,7 +8,18 @@ export interface PolicyChange {
 /** Compare editable values, treating each permission list as a set. */
 export function getPolicyChanges(base: AccessPolicySnapshot, next: AccessPolicySnapshot): PolicyChange[] {
   const changes: PolicyChange[] = [];
-  for (const role of ACCESS_ROLES) {
+  for (const role of new Set([...Object.keys(base.roles), ...Object.keys(next.roles)])) {
+    const previousRole = base.roles[role];
+    const nextRole = next.roles[role];
+    if (!previousRole || !nextRole) {
+      changes.push({
+        id: `role:${role}`,
+        description: `${nextRole ? 'Create' : 'Delete'} role “${(nextRole ?? previousRole).name}”`,
+      });
+      continue;
+    }
+    if ((previousRole.description ?? '') !== (nextRole.description ?? ''))
+      changes.push({ id: `description:${role}`, description: `Update description for “${nextRole.name}”` });
     if (base.roles[role].name !== next.roles[role].name) {
       changes.push({
         id: `role:${role}`,

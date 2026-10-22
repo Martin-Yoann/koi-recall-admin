@@ -56,3 +56,15 @@ test('review identifies each grant, revocation, role rename, and permission rena
   assert.ok(changes.some((change) => change.description.includes('Revoke “View cases” from Operations')));
   assert.deepEqual(base, fixture());
 });
+
+
+test('tracks creation, description edits, and deletion of arbitrary role IDs', () => {
+  const base = fixture();
+  const created = structuredClone(base);
+  created.roles.role_support = { name: 'Support', description: 'Case support', permissions: ['case.detail.read'] };
+  assert.deepEqual(getPolicyChanges(base, created).map((change) => change.id), ['role:role_support']);
+  const edited = structuredClone(created);
+  edited.roles.role_support.description = 'Updated description';
+  assert.deepEqual(getPolicyChanges(created, edited).map((change) => change.id), ['description:role_support']);
+  assert.deepEqual(getPolicyChanges(created, base).map((change) => change.id), ['role:role_support']);
+});

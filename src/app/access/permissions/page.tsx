@@ -1,7 +1,4 @@
-'use client';
-
-import { AccessContent } from '@/components/admin/access/access-content';
-
+import { redirect } from 'next/navigation';
 export default function PermissionsPage() {
-  return <AccessContent section="permissions" />;
+  redirect('/access/roles');
 }
