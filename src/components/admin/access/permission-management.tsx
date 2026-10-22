@@ -39,10 +39,10 @@ export function RoleEditor({ roleId, copyFrom }: { roleId: string; copyFrom?: st
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const current = draft?.value ?? policy;
-  const template = copyFrom ? policy?.roles[copyFrom] : undefined;
+  const template = copyFrom && policy && Object.hasOwn(policy.roles, copyFrom) ? policy.roles[copyFrom] : undefined;
   const role = useMemo(
     () =>
-      current?.roles[roleKey] ??
+      (current && Object.hasOwn(current.roles, roleKey) ? current.roles[roleKey] : null) ??
       (isNew
         ? {
             name: template ? `${template.name.slice(0, 75)} copy` : '',
