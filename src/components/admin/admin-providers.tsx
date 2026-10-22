@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ToastProvider } from '@/components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/admin-auth';
+import { NavigationGuardProvider } from '@/components/admin/navigation-guard';
 import { AccessPolicyProvider } from '@/lib/rbac';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { ProfileDialog } from '@/components/admin/profile-dialog';
@@ -34,7 +35,11 @@ function AuthInterceptor({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex-1 w-full h-screen flex flex-col items-center justify-center gap-4 bg-surface-secondary">
-        <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary" style={{ animation: 'spin 0.9s linear infinite' }} aria-hidden="true" />
+        <div
+          className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary"
+          style={{ animation: 'spin 0.9s linear infinite' }}
+          aria-hidden="true"
+        />
         <p className="text-sm text-text-tertiary">Loading…</p>
       </div>
     );
@@ -64,15 +69,17 @@ export function AdminProviders({ children }: { children: React.ReactNode }) {
       <ToastProvider>
         <AdminAuthProvider>
           <AccessPolicyProvider>
-          <ConfirmProvider>
-            <PreferencesEffects />
-            <AuthInterceptor>
-              {/* The login page renders standalone (no admin chrome); every other
+            <ConfirmProvider>
+              <NavigationGuardProvider>
+                <PreferencesEffects />
+                <AuthInterceptor>
+                  {/* The login page renders standalone (no admin chrome); every other
                   route is wrapped in the admin shell. */}
-              {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
-            </AuthInterceptor>
-            <AuthModals />
-          </ConfirmProvider>
+                  {isLogin ? <>{children}</> : <AdminShell>{children}</AdminShell>}
+                </AuthInterceptor>
+                <AuthModals />
+              </NavigationGuardProvider>
+            </ConfirmProvider>
           </AccessPolicyProvider>
         </AdminAuthProvider>
       </ToastProvider>

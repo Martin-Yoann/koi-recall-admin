@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigationGuard } from "@/components/admin/navigation-guard";
 import { usePermissions } from "@/lib/rbac";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { ThemeToggle } from "@/components/admin/theme-toggle";
@@ -378,6 +379,7 @@ const TRANSITION_CHILD =
   "transition-[opacity,transform,background-color,color,padding,gap] duration-[280ms] ease-[cubic-bezier(0.25,0,0.15,1)]";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  const { requestLeave } = useNavigationGuard();
   const { can } = usePermissions();
   const navAllowed = (href: string) => {
     if (href === '/access' || href === '/access/permissions') return true;
@@ -721,7 +723,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    logout();
+                    void requestLeave().then((leave) => { if (leave) void logout(); });
                   }}
                   className="flex h-7 w-7 items-center justify-center rounded-md text-white/35 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                   title="Sign Out"
@@ -918,7 +920,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     style={{ borderColor: "var(--border)" }}
                   >
                     <DropdownMenuItem
-                      onClick={logout}
+                      onClick={() => void requestLeave().then((leave) => { if (leave) void logout(); })}
                       className="cursor-pointer rounded-lg py-2.5 px-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <LogOut className="mr-2.5 h-4.5 w-4.5" />
