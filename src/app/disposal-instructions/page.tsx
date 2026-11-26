@@ -110,6 +110,7 @@ export default function DisposalInstructionsPage() {
   // Create-draft form
   const [campaignVersionId, setCampaignVersionId] = useState("");
   const [title, setTitle] = useState("");
+  const [instructionLocale, setInstructionLocale] = useState<"en-US" | "es-US">("en-US");
   const [steps, setSteps] = useState("");
   const [warnings, setWarnings] = useState("");
   const [requirements, setRequirements] = useState("");
@@ -536,6 +537,11 @@ export default function DisposalInstructionsPage() {
           </div>
         </div>
         <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Language</Label>
+          <select aria-label="Instruction language" className="w-full rounded border p-2" value={instructionLocale} onChange={(e) => setInstructionLocale(e.target.value as "en-US" | "es-US")}>
+            <option value="en-US">English</option><option value="es-US">Español</option>
+          </select>
+          <p className="text-xs text-text-secondary">Enter reviewed content in the selected language. Each version needs its own approval before publication.</p>
           <Label className="text-xs font-medium">Title</Label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
@@ -581,7 +587,7 @@ export default function DisposalInstructionsPage() {
             void run(
               createDisposalInstruction({
                 campaignVersionId: campaignVersionId.trim(),
-                locale: "en-US",
+                locale: instructionLocale,
                 title: title.trim(),
                 steps: toLines(steps).map((text, index) => ({
                   order: index + 1,

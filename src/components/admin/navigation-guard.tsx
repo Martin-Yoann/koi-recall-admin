@@ -45,7 +45,7 @@ export function NavigationGuardProvider({ children }: { children: ReactNode }) {
   const requestLeave = useCallback((): Promise<boolean> => {
     if (!form.current?.dirty && !form.current?.saving) return Promise.resolve(true);
     if (form.current.saving) {
-      toast.info('Permissions are being saved. Please wait.');
+      toast.info('Changes are being saved. Please wait.');
       return Promise.resolve(false);
     }
     if (pending.current) return pending.current;
@@ -53,7 +53,7 @@ export function NavigationGuardProvider({ children }: { children: ReactNode }) {
     pending.current = confirm({
       title: 'Leave with unsaved changes?',
       description:
-        'Your permission changes have not been saved. Leave this page and discard them, or keep editing.',
+        'Your changes have not been saved. Leave this page and discard them, or keep editing.',
       okText: 'Discard and leave',
       cancelText: 'Keep editing',
       destructive: true,

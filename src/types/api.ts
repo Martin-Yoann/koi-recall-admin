@@ -541,6 +541,688 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/disposal-tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a disposal task as its visitor
+         * @description Returns the task with the server-computed allowed actions and blocking reasons. Instruction content is withheld while it is unapproved, withdrawn, or not backed by an authorizing approval, so no improvised destruction method can be shown in its place.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                };
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The disposal task as this visitor may see it. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DisposalTaskView"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disposal-tasks/{taskId}/declaration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record the consumer declaration for a disposal task
+         * @description A declaration cites either an active authorization or an exception. The exception path exists so a consumer who already disposed of the unit can report the truth rather than have a permission back-dated for them.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                };
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RecordDisposalDeclarationRequest"];
+                };
+            };
+            responses: {
+                /** @description The declaration was recorded. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request is refused by the disposal gates. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disposal-tasks/{taskId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a task's evidence photos with their technical status
+         * @description Uses the same six-state upload vocabulary as the claim form, so an upload means the same thing on both surfaces. Technical status only: acceptance is a separate, human decision.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                };
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The task's evidence documents. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DisposalDocumentListResponse"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disposal-tasks/{taskId}/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove one evidence photo that has not entered review
+         * @description Gated on the same policy as uploading evidence, and on the evidence-retention rule: a photo that is part of a submitted batch cannot be removed. Removing a photo is a technical act only and never affects a review decision already made.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                };
+                path: {
+                    taskId: string;
+                    documentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The photo was scheduled for deletion. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request is refused by the disposal gates. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disposal-tasks/{taskId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a batch of disposal evidence photos for review
+         * @description Only technically verified documents of the disposal-evidence category, owned by this task, are accepted. Submitting evidence is not permission to dispose: a person still has to review it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SubmitDisposalEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description The evidence batch was recorded and is awaiting review. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DisposalEvidenceBatchResponse"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request is refused by the disposal gates. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disposal-tasks/{taskId}/upload-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Authorise one disposal evidence upload for a task
+         * @description Gated on the same policy as submitting evidence, so photos cannot start arriving before eligibility is confirmed, an authorizing instruction version exists, or while a hold is in force. The upload itself is technical only: a verified photo is not an accepted one.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Disposal-Token": string;
+                };
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UploadTokenRequest"];
+                };
+            };
+            responses: {
+                /** @description The upload target was authorised. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UploadTokenResponse"];
+                    };
+                };
+                /** @description Invalid request. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The disposal token is missing, wrong, or expired. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Campaign or resource not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request is refused by the disposal gates. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unexpected server error. */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description This capability is not enabled in this environment because a required service or adapter is not configured. */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A required dependency is unavailable. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/recall-campaigns/{slug}": {
         parameters: {
             query?: never;
@@ -552,7 +1234,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    locale?: "en-US";
+                    locale?: "en-US" | "es-US";
                 };
                 header?: never;
                 path: {
@@ -972,6 +1654,11 @@ export interface components {
                 code: string;
                 defaultLocale: string;
                 evidenceRequirements: components["schemas"]["EvidenceRequirement"][];
+                faq?: {
+                    answer: string;
+                    question: string;
+                    topic: string;
+                }[];
                 hazard: string;
                 immediateAction: string;
                 locale: string;
@@ -988,6 +1675,7 @@ export interface components {
                 publishedAt: string | null;
                 remedies: {
                     code: string;
+                    description?: string;
                     displayName: string;
                 }[];
                 remedySummary: string;
@@ -1000,6 +1688,12 @@ export interface components {
                     phone: string;
                 };
                 title: string;
+                translation?: {
+                    /** Format: uuid */
+                    id: string;
+                    revision: number;
+                    sourceVersion: number;
+                };
                 version: number;
             };
         };
@@ -1018,6 +1712,8 @@ export interface components {
              * @example Refund
              */
             approvedResolution: string | null;
+            /** @enum {string|null} */
+            approvedResolutionCode?: "replacement" | "refund" | null;
             /**
              * @description Title of the campaign the case belongs to.
              * @example Music Lollipop Recall
@@ -1041,7 +1737,7 @@ export interface components {
              */
             publicStatus: "received" | "in_review" | "action_required" | "resolution_approved" | "resolution_in_progress" | "completed" | "not_approved" | "closed";
             /**
-             * @description English display copy produced by the API; render verbatim.
+             * @description Legacy English display copy. Localized clients should use publicStatus as the message identifier.
              * @example Under review
              */
             publicStatusLabel: string;
@@ -1050,6 +1746,8 @@ export interface components {
              * @example Replacement
              */
             requestedResolution: string | null;
+            /** @enum {string|null} */
+            requestedResolutionCode?: "replacement" | "refund" | null;
         };
         ClaimDraftResponse: {
             /** Format: uuid */
@@ -1074,6 +1772,10 @@ export interface components {
                 lastName: string;
                 phone?: string;
             };
+            /** @enum {string} */
+            contentLocale?: "en-US" | "es-US";
+            /** Format: uuid */
+            contentTranslationId?: string;
             documentIds: string[];
             /** Format: uuid */
             draftId: string;
@@ -1082,12 +1784,18 @@ export interface components {
             incidentAnswer: "no" | "yes" | "unsure";
             incidentDetails?: components["schemas"]["IncidentDetailsInput"];
             /** @enum {string} */
-            locale: "en-US";
+            locale: "en-US" | "es-US";
             products: components["schemas"]["ClaimedProductInput"][];
             remedyCode: string;
         };
         ClaimSubmissionResponse: {
             caseReference: string;
+            disposal?: {
+                resumePath: string;
+                /** Format: uuid */
+                taskId: string;
+                token: string;
+            };
             /** @enum {string} */
             emailStatus: "queued";
             nextStep: string;
@@ -1120,9 +1828,86 @@ export interface components {
             postalCode: string;
             state: string;
         };
+        /** @enum {string|null} */
+        DisposalAuthorizationStatus: "active" | "suspended" | "revoked" | null;
+        /** @enum {string|null} */
+        DisposalBatchReviewStatus: "pending" | "accepted" | "needs_resubmission" | "superseded" | null;
+        DisposalDocumentListResponse: {
+            documents: components["schemas"]["DisposalEvidenceDocument"][];
+        };
+        /** @enum {string} */
+        DisposalEligibilityStatus: "pending_confirmation" | "confirmed_eligible" | "not_applicable" | "ineligible";
+        DisposalEvidenceBatchResponse: {
+            /** Format: uuid */
+            batchId: string;
+            reviewStatus: components["schemas"]["DisposalBatchReviewStatus"];
+        };
+        DisposalEvidenceDocument: {
+            /** Format: uuid */
+            documentId: string;
+            fileName: string;
+            /** Format: date-time */
+            lastStatusChangedAt: string;
+            /** @enum {string} */
+            status: "uploading" | "verifying" | "verified" | "scan_pending" | "rejected" | "expired";
+            /** @enum {string|null} */
+            statusReason: "mime_mismatch" | "malware_detected" | null;
+            /** Format: date-time */
+            uploadedAt: string | null;
+        };
+        DisposalInstructionStep: {
+            order: number;
+            text: string;
+        };
+        DisposalInstructionView: {
+            declarationTextVersion: string;
+            locale: string;
+            recognitionRequirements: string[];
+            referenceImages: components["schemas"]["DisposalReferenceImage"][];
+            safetyWarnings: string[];
+            steps: components["schemas"]["DisposalInstructionStep"][];
+            title: string;
+            /** Format: uuid */
+            versionId: string;
+            versionNumber: number;
+            videoUrl: string | null;
+        } | null;
+        DisposalReferenceImage: {
+            altText: string;
+            caption?: string;
+            url: string;
+        };
+        /** @enum {string|null} */
+        DisposalReviewReasonCode: "recognition_unclear" | "coverage_insufficient" | "photo_unreadable" | "wrong_product" | "safety_step_not_visible" | "other" | null;
+        DisposalTaskProductView: {
+            /** Format: uuid */
+            campaignProductId: string;
+            confirmedAffected: boolean;
+            quantity: number;
+        };
+        /** @enum {string} */
+        DisposalTaskStatus: "open" | "completed" | "cancelled" | "expired";
+        DisposalTaskView: {
+            allowedActions: string[];
+            authorizationStatus: components["schemas"]["DisposalAuthorizationStatus"];
+            blockingReasons: string[];
+            declarationTextVersion: string | null;
+            eligibilityStatus: components["schemas"]["DisposalEligibilityStatus"];
+            evidenceReviewReasonCode: components["schemas"]["DisposalReviewReasonCode"];
+            evidenceReviewStatus: components["schemas"]["DisposalBatchReviewStatus"];
+            /** Format: date-time */
+            expiresAt: string;
+            holdActive: boolean;
+            instruction: components["schemas"]["DisposalInstructionView"];
+            products: components["schemas"]["DisposalTaskProductView"][];
+            status: components["schemas"]["DisposalTaskStatus"];
+            /** Format: uuid */
+            taskId: string;
+            version: number;
+        };
         DraftDocument: {
             /** @enum {string} */
-            category: "product_photo" | "proof_of_purchase" | "incident_evidence";
+            category: "product_photo" | "proof_of_purchase" | "incident_evidence" | "disposal_evidence";
             /** Format: uuid */
             documentId: string;
             fileName: string;
@@ -1149,7 +1934,7 @@ export interface components {
         EvidenceRequirement: {
             allowedMimeTypes: string[];
             /** @enum {string} */
-            category: "product_photo" | "proof_of_purchase" | "incident_evidence";
+            category: "product_photo" | "proof_of_purchase" | "incident_evidence" | "disposal_evidence";
             instructions: string;
             maximumFileSizeBytes: number;
             maximumFiles: number;
@@ -1160,6 +1945,7 @@ export interface components {
             eventTypes?: ("injury" | "illness" | "choking" | "ingestion" | "fire" | "overheating" | "property_damage" | "near_miss" | "other" | "unknown")[];
             /** @enum {string} */
             failureMode?: "body_rupture" | "battery_exposure" | "choking_hazard" | "leak" | "overheating" | "other" | "unknown";
+            failureModeOtherDescription?: string;
             injuryDescription?: string;
             /** @enum {string} */
             injurySeverity?: "none" | "minor" | "medical_attention" | "hospitalized" | "death" | "unknown";
@@ -1257,6 +2043,7 @@ export interface components {
                 lotCode: string;
             }[];
             brand: string;
+            description?: string;
             flavors: string[];
             name: string;
             /** Format: uuid */
@@ -1279,9 +2066,26 @@ export interface components {
             receiptDocumentIds?: string[];
             sellerOrStore?: string;
         };
+        RecordDisposalDeclarationRequest: {
+            /** Format: uuid */
+            authorizationId?: string;
+            declarationTextVersion: string;
+            exceptionNote?: string;
+            /** @enum {string} */
+            exceptionType?: "already_disposed_before_authorization" | "evidence_unavailable" | "other";
+        };
+        SubmitDisposalEvidenceRequest: {
+            documents: {
+                /** Format: uuid */
+                campaignProductId?: string;
+                /** Format: uuid */
+                documentId: string;
+                quantityCovered?: number;
+            }[];
+        };
         UploadTokenRequest: {
             /** @enum {string} */
-            category: "product_photo" | "proof_of_purchase" | "incident_evidence";
+            category: "product_photo" | "proof_of_purchase" | "incident_evidence" | "disposal_evidence";
             fileName: string;
             mimeType: string;
             sizeBytes: number;

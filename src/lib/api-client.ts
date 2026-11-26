@@ -1661,3 +1661,14 @@ export function saveAccessPolicy(policy: Pick<AccessPolicySnapshot, 'roles' | 'p
     method: 'PUT', headers: authHeaders(), body: JSON.stringify(policy),
   });
 }
+
+// Language revisions are staff-managed; they never change identifiers or eligibility.
+export function getTranslationWorkspace(slug: string) {
+  return fetchApi<import('./translations').TranslationWorkspace>(`/admin/campaigns/${encodeURIComponent(slug)}/translations/es-US`, { headers: authHeaders() });
+}
+export function saveTranslationDraft(slug: string, input: { sourceVersionId: string; sourceHash: string; revisionId: string | null; editVersion: number; content: import('./translations').TranslationContent }) {
+  return fetchApi<import('./translations').TranslationWorkspace>(`/admin/campaigns/${encodeURIComponent(slug)}/translations/es-US`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(input) });
+}
+export function transitionTranslation(slug: string, input: { revisionId: string; editVersion: number; action: 'submit' | 'approve' | 'request_changes' | 'publish'; note: string }) {
+  return fetchApi<import('./translations').TranslationWorkspace>(`/admin/campaigns/${encodeURIComponent(slug)}/translations/es-US/actions`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(input) });
+}

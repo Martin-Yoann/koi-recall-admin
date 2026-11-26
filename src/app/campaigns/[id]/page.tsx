@@ -25,11 +25,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCampaign, listCampaigns } from '@/lib/api-client';
 import type { CampaignView } from '@/lib/api-client';
+import { CampaignReadinessPanel } from '@/components/campaign-readiness-panel';
+import { CampaignTranslationEditor } from '@/components/campaign-translation-editor';
 
-type CampaignTab = 'overview' | 'products' | 'remedies' | 'cases';
+type CampaignTab = 'overview' | 'products' | 'remedies' | 'cases' | 'readiness' | 'translations';
 
 function isCampaignTab(value: string): value is CampaignTab {
-  return value === 'overview' || value === 'products' || value === 'remedies' || value === 'cases';
+  return value === 'overview' || value === 'products' || value === 'remedies' || value === 'cases' || value === 'readiness' || value === 'translations';
 }
 
 export default function CampaignDetailPage() {
@@ -207,12 +209,16 @@ export default function CampaignDetailPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 max-w-full overflow-x-auto">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="products">Products ({campaign.products.length})</TabsTrigger>
             <TabsTrigger value="remedies">Remedies ({campaign.remedies.length})</TabsTrigger>
             <TabsTrigger value="cases">Cases</TabsTrigger>
+            <TabsTrigger value="readiness">Publication review</TabsTrigger>
+            <TabsTrigger value="translations">Languages</TabsTrigger>
           </TabsList>
+          </div>
           {refreshingTab && (
             <span className="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Refreshing {refreshingTab}…
@@ -311,6 +317,13 @@ export default function CampaignDetailPage() {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="translations" keepMounted>
+          <CampaignTranslationEditor key={slug} slug={slug} enabled={activeTab === 'translations'} />
+        </TabsContent>
+        <TabsContent value="readiness" keepMounted>
+          <CampaignReadinessPanel campaign={campaign} />
         </TabsContent>
 
         {/* Cases Tab */}

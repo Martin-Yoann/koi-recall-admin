@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:permissions": "node --test tests/access-policy-changes.test.mjs"
+    "test:permissions": "node --test tests/access-policy-changes.test.mjs",
+    "test:readiness": "node --test tests/campaign-readiness.test.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
